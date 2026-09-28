@@ -161,7 +161,7 @@ fn list_datasets() -> PyResult<String> {
         out.push(Info {
             id: ds.metadata.id.clone(),
             material: ds.metadata.material.clone(),
-            data_class: serde_json::to_value(&ds.metadata.data_class)
+            data_class: serde_json::to_value(ds.metadata.data_class)
                 .ok()
                 .and_then(|v| v.as_str().map(str::to_owned))
                 .unwrap_or_default(),
