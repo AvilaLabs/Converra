@@ -2998,7 +2998,7 @@ fn recompute_cost(
                     _ => module_runs.push((spec.clone(), *len)),
                 }
             }
-            let transitions = module_runs.len() as u32 - 1;
+            let transitions = module_runs.len().saturating_sub(1) as u32;
             // The winding's piece streams: per_module → every module
             // re-walks the run list and resets pieces at its boundary;
             // continuous → one stream whose layer runs cover all `tapes`
