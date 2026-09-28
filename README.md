@@ -1,135 +1,156 @@
 # Converra
 
-**Avila Labs' open-source coil cost optimization workbench, built in Rust and egui.** The engine and CLI crates are named `optcoil-*`; the desktop workbench is Converra.
+**Open-source design and cost optimization for high-temperature superconducting magnets.**
 
-**Expert-level magnet optimization in minutes.** Converra searches for lower-cost, manufacturable HTS magnet designs while holding engineering requirements fixed, and produces an auditable evidence trail (independent acceptance, external kernel cross-checks, verdict semantics that distinguish PASS/FAIL/INCONCLUSIVE/NOT_EVALUATED) alongside the design. Validated to within ~3% of a physically built CERN HTS dipole's conductor mass (OC-010), with magnetostatics independently confirmed against Bluemira (OC-011). The repository ships the full engine, the benchmark suite it was developed against, and the evidence docs recording what each milestone actually proved.
+[![CI](https://github.com/AvilaLabs/Converra/actions/workflows/ci.yml/badge.svg)](https://github.com/AvilaLabs/Converra/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Rust 1.95](https://img.shields.io/badge/Rust-1.95-orange.svg)](rust-toolchain.toml)
 
-## Start here
+Converra helps magnet engineers and researchers compare coil designs against a fixed specification. It searches winding-pack geometry and REBCO conductor choices, screens candidates against declared requirements, and produces a design record with modeled costs, material provenance, constraint checks, and unresolved engineering limits.
 
-Rust 1.95.0 is pinned in `rust-toolchain.toml`. Run these commands from this directory:
+Use the desktop workbench to explore designs, the CLI to run reproducible studies, or the Python bindings to integrate the engine into your own workflow. All calculations run locally through the same Rust engine.
+
+[Download](https://github.com/AvilaLabs/Converra/releases/latest) · [Quick start](#quick-start) · [Documentation](#documentation) · [Contributing](CONTRIBUTING.md)
+
+![Converra desktop workbench comparing the costs and conductor allocations of a baseline and candidate design.](docs/images/design-comparison.png)
+
+*Desktop comparison using the bundled synthetic example. Its material properties and prices are invented benchmark inputs.*
+
+## What you can do
+
+- **Search coil designs.** Compare turn counts, tape counts, parallel strands, and permitted geometry choices while holding field, aperture, operating point, and declared constraints fixed. Planar racetrack, circular, and piecewise line-and-arc paths use the built-in field evaluator; non-planar helical paths require a declared field map.
+- **Compare conductors and grading.** Evaluate material datasets and product options, or assign different conductor specifications to winding regions. Embedded REBCO data includes measured characterizations and explicitly labeled model fits; you can also load your own datasets.
+- **Screen operating limits.** Couple magnetic-field evaluation to critical-current data at sampled tape positions and orientations, with declared utilization, bend, and first-order mechanical limits. Optional screens cover thermal margin, AC loss, and quench bounds. Unsupported material queries produce an explicit unresolved result.
+- **Explore tradeoffs.** Run sensitivity sweeps, compare vendor options, and reprice completed studies with documented price provenance.
+- **Export design evidence.** Save JSON run records, standalone HTML reports, conductor bills of materials, and procurement summaries with piece and splice schedules when declared by the case.
+- **Check the result.** A separate acceptance path recomputes costs and screening checks, including a finer sampling plan where declared. Offline verification checks input hashes and ledger arithmetic; signed dataset bundles support provenance verification.
+
+## Quick start
+
+### Download a release
+
+Prebuilt desktop and CLI binaries are available from [GitHub Releases](https://github.com/AvilaLabs/Converra/releases/latest).
+
+| Platform | Desktop | CLI |
+| --- | --- | --- |
+| Windows x64 | [ZIP](https://github.com/AvilaLabs/Converra/releases/latest/download/converra-windows-x64.zip) | Included in the same ZIP |
+| macOS Apple Silicon | [App ZIP](https://github.com/AvilaLabs/Converra/releases/latest/download/converra-macos-arm64.zip) | [CLI archive](https://github.com/AvilaLabs/Converra/releases/latest/download/converra-macos-arm64-cli.tar.gz) |
+| macOS Intel | [App ZIP](https://github.com/AvilaLabs/Converra/releases/latest/download/converra-macos-x64.zip) | [CLI archive](https://github.com/AvilaLabs/Converra/releases/latest/download/converra-macos-x64-cli.tar.gz) |
+| Linux x64 | [Archive](https://github.com/AvilaLabs/Converra/releases/latest/download/converra-linux-x64.tar.gz) | Included in the same archive |
+
+Extract the archive and launch `Converra` on Windows/Linux or `Converra.app` on macOS. No Rust installation is needed for these builds. The command-line executable is named `optcoil` (`optcoil.exe` on Windows).
+
+The desktop includes a synthetic example. Open a case JSON or create one with **New search case…**, run a search, and inspect the design comparison, materials, and evidence views. The guided builder authors racetrack cases; general planar and non-planar paths are authored as JSON. Linux desktop use requires a graphical session and graphics drivers.
+
+### Build from source
+
+Install [Rust with rustup](https://rustup.rs/), then clone the repository. The pinned toolchain is Rust **1.95.0**.
 
 ```bash
-# Desktop workbench; the example is embedded and loads automatically.
+git clone https://github.com/AvilaLabs/Converra.git
+cd Converra
+
+# Launch the desktop workbench.
 cargo run -p optcoil-app
-
-# Headless allocation and finite-cross-section field benchmarks.
-cargo run -- demo
-cargo run --release -- field-benchmark
-cargo run --release -- material-benchmark
-cargo run --release -- coupled-benchmark
-cargo run --release -- material-validate benchmarks/measured/oc-005.json
-cargo run --release -- material-validate benchmarks/measured/oc-006.json
-cargo run --release -- coupled-search-benchmark --threads 5
-cargo run --release -- coupled-refine-benchmark --threads 5
-
-# A coupled search over an authored case; open records or cases in the workbench too.
-cargo run --release -- coupled-search benchmarks/coupled/oc-007.json --threads 4 --json
-
-# Package a customer material dataset, or run a search directly on it. The
-# case's material.dataset_id and material.csv_sha256 pin the dataset's
-# identity; a mismatch is rejected, never substituted.
-cargo run --release -- dataset-bundle --metadata my-material.json --csv my-measurements.csv   --output customer-data/my-material.bundle.json
-cargo run --release -- coupled-search case.json --dataset-bundle my-material.bundle.json
-
-# Sensitivity: a declared sweep of ic_scale / temperature_k / price_usd_per_m
-# perturbations, each point an ordinary coupled search of the mutated case.
-cargo run --release -- sensitivity case.json sweep.json --output runs/sweep.json
-
-# A self-contained HTML evidence digest of a coupled-search run record.
-cargo run --release -- report runs/oc-012-record.json --output report.html
-
-# Reprice a record at a different conductor price: exact arithmetic on the
-# per-candidate cost ledgers, verdicts carried through unchanged (price
-# never enters physics), emitted as a derived note bound to the source
-# record's sha256. Provenance for the new price is required.
-cargo run --release -- reprice runs/oc-012-record.json \
-  --price-usd-per-m 62.5 --price-provenance "published industry band, midpoint" \
-  --output runs/repriced.json
-
-# Query the low-field extension explicitly; --dataset never silently switches.
-cargo run --release -- material-query --dataset robinson-superpower-ap-v3-lowfield \
-  --temperature-k 21 --applied-field-t 0.3 --angle-from-normal-deg 90
-
-# Save a complete, reproducible record; use a new output filename for each run.
-cargo run -- demo --output runs/oc-001.json
-
-# Inspect or optimize an editable case.
-cargo run -- inspect benchmarks/synthetic/oc-001.json
-cargo run -- run benchmarks/synthetic/oc-001.json --json
-
-# Bound work explicitly, or list the planned integrations.
-cargo run -- demo --max-evaluations 1000
-cargo run -- adapters
 ```
 
-The desktop uses ACTINV's light Avila Labs theme and logo. Open projects with a native file picker or drag-and-drop. Resizable panels, interactive cost/material plots, selectable module tables and an inspector connect allocations to costs and constraints. Search, file dialogs and file operations run on workers. Menus and shortcuts provide opening (`Ctrl+O`), run export (`Ctrl+Shift+S`) and help (`F1`). It uses the same engine as the CLI.
+The engine crates retain the `optcoil-*` names. Cargo defaults to the CLI, so headless commands build without the desktop graphics dependencies.
 
-Native desktop previews: [design comparison](docs/images/design-comparison.png) and [material envelope](docs/images/material-envelope.png). These show the actual synthetic benchmark run.
+### Run a study from the CLI
 
-### Python
-
-The engine is also a Python module — JSON in, JSON out, byte-identical
-records to the CLI:
+Run these commands from the repository root:
 
 ```bash
-pip install maturin
-maturin develop --manifest-path crates/optcoil-py/Cargo.toml
+# Try the small synthetic allocation example.
+cargo run -- demo
+
+# Search a shipped coupled field/conductor case and save its evidence.
+cargo run --release -- coupled-search benchmarks/coupled/oc-007.json \
+  --output runs/design.json
+
+# Verify artifact bindings and cost arithmetic.
+cargo run --release -- verify runs/design.json benchmarks/coupled/oc-007.json
+
+# Export a readable report and a modeled bill of materials.
+cargo run --release -- report runs/design.json --output runs/design.html
+cargo run --release -- bom runs/design.json --output runs/design.bom.json
+```
+
+Coupled searches can take several minutes, depending on the candidate grid and sampling plan. The OC-007 example uses measured conductor data with **synthetic prices**. Run exports protect existing files; choose a new output filename when repeating a study. With a prebuilt CLI, use `optcoil` in place of `cargo run --release --` and supply your case file.
+
+Use `optcoil --help` or `cargo run -- --help` to explore commands for field evaluation, material queries, sensitivity sweeps, dataset comparison, grading reports, and repricing. Keep your own cases and material files in ignored `customer-data/`, and generated records in ignored `runs/`.
+
+### Use the Python bindings
+
+Build the module from source in an activated Python virtual environment:
+
+```bash
+python -m pip install maturin
+maturin develop --release --manifest-path crates/optcoil-py/Cargo.toml
 ```
 
 ```python
+from pathlib import Path
 import converra
-record_json = converra.run_search(open("case.json").read())
-converra.verify_record(record_json)   # independent ledger checks
-converra.render_report(record_json)   # standalone HTML evidence digest
-converra.list_datasets()              # embedded material datasets
+
+case_json = Path("benchmarks/coupled/oc-007.json").read_text()
+record_json = converra.run_search(case_json)
+print(converra.verify_record(record_json, case_json))
+Path("report.html").write_text(converra.render_report(record_json))
 ```
 
-See [crates/optcoil-py/README.md](crates/optcoil-py/README.md) for the
-full surface. Wheels are not on PyPI yet — that is on the
-[roadmap](ROADMAP.md).
+The Python API uses the same case and record JSON schemas as the CLI. See the [Python binding guide](crates/optcoil-py/README.md) for dataset access, sensitivity studies, and comparison workflows. Python wheels are not yet published on PyPI.
 
-**Desktop project input is OptCoil case JSON.** The CLI also imports measured-material CSV files with explicit SI columns and provenance metadata; see [OC-003 commands](docs/OC003.md). STEP CAD import, general Excel import, GUI column mapping and native solver connections are planned. JSON remains the internal case format, not a claimed industry-standard coil interchange format. The workbench's "New search case" builder authors and schema-validates coupled-search cases (`optcoil-coupled-search/v9`) before saving; path-geometry (`fixed_geometry.path`) cases are still authored as JSON externally, though the workbench renders their outlines; other case kinds are still edited externally.
+## Understanding the results
 
-On Linux the desktop needs a graphical session and graphics drivers. Headless users can run every calculation through the CLI. `cargo run --release -p optcoil-app` builds an optimized desktop binary. Cargo's default workspace member is the CLI, so ordinary headless commands do not compile graphics dependencies.
+Converra keeps four outcomes distinct:
 
-## What works now
+| Verdict | Meaning |
+| --- | --- |
+| `PASS` | The evaluated check passed under its declared model and sampling plan. |
+| `FAIL` | The evaluated check violated a declared requirement. |
+| `INCONCLUSIVE` | The available data or model could not resolve the check. |
+| `NOT_EVALUATED` | The check was not performed. |
 
-- Versioned JSON cases with units in field names, stable module/material identities, provenance, bounded material domains and explicit module interfaces.
-- Fixed-geometry allocation of tape grades and integer tape counts across separately wound modules. Exact enumeration is bounded by an evaluation limit and can be cancelled.
-- Conductor, scrap, assembly and joint/change costs. The acceptance module independently recomputes the cost ledger from the selected candidate.
-- Distinct `PASS`, `FAIL`, `INCONCLUSIVE` and `NOT_EVALUATED` outcomes. Unsupported material points are never extrapolated.
-- Full run records containing inputs, options, model/checker/search versions, input hashes, termination reason and assessments. Existing records are never overwritten.
-- A circular-loop axial-field analytical reference with numerical tests, separate from the allocation benchmark.
-- OC-002: a finite-cross-section racetrack field evaluator in Rust, including pack-interior/boundary points, an independent Python-generated reference, refinement gates and reproducible CLI reports. The [benchmark documentation](docs/OC002.md) records its assumptions, measured errors and runtime. The same kernel (`planar-path-uniform-volume-duffy-gauss-graded-metric/v4`) now generates its source cells from an arbitrary piecewise line+arc planar `CoilPath` — D-shapes and picture-frame coils, not only racetracks — and is checked against an independent chord-filament walk of the same path; coupled-search schema v9 / coupled-conductor schema v5 declare a `path` centerline (OC-019), so general planar shapes run end to end through the search, not only through the physics API.
-- OC-003: attributed measured SuperPower conductor data, CSV import, interpolation using actual temperature/field/angle coordinates, domain/criterion checks, whole-plane validation and a separately reserved challenge. [Results and limitations](docs/OC003.md) include the failed linear baseline and passing logarithmic model.
-- OC-004: couples the OC-002 field evaluator to the OC-003 bridge law at explicit tape positions and orientations, producing a screening operating-current margin with reference-checked numerics. [Results and limitations](docs/OC004.md) include a determined FAIL candidate (utilization over its declared limit) and the still-`INCONCLUSIVE` conductor-qualification status; it is not a production operating-current limit.
-- OC-005: validates the OC-003 interpolator against simultaneous multi-axis withheld planes (temperature, field and angle at once), the direct analogue of an OC-004 query. [Results and limitations](docs/OC005.md): the three-axis stratum's worst positive error (8.637%) stays under the 0.10 gate OC-004's overprediction budget depends on, so that budget is retained, but the fold's own overall status is `FAIL` on a separate general worst-error gate (25.034%, an underprediction at a known ab-plane peak).
-- OC-006: adds a second embedded dataset, `robinson-superpower-ap-v3-lowfield` (`--dataset` on `material-query`/`material-validate` selects it explicitly; the original dataset and every OC-003/OC-004/OC-005 benchmark stay byte-identical), extending the characterization region down to 0.05–0.7 T. [Results and limitations](docs/OC006.md): the fold covering the new range (`low_field_planes`) passes every gate cleanly, but the benchmark's overall `interpolation_validation_status` is `FAIL` — driven by the same 35 K/7 T ab-plane peak OC-003 and OC-005 already flagged, not by the low-field data — while the low-field fold itself passes every gate. Under the pre-declared rule, which keys on the low-field folds, a future coupled case may pin the extension with that limitation disclosed; OC-004 itself is frozen and keeps its clamp below 1 T.
-- OC-007: the first end-to-end coupled cost search — an exhaustive discrete search over racetrack pack geometry (turns x tapes, 15 candidates) under a fixed 0.9 T bore-field requirement, screened through the unmodified OC-004 coupled runner (reused, not reimplemented), with conservative coarse-plan pruning and a separate independent acceptance recomputation, including a finer refined-plan re-check of the selected optimum and the baseline. [Results](docs/OC007.md): the frozen primary case (OC-006's low-field dataset) finds a **120x4 optimum at $41,513.13 versus a $50,541.41 baseline — $9,028.28, 17.863% modeled savings** (synthetic prices, screening model), with `search_status: PASS` and acceptance agreement `PASS`. The pre-declared original-dataset control run reproduces the identical candidate table and optimum at the search level, but its acceptance-level refined-plan check comes back `INCONCLUSIVE` on 2 of 6,400 points — a genuine, diagnosed low-field angular-coverage gap in the original dataset, exactly the gap OC-006 was built to close. Both cases were re-run 2026-09-10 under a metric-consistent kernel fix (kernel v3, OC-008 contract Stage K): every status, the optimum and the saving figure are unchanged, and the v2-kernel records remain in `runs/` as superseded history — see [OC-007](docs/OC007.md)'s own re-validation section.
-- OC-008: bracketing refinement of OC-007's discrete-grid optimum — per-pancake-count integer bisection (5 declared pancake counts, 2/3/4/5/6 tapes) finds the smallest passing turn count `n*(p)` at each, then selects the cheapest across `p`, reusing OC-007's own screening pipeline and acceptance module. [Results](docs/OC008.md): the global optimum is **72 turns x 6 tapes at $39,021.82** — $2,491.31 (6.001%) cheaper than OC-007's own 120x4 optimum and $11,519.60 (22.792%) cheaper than the original 200x3 baseline (both **modeled, synthetic prices, screening model**), `search_status: PASS`, acceptance agreement `PASS`. The optimum sits at the *top* of the declared pancake range and within 0.0235 utilization of the 0.8 limit — under this model a higher pancake count was not ruled out, and this design carries no margin beyond the declared interpolation and utilization limits, both stated plainly rather than implied as spare headroom.
-- OC-010: measured parity study against CERN's Feather-M2 — a coil that was actually wound. [Results](docs/OC010.md): the verified optimum lands ~3% below the ~190 m published tape estimate, parallel-strand cables buy feasibility but never savings (capacity scales with conductor-metres exactly), and the small-radius corner correctly reports `INCONCLUSIVE` at the tape-edge self-field boundary rather than certifying what the model can't resolve.
-- OC-011: independent kernel verification — Bluemira's own Biot–Savart implementation (installed from source, CAD/FEM stack stubbed, never exercised) agrees with our evaluator to **max |dB|/B ~5e-4, direction within 0.012°** across every OC-010 optimum. [Method and results](docs/OC011.md).
-- OC-012: the first customer-style deliverable — a startup-scale 5 T / 80 mm demonstration-dipole spec through the full pipeline. [Results](docs/OC012.md): **~20% verified conductor reduction** vs a feasible declared baseline (coarse plan), and a complete per-candidate *blocker map* — every INCONCLUSIVE names its physical boundary (measured-data coverage vs oblique-field angle), which is itself the deliverable.
-- OC-013/OC-015: the priced cases — sourced `$62.5/m` band midpoint for 12 mm REBCO. [OC-013](docs/OC013.md) (v4): $700 / 0.68% verified savings, acceptance PASS — a savings-floor result. OC-015 is the corrected-semantics (v5) counterpart.
-- OC-014: the self-field work — Phase 1 `uniform_transport` correction (schema v5/v2) implemented and exercised end-to-end; [Phase 2 spec](docs/OC014.md) (critical-state strip) written against the measured residual population.
-- OC-016: the coverage-boundary sensitivity study — a labeled model extension (`robinson-superpower-ap-v3-modelext`, schema v2, anchored power-law continuation to 20 T with a conservative margin) reruns the OC-012 grid. [Results](docs/OC016.md): coverage blockers go 54 → 0 and the model-informed optimum at the feasible-baseline cell is **75% lighter than baseline** — the size of the prize behind the data wall, explicitly *not* a measured-data-verified claim.
-- OC-017: the `transverse_bound` along-current model (search schema v6, conductor v3, run record v3) — over-limit field tilts in `0.20 < f ≤ 0.50` are queried at full magnitude and transverse-plane angle and labeled `along_current_bounded` instead of excluded; above the ceiling they remain excluded. [Docs](docs/OC017.md). The v6mx OC-012 rerun quantifies the last INCONCLUSIVE class.
-- OC-018: the hoop-stress mechanical bound (search schema v7, run record v6) — `σ = (I_op/s)·B_peak·R_outer / A_section` with the load path declared, turning the v4 force-per-length surrogate into the stress quantity conductor limits are published in. [Docs](docs/OC018.md).
-- OC-019: planar-general paths end to end (search schema v9, conductor schema v5, search model v9) — `fixed_geometry.path` declares a closed piecewise line+arc centerline (the D-shape fixture), `Station::Path { s_m }` locates sampling stations by arc length, bend screening uses minimum local curvature radius, and the cost ledger meters tape along offset curves. Racetrack cases (v1–v8) are unchanged and stay bit-comparable; the generated conductor case carries the v5 schema so the OC-004 runner and acceptance evaluate the identical path.
-- OC-020: graded packs end to end (search schema v10, conductor schema v6, search model v11) — named `tape_specs` each bind a full material dataset binding plus a price, `grading.regions` map fractional turn ranges to per-region spec choices, and the search enumerates the geometry × assignment product. Each turn screens under its own resolved dataset/interpolator and meters tape at its assigned spec's price (scrap included); generated conductor cases carry explicit `winding.regions`, and acceptance independently recomputes the graded ledger against the full multi-dataset map. The OC-020 fixture assigns a cheaper low-field-binned tape option to each half of the pack — the mechanism behind radial grading, on measured data, at placeholder prices.
-- See also: [supported domains](docs/SUPPORTED_DOMAINS.md) — the honest spec sheet.
+**A screening pass does not establish production engineering acceptance.** Read the individual checks and limitations in the record. Offline `verify` checks artifact integrity and arithmetic; it does not validate the underlying physics.
 
-The included `oc-001` case has a $932 baseline and a $824 optimum under its synthetic model: $108, or approximately 11.59%, in modeled savings across 4,096 allocations. **These are invented benchmark inputs, not evidence of real magnet savings.** See the [hand calculation](docs/BENCHMARK.md).
+Material data carries its source, operating domain, and data class into each record. Measured data, published model fits, model extensions, and synthetic inputs remain distinguishable. Converra does not silently extrapolate beyond a dataset's supported domain.
 
-## What comes next
+Most embedded measured characterizations cover approximately **20–40 K and fields up to 8 T**, with dataset-specific field floors and angular coverage. Higher-field model fits and extensions are explicitly labeled as model-informed. Customer datasets can extend the usable domain; see [loading material data](docs/DATASETS.md) and the [vendor dataset guide](docs/VENDOR_DATASETS.md).
 
-The allocation model still uses prescribed fields and ideal current sharing. OC-004 now couples OC-002's finite-pack field to OC-003's measured conductor response at explicit tape positions, but that coupling is a screening margin, not yet connected to tape allocation or the desktop workflow: width transfer is unmodeled (`width_transfer.basis: none`), OC-005's multi-axis validation retains OC-004's 0.10 overprediction budget but its own fold FAILs a separate general worst-error gate, and `conductor_qualification_status` stays `INCONCLUSIVE`. HTS current sharing, mechanics, thermal behavior, quench and a real winding process remain `NOT_EVALUATED`. The cost checker is separate from search, but both use the same synthetic capacity model.
+The current models include declared self-field corrections and first-order mechanical, thermal, and quench screens where configured. They do not replace full structural analysis, cooling-system design, quench-protection qualification, or manufacturing validation. External solver field maps can be imported; native COMSOL, Ansys, and Allsolve connectors are planned.
 
-Allsolve, COMSOL and Ansys have explicit adapter contracts and capability placeholders. **No commercial solver connector is implemented.** FEM, CAD import, continuous optimization and production engineering acceptance remain future work. The first measured material entry is research characterization, not a qualified library of supplier lots.
+## Benchmarks and validation
 
-Permitted manufacturing changes, width transfer and the remaining engineering checks are the next work. See [the roadmap](ROADMAP.md), [architecture](docs/ARCHITECTURE.md), [allocation benchmark](docs/BENCHMARK.md), [field benchmark](docs/OC002.md), [material benchmark](docs/OC003.md) and [coupled screening benchmark](docs/OC004.md).
+The repository includes frozen cases, independent reference tools, and reports documenting results and limitations. Representative studies include:
 
-## Development
+| Study | Documented result | Scope |
+| --- | --- | --- |
+| [CERN Feather-M2 comparison](docs/OC010.md) | 184 m of equivalent tape versus an approximate 190 m reference derived from published design data. | Coarse screening comparison; the closest candidate's refined check remained `INCONCLUSIVE`. |
+| [Bluemira field cross-check](docs/OC011.md) | Finite-cross-section field agreement of approximately 2–4 × 10⁻⁶ relative across the tested optimum-cell probe sets. | Independent numerical implementation of the same uniform-current physical model. |
+| [Coupled cost refinement](docs/OC008.md) | 22.792% lower modeled cost than the original OC-007 baseline. | A bounded design search with synthetic prices and a screening model. |
+| [Non-planar helix screening](docs/OC031.md) | No passing design in the declared candidate set; the record identifies current-capacity and data-coverage blockers. | Declared-field-map screening with measured material data. |
+
+These results describe the individual benchmark cases. Dollar savings depend on the declared prices, manufacturing costs, and baseline; conductor comparisons depend on the stated geometry and material assumptions.
+
+## Documentation
+
+| Guide | Use it for |
+| --- | --- |
+| [Technical overview](docs/TECHNICAL_SUMMARY.md) | Design approach, evidence, and model assumptions. |
+| [Material and screening domains](docs/SUPPORTED_DOMAINS.md) | Dataset envelopes, self-field regimes, and mechanical screens. |
+| [Architecture](docs/ARCHITECTURE.md) | Engine structure, versioned schemas, and acceptance logic. |
+| [Material datasets](docs/DATASETS.md) · [Vendor datasets](docs/VENDOR_DATASETS.md) | Custom data, provenance, signed bundles, and registry checks. |
+| [Sensitivity studies](docs/SENSITIVITY.md) · [Dataset comparisons](docs/BAKEOFF.md) | Operating-point sweeps and conductor/product comparisons. |
+| [Grading reports](docs/GRADING.md) · [Bills of materials](docs/BOM.md) | Regional conductor choices and modeled procurement outputs. |
+| [Python bindings](crates/optcoil-py/README.md) · [Packaging](packaging/README.md) | Python integration and desktop/CLI distribution. |
+| [Roadmap](ROADMAP.md) · [Changelog](CHANGELOG.md) | Planned work and release history. |
+
+## Contributing
+
+Contributions to measured-data coverage, independent validation, numerical methods, and engineering workflows are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for data provenance, benchmark, and development conventions. Report bugs or propose improvements through [GitHub Issues](https://github.com/AvilaLabs/Converra/issues).
+
+Before submitting changes, run:
 
 ```bash
 cargo fmt --all --check
@@ -137,8 +158,6 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-To capture all four desktop pages using the actual synthetic calculation, run `OPTCOIL_CAPTURE_DIR=/tmp/optcoil-capture cargo run -p optcoil-app` in a graphical session. This opt-in rendering check exports PNGs and closes the app. Ordinary startup does not run a calculation automatically.
+## License
 
-For headless engine work: `cargo test --workspace --exclude optcoil-app`. Add `--offline` when using an already populated Cargo cache. Keep `Cargo.lock` in source control for reproducibility; no customer files belong in the synthetic benchmark directory.
-
-Converra is open source under the [MIT license](LICENSE). Third-party dependencies retain their own licenses, and the measured conductor datasets under `data/materials/` retain theirs — each carries attribution in its own README. Nothing here uploads data or contacts any solver service; every calculation runs locally.
+Converra is developed by **Avila Labs** and released under the [MIT license](LICENSE). Third-party dependencies and conductor datasets retain their own licenses; attribution and data terms are documented alongside each dataset in [`data/materials/`](data/materials/).
