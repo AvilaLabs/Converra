@@ -1,9 +1,9 @@
 {
  "schema": "optcoil-measured-material/v2",
- "id": "babouche-superpower-m31477-memfit-v1",
+ "id": "babouche-sst-yp506-memfit-v2",
  "data_class": "published_model_fit",
- "material": "SuperPower M3-1477-8 0508 REBCO coated conductor",
- "sample_id": "M3-1477-8 0508",
+ "material": "Shanghai Superconductor Technology YP-506 REBCO coated conductor",
+ "sample_id": "YP-506",
  "source_doi": "10.1088/1361-6668/ae940e",
  "source_url": "https://iopscience.iop.org/article/10.1088/1361-6668/ae940e",
  "authors": [
@@ -16,10 +16,10 @@
  "license": "CC-BY-4.0",
  "license_url": "https://creativecommons.org/licenses/by/4.0/",
  "measurement_dates": "tapes received 2023; article accepted 2026",
- "source_xlsx_sha256": "915ba39212da27046a35fdcda51af55800d2c661aadd74b0571f283d743f16c9",
- "csv_sha256": "a981be9d8e9fa8505018996d82716287b279075a0a01a9e4280eb967b6229eb1",
+ "source_xlsx_sha256": "f05829ca1efbaf2fd852efc180142cb6e8c7b6541e3404936a35fa532252348b",
+ "csv_sha256": "ffbb074d4ea2bebd99272c7e2b312c9e372165cb8c07e90049426955e25aa0aa",
  "preparation_source_sha256": "8c2747588764d48ff6143886cd4fde48c251edca042aa1025aaaa0d514232b76",
- "source_description_sha256": "de2019d35621999093734bc76436f921c34a5442836dc2f0f71976f9f2b781a7",
+ "source_description_sha256": "17bdb5742531c24965365eb653be8884f85766e81502ab41c4b79d5b4e38a4e9",
  "electric_field_criterion_v_per_m": 0.0001,
  "voltage_tap_spacing_m": 0.005,
  "measured_bridge_width_m": 0.004,
@@ -34,7 +34,9 @@
   "nominal_temperature_k": [
    10.0,
    15.0,
+   17.5,
    20.0,
+   22.5,
    25.0,
    30.0,
    35.0
@@ -44,7 +46,10 @@
    10.0,
    12.0,
    14.0,
-   16.0
+   16.0,
+   17.0,
+   18.0,
+   19.0
   ],
   "nominal_angle_range_deg": [
    0.0,
@@ -56,7 +61,7 @@
   "field_ratio": 1.5,
   "angle_deg": 5.0
  },
- "point_count": 2093,
+ "point_count": 3731,
  "limitations": [
   "MODEL-FIT DATASET: every row is an evaluation of the published maximum-entropy-model parametrization (Babouche et al. 2026, doi:10.1088/1361-6668/ae940e, CC BY 4.0), not a measurement. No verdict produced with this dataset is measured-data-verified.",
   "MEM parameters are published only at four (B,T) corners {(14,5),(7.5,20),(19,20),(10,55)}; grid nodes between them use the paper's prescribed linear-in-(B,T) parameter interpolation. Interpolated interior nodes are model-generated twice over (fit + parameter interpolation).",
@@ -64,6 +69,7 @@
   "Angular positions fixed at theta_L=0 deg, theta_G=90 deg per the paper's interpolation convention (fitted centers were 0/90+-3 deg).",
   "Published-fit residual vs the paper's measured anchors is nonzero: e.g. SuperPower 19 T/20 K c-axis Ic fit 312 A vs measured 268 A (+16%); SST 152 A vs 136 A (+12%). Relative angular anisotropy is the meaningful content, not absolute capacity.",
   "n_value is a declared placeholder (20.0); the source reports critical current only. voltage_tap_spacing_m is nominal; the UNIGE full-tape tap geometry is not published.",
-  "Full-width 4 mm tape data; not a per-lot manufacturer guarantee."
+  "Full-width 4 mm tape data; not a per-lot manufacturer guarantee.",
+  "v2 extends the emitted grid toward the quad's high-field corner: 17-19 T rows exist only where the published parameter quad covers them (all of them at T in [15, 25] K; 19 T exists only at T=20 K exactly). High-field coverage is therefore narrow in temperature \u2014 queries between emitted (T,B) nodes are interpolations of the model fit, never extrapolations."
  ]
 }

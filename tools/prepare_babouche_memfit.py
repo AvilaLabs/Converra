@@ -34,6 +34,12 @@ pass if the published MEM parametrization held at those conditions.
 Angular component sets follow the paper: below 40 K the model is two
 Lorentzians plus one Gaussian (G2/G3 are defined only at >=40 K in the
 source), so grid nodes are emitted only for T <= 35 K.
+
+Two dataset ids are emitted per tape: `-v1` on the original grid
+(23 in-quad nodes, unchanged byte-for-byte) and `-v2` on a grid
+extended toward the quad's 19 T corner (same parameters, denser T
+levels near 20 K).  v2 is a new dataset identity — v1 stays embedded
+so cases pinned to it are unaffected.
 """
 
 import csv
@@ -57,46 +63,84 @@ OUT = os.path.join(ROOT, "data/materials")
 #   C = (19 T, 20 K)  table 2 (fitted at measured condition)
 #   D = (10 T, 55 K)  table 2 (fitted; extra G2/G3 components unused: the
 #                     grid stays <= 35 K in the 2L+G1 regime)
+_SUPERPOWER_CORNERS = {
+    "A": {"B": 14.0, "T": 5.0,
+          "L1": (17.02, 0.34), "L2": (37.75, 0.73), "G1": (1.74, 0.21)},
+    "B": {"B": 7.5, "T": 20.0,
+          "L1": (6.90, 0.18), "L2": (37.19, 0.79), "G1": (1.61, 0.18)},
+    "C": {"B": 19.0, "T": 20.0,
+          "L1": (2.778, 0.068), "L2": (16.537, 0.420), "G1": (1.889, 0.250)},
+    "D": {"B": 10.0, "T": 55.0,
+          "L1": (0.094, 0.090), "L2": (2.278, 0.930), "G1": (0.500, 0.400)},
+}
+_SST_CORNERS = {
+    "A": {"B": 14.0, "T": 5.0,
+          "L1": (3.50, 0.13), "L2": (6.78, 0.84), "G1": (0.21, 0.29)},
+    "B": {"B": 7.5, "T": 20.0,
+          "L1": (1.40, 0.08), "L2": (6.13, 0.84), "G1": (0.11, 0.25)},
+    "C": {"B": 19.0, "T": 20.0,
+          "L1": (0.826, 0.043), "L2": (3.325, 0.750), "G1": (0.055, 0.250)},
+    "D": {"B": 10.0, "T": 55.0,
+          "L1": (0.182, 0.017), "L2": (0.894, 0.844), "G1": (0.005, 0.100)},
+}
+
+# Quad vertex order in (B,T) space: A bottom, B left, C right, D top.
+V = {"A": (14.0, 5.0), "B": (7.5, 20.0), "C": (19.0, 20.0), "D": (10.0, 55.0)}
+
+# v1 grid: the original emitted set (23 in-quad nodes).
+T_LEVELS_V1 = [10.0, 15.0, 20.0, 25.0, 30.0, 35.0]
+B_LEVELS_V1 = [8.0, 10.0, 12.0, 14.0, 16.0]
+# v2 grid: extended toward the quad's high-field corner (19 T @ 20 K)
+# and densified in T near 20 K where the quad is widest.  Still no
+# extrapolation: nodes outside the published quad are never emitted.
+T_LEVELS_V2 = [10.0, 15.0, 17.5, 20.0, 22.5, 25.0, 30.0, 35.0]
+B_LEVELS_V2 = [8.0, 10.0, 12.0, 14.0, 16.0, 17.0, 18.0, 19.0]
+
 TAPES = {
     "babouche-superpower-m31477-memfit-v1": {
         "material": "SuperPower M3-1477-8 0508 REBCO coated conductor",
         "sample_id": "M3-1477-8 0508",
         "ic77sf_a": 59.0,
         "tape_width_m": 0.004,
-        "corners": {
-            "A": {"B": 14.0, "T": 5.0,
-                  "L1": (17.02, 0.34), "L2": (37.75, 0.73), "G1": (1.74, 0.21)},
-            "B": {"B": 7.5, "T": 20.0,
-                  "L1": (6.90, 0.18), "L2": (37.19, 0.79), "G1": (1.61, 0.18)},
-            "C": {"B": 19.0, "T": 20.0,
-                  "L1": (2.778, 0.068), "L2": (16.537, 0.420), "G1": (1.889, 0.250)},
-            "D": {"B": 10.0, "T": 55.0,
-                  "L1": (0.094, 0.090), "L2": (2.278, 0.930), "G1": (0.500, 0.400)},
-        },
+        "corners": _SUPERPOWER_CORNERS,
+        "t_levels": T_LEVELS_V1,
+        "b_levels": B_LEVELS_V1,
+    },
+    "babouche-superpower-m31477-memfit-v2": {
+        "material": "SuperPower M3-1477-8 0508 REBCO coated conductor",
+        "sample_id": "M3-1477-8 0508",
+        "ic77sf_a": 59.0,
+        "tape_width_m": 0.004,
+        "corners": _SUPERPOWER_CORNERS,
+        "t_levels": T_LEVELS_V2,
+        "b_levels": B_LEVELS_V2,
+        "extra_limitations": [
+            "v2 extends the emitted grid toward the quad's high-field corner: 17-19 T rows exist only where the published parameter quad covers them (all of them at T in [15, 25] K; 19 T exists only at T=20 K exactly). High-field coverage is therefore narrow in temperature — queries between emitted (T,B) nodes are interpolations of the model fit, never extrapolations.",
+        ],
     },
     "babouche-sst-yp506-memfit-v1": {
         "material": "Shanghai Superconductor Technology YP-506 REBCO coated conductor",
         "sample_id": "YP-506",
         "ic77sf_a": 171.0,
         "tape_width_m": 0.004,
-        "corners": {
-            "A": {"B": 14.0, "T": 5.0,
-                  "L1": (3.50, 0.13), "L2": (6.78, 0.84), "G1": (0.21, 0.29)},
-            "B": {"B": 7.5, "T": 20.0,
-                  "L1": (1.40, 0.08), "L2": (6.13, 0.84), "G1": (0.11, 0.25)},
-            "C": {"B": 19.0, "T": 20.0,
-                  "L1": (0.826, 0.043), "L2": (3.325, 0.750), "G1": (0.055, 0.250)},
-            "D": {"B": 10.0, "T": 55.0,
-                  "L1": (0.182, 0.017), "L2": (0.894, 0.844), "G1": (0.005, 0.100)},
-        },
+        "corners": _SST_CORNERS,
+        "t_levels": T_LEVELS_V1,
+        "b_levels": B_LEVELS_V1,
+    },
+    "babouche-sst-yp506-memfit-v2": {
+        "material": "Shanghai Superconductor Technology YP-506 REBCO coated conductor",
+        "sample_id": "YP-506",
+        "ic77sf_a": 171.0,
+        "tape_width_m": 0.004,
+        "corners": _SST_CORNERS,
+        "t_levels": T_LEVELS_V2,
+        "b_levels": B_LEVELS_V2,
+        "extra_limitations": [
+            "v2 extends the emitted grid toward the quad's high-field corner: 17-19 T rows exist only where the published parameter quad covers them (all of them at T in [15, 25] K; 19 T exists only at T=20 K exactly). High-field coverage is therefore narrow in temperature — queries between emitted (T,B) nodes are interpolations of the model fit, never extrapolations.",
+        ],
     },
 }
 
-# Quad vertex order in (B,T) space: A bottom, B left, C right, D top.
-V = {"A": (14.0, 5.0), "B": (7.5, 20.0), "C": (19.0, 20.0), "D": (10.0, 55.0)}
-
-T_LEVELS = [10.0, 15.0, 20.0, 25.0, 30.0, 35.0]
-B_LEVELS = [8.0, 10.0, 12.0, 14.0, 16.0]
 ANGLE_STEP_DEG = 2.0
 N_VALUE = 20.0  # declared placeholder; the source reports Ic only
 
@@ -166,8 +210,8 @@ def build(tape_id, spec):
     rows = []
     emitted = []  # (T,B) nodes actually inside the quad
     src = 800_000
-    for t in T_LEVELS:
-        for b in B_LEVELS:
+    for t in spec["t_levels"]:
+        for b in spec["b_levels"]:
             p = interp_params(corners, t, b)
             if p is None:
                 continue
@@ -274,6 +318,7 @@ def write_dataset(tape_id, spec):
             "Published-fit residual vs the paper's measured anchors is nonzero: e.g. SuperPower 19 T/20 K c-axis Ic fit 312 A vs measured 268 A (+16%); SST 152 A vs 136 A (+12%). Relative angular anisotropy is the meaningful content, not absolute capacity.",
             "n_value is a declared placeholder (20.0); the source reports critical current only. voltage_tap_spacing_m is nominal; the UNIGE full-tape tap geometry is not published.",
             "Full-width 4 mm tape data; not a per-lot manufacturer guarantee.",
+            *spec.get("extra_limitations", []),
         ],
     }
 
@@ -288,7 +333,7 @@ def write_dataset(tape_id, spec):
         "method": "published MEM parameters (tables 2-3) -> bilinear-in-(B,T) parameter interpolation inside the published quad -> MEM eqs. 1-2 on 2 deg angular grid",
         "emitted_nodes": emitted,
         "skipped_nodes_outside_quad": [
-            [t, b] for t in T_LEVELS for b in B_LEVELS
+            [t, b] for t in spec["t_levels"] for b in spec["b_levels"]
             if (t, b) not in emitted],
         "point_count": len(rows),
         "csv_sha256": csv_sha,

@@ -45,6 +45,18 @@ design space; any verdict depending on a modeled node is model-informed,
 not measured-data-verified — the `data_class` label and the `modelext`
 dataset id make that distinction part of every bound record.
 
+**Published model fits (sizing/exploration only):** `babouche-*-memfit-*`
+datasets evaluate the published maximum-entropy-model parametrization of
+Babouche et al. 2026 (doi:10.1088/1361-6668/ae940e, CC BY 4.0) on a
+declared interior grid — every row is a model evaluation, none a
+measurement (`data_class: published_model_fit`). Domain is the published
+parameter quad in (T,B): T ≤ 35 K in the two-Lorentzian+Gaussian regime,
+fields up to the quad's 19 T corner — the `-v2` ids emit nodes to
+17–19 T near 20 K where the quad covers them (19 T exists only at
+20 K exactly); `-v1` ids keep the original ≤16 T grid. These datasets
+quantify which candidates *would* pass if the published fit held —
+verdicts are model-informed, never measured-data-verified.
+
 ## Self-field regime
 
 | Case | Handling |

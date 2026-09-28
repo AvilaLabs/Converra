@@ -979,19 +979,10 @@ mod tests {
     }
 
     fn embedded_datasets() -> Vec<MaterialDataset> {
-        [
-            "robinson-shanghai-hflt-v3",
-            "robinson-superpower-ap-v3",
-            "robinson-superpower-ap-v3-lowfield",
-            "robinson-superpower-ap-v3-modelext",
-            "robinson-theva-ap-v2",
-            "babouche-superpower-m31477-memfit-v1",
-            "babouche-sst-yp506-memfit-v1",
-            "robinson-ffj-ybco-v1",
-        ]
-        .into_iter()
-        .map(|id| MaterialDataset::embedded_by_id(id).expect("embedded dataset"))
-        .collect()
+        MaterialDataset::EMBEDDED_IDS
+            .iter()
+            .map(|id| MaterialDataset::embedded_by_id(id).expect("embedded dataset"))
+            .collect()
     }
 
     /// For every embedded dataset and every interpolation method: random

@@ -54,6 +54,22 @@ pub const BABOUCHE_SST_METADATA: &str =
 pub const BABOUCHE_SST_CSV: &[u8] =
     include_bytes!("../../../data/materials/babouche-sst-yp506-memfit-v1/measurements.csv");
 
+/// Extended-grid variant of the same published MEM fit: identical
+/// parameters, wider emitted (T,B) node set reaching the quad's 19 T
+/// corner at 20 K.  New dataset identity; v1 stays embedded unchanged.
+pub const BABOUCHE_SP_V2_ID: &str = "babouche-superpower-m31477-memfit-v2";
+pub const BABOUCHE_SP_V2_METADATA: &str =
+    include_str!("../../../data/materials/babouche-superpower-m31477-memfit-v2/material.json");
+pub const BABOUCHE_SP_V2_CSV: &[u8] =
+    include_bytes!("../../../data/materials/babouche-superpower-m31477-memfit-v2/measurements.csv");
+
+/// Extended-grid variant; see `BABOUCHE_SP_V2_ID`.
+pub const BABOUCHE_SST_V2_ID: &str = "babouche-sst-yp506-memfit-v2";
+pub const BABOUCHE_SST_V2_METADATA: &str =
+    include_str!("../../../data/materials/babouche-sst-yp506-memfit-v2/material.json");
+pub const BABOUCHE_SST_V2_CSV: &[u8] =
+    include_bytes!("../../../data/materials/babouche-sst-yp506-memfit-v2/measurements.csv");
+
 pub const SHANGHAI_HFLT_METADATA: &str =
     include_str!("../../../data/materials/robinson-shanghai-hflt-v3/material.json");
 pub const SHANGHAI_HFLT_CSV: &[u8] =
@@ -650,6 +666,8 @@ impl MaterialDataset {
         FFJ_YBCO_ID,
         BABOUCHE_SP_ID,
         BABOUCHE_SST_ID,
+        BABOUCHE_SP_V2_ID,
+        BABOUCHE_SST_V2_ID,
     ];
 
     /// An unrecognized id is rejected explicitly rather than silently
@@ -662,6 +680,8 @@ impl MaterialDataset {
             }
             BABOUCHE_SP_ID => Self::from_csv(BABOUCHE_SP_METADATA, BABOUCHE_SP_CSV),
             BABOUCHE_SST_ID => Self::from_csv(BABOUCHE_SST_METADATA, BABOUCHE_SST_CSV),
+            BABOUCHE_SP_V2_ID => Self::from_csv(BABOUCHE_SP_V2_METADATA, BABOUCHE_SP_V2_CSV),
+            BABOUCHE_SST_V2_ID => Self::from_csv(BABOUCHE_SST_V2_METADATA, BABOUCHE_SST_V2_CSV),
             SUPERPOWER_MODELEXT_ID => {
                 Self::from_csv(SUPERPOWER_MODELEXT_METADATA, SUPERPOWER_MODELEXT_CSV)
             }
@@ -1068,7 +1088,7 @@ mod tests {
         }
         // And the reverse direction: the constant ids are exactly the
         // declared metadata ids — no alias resolves silently.
-        assert_eq!(MaterialDataset::EMBEDDED_IDS.len(), 8);
+        assert_eq!(MaterialDataset::EMBEDDED_IDS.len(), 10);
     }
 
     /// The bundle is the customer-data path: one file carrying the same

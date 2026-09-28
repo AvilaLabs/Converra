@@ -18,7 +18,7 @@
  "measurement_dates": "tapes received 2023; article accepted 2026",
  "source_xlsx_sha256": "f05829ca1efbaf2fd852efc180142cb6e8c7b6541e3404936a35fa532252348b",
  "csv_sha256": "de054be378c86db13663ff387d17ccc3c9fbe3d7d01bf487f3a6dcbadce2cfbd",
- "preparation_source_sha256": "3910ed44b49f41ea770d47cdad33804f8c2b33fc26d57e09f4fc9bafd5dd0878",
+ "preparation_source_sha256": "8c2747588764d48ff6143886cd4fde48c251edca042aa1025aaaa0d514232b76",
  "source_description_sha256": "3413fdd573453b3f715bf528cbca7f3b00f8a109f7859b680ab873addfe2f297",
  "electric_field_criterion_v_per_m": 0.0001,
  "voltage_tap_spacing_m": 0.005,
