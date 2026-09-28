@@ -137,6 +137,7 @@ These results describe the individual benchmark cases. Dollar savings depend on 
 
 | Guide | Use it for |
 | --- | --- |
+| [First study walkthrough](docs/TUTORIAL.md) | Fifteen minutes: run a search, read verdicts, export evidence. |
 | [Technical overview](docs/TECHNICAL_SUMMARY.md) | Design approach, evidence, and model assumptions. |
 | [Material and screening domains](docs/SUPPORTED_DOMAINS.md) | Dataset envelopes, self-field regimes, and mechanical screens. |
 | [Architecture](docs/ARCHITECTURE.md) | Engine structure, versioned schemas, and acceptance logic. |

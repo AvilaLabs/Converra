@@ -14,8 +14,8 @@ mod metrics;
 
 pub(crate) use metrics::repriced_total_usd;
 use metrics::{
-    best_index_at_price, cost_values, lifecycle_at_price, search_cost_components, strands_suffix,
-    usd, usd_k,
+    best_index_at_price, cost_values, explain_status, lifecycle_at_price, search_cost_components,
+    strands_suffix, usd, usd_k,
 };
 
 const COST_LABELS: [&str; 4] = ["Conductor", "Scrap", "Assembly", "Joints"];
@@ -2476,6 +2476,11 @@ impl Workbench {
                 status_chip(ui, if feasible { Status::Pass } else { Status::Fail });
                 ui.label(RichText::new("mechanical").color(brand::MUTED).small());
             });
+        }
+        // The verdict's "why" — the limiter that closed, so a bare FAIL
+        // or INCONCLUSIVE names its physical boundary.
+        for reason in explain_status(candidate, &record.case) {
+            ui.label(RichText::new(reason).color(brand::MUTED).small());
         }
         // A/B compare: the pinned candidate against the current
         // selection — the deltas that actually drive the choice.

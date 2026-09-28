@@ -3,8 +3,10 @@
 //! here: everything is a free function over record data so it can be
 //! unit-tested headless.
 
-use optcoil_model::{CostBreakdown, Status};
-use optcoil_search::coupled_search::{CoupledSearchRunRecord, SearchCostLedger};
+use optcoil_model::{CostBreakdown, Status, coupled_search::CoupledSearchCase};
+use optcoil_search::coupled_search::{
+    CoupledSearchRunRecord, SearchCandidateResult, SearchCostLedger,
+};
 
 pub(super) fn strands_suffix(strands: u32) -> String {
     if strands > 1 {
@@ -140,9 +142,271 @@ pub(super) fn search_cost_components(
     ]
 }
 
+/// The gating reasons behind a candidate's verdict, in the order the
+/// checks close — rendered under the status chips so a bare FAIL or
+/// INCONCLUSIVE names its limiter. A candidate can carry several: a
+/// degenerate pack that also never screened reports both.
+pub(crate) fn explain_status(
+    candidate: &SearchCandidateResult,
+    case: &CoupledSearchCase,
+) -> Vec<String> {
+    let mut why = Vec::new();
+    if !candidate.pack_geometry_valid {
+        why.push("degenerate pack — the winding fills the bore".to_owned());
+    }
+    if !candidate.manufacturing_feasible {
+        why.push(
+            "inner bend radius or tape strain exceeds the declared manufacturing limit".to_owned(),
+        );
+    }
+    if candidate.requirement_status == Status::Fail {
+        why.push("bore-field requirement not met — no valid operating current".to_owned());
+    }
+    if candidate.requirement_status == Status::Inconclusive {
+        why.push("requirement unresolved — the field refinement gate could not certify".to_owned());
+    }
+    if candidate.mechanical_feasible == Some(false) {
+        why.push("a declared mechanical bound is exceeded".to_owned());
+    }
+    match candidate.refinement_status {
+        Status::Fail => {
+            why.push("field refinement diverged beyond the declared gate".to_owned());
+        }
+        Status::Inconclusive => {
+            why.push(
+                "refinement gate unresolved — sampled-field accuracy not certified".to_owned(),
+            );
+        }
+        _ => {}
+    }
+    if let Some(screening) = &candidate.screening {
+        if screening.status == Status::Fail
+            && let Some(util) = screening.max_utilization
+        {
+            let at = screening
+                .limiting
+                .as_ref()
+                .map(|l| format!(" at station {}", l.station))
+                .unwrap_or_default();
+            why.push(format!(
+                "over the {:.2} utilization limit ({util:.3}{at})",
+                case.limits.utilization_limit,
+            ));
+        }
+        if screening.status == Status::Inconclusive {
+            let counts = &screening.point_counts;
+            if counts.unsupported > 0 {
+                why.push(format!(
+                    "{} sampled point(s) fall outside the dataset's measured domain",
+                    counts.unsupported,
+                ));
+            }
+            if counts.lower_bound > 0 {
+                why.push(format!(
+                    "{} point(s) sit below the dataset floor — bounded, not determined",
+                    counts.lower_bound,
+                ));
+            }
+            if counts.along_current_excluded > 0 {
+                why.push(format!(
+                    "{} along-current point(s) excluded by the declared policy",
+                    counts.along_current_excluded,
+                ));
+            }
+        }
+    }
+    if let Some(screens) = &candidate.screens {
+        let declared = [
+            (
+                "thermal margin",
+                screens.thermal_margin.as_ref().map(|s| s.status),
+            ),
+            ("AC loss", screens.ac_loss.as_ref().map(|s| s.status)),
+            (
+                "quench hotspot",
+                screens.quench_hotspot.as_ref().map(|s| s.status),
+            ),
+            (
+                "screening current",
+                screens.screening_current.as_ref().map(|s| s.status),
+            ),
+            ("transition", screens.transition.as_ref().map(|s| s.status)),
+            (
+                "quench transient",
+                screens.quench_transient.as_ref().map(|s| s.status),
+            ),
+        ];
+        for (name, status) in declared {
+            match status {
+                Some(Status::Fail) => why.push(format!("declared {name} screen failed")),
+                Some(Status::Inconclusive) => {
+                    why.push(format!("declared {name} screen is inconclusive"));
+                }
+                _ => {}
+            }
+        }
+    }
+    if why.is_empty() && candidate.status == Status::Pass {
+        if let Some(screening) = &candidate.screening {
+            let bounded = screening.point_counts.along_current_bounded;
+            why.push(format!(
+                "all sampled points determined; max utilization {:.3} under the {:.2} limit{}",
+                screening.max_utilization.unwrap_or(0.0),
+                case.limits.utilization_limit,
+                if bounded > 0 {
+                    format!(" ({bounded} via the bounded along-current model)")
+                } else {
+                    String::new()
+                },
+            ));
+        } else {
+            why.push("all declared checks passed".to_owned());
+        }
+    }
+    why
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use optcoil_search::coupled::{CandidateResult, LimitingPoint, PointCounts};
+    use optcoil_search::coupled_search::CandidateGeometry;
+
+    fn candidate() -> SearchCandidateResult {
+        SearchCandidateResult {
+            index: 0,
+            geometry: CandidateGeometry {
+                turns_along_normal: 4,
+                tapes_along_width: 2,
+                strands_parallel: 1,
+                total_turns: 8,
+                total_conductors: 8,
+                tape_spec_ids: None,
+                bend_radius_m: None,
+                straight_half_length_m: None,
+                radial_width_m: 0.01,
+                axial_height_m: 0.02,
+            },
+            unit_bore_bz_t_per_ampere_turn: 1e-4,
+            bore_refinement_change_t: 0.0,
+            good_field: None,
+            pack_geometry_valid: true,
+            manufacturing_feasible: true,
+            inner_bend_radius_m: Some(0.05),
+            bend_strain: Some(0.001),
+            requirement_kernel_evaluations: 0,
+            ampere_turns_a: 10_000.0,
+            operating_current_a: 500.0,
+            requirement_status: Status::Pass,
+            refinement_status: Status::Pass,
+            numerical_status: Status::Inconclusive,
+            peak_sampled_field_t: Some(2.0),
+            lorentz_load_n_per_m: Some(1_000.0),
+            mechanical_feasible: Some(true),
+            hoop_stress_pa: Some(1e6),
+            transverse_pressure_pa: Some(1e5),
+            transverse_pressure_location: None,
+            membrane_tension_n_per_m: Some(100.0),
+            screening: Some(CandidateResult {
+                current_a: 500.0,
+                ampere_turns_a: 10_000.0,
+                status: Status::Pass,
+                limiting: None,
+                min_allowed_screening_a: Some(600.0),
+                max_utilization: Some(0.75),
+                point_counts: PointCounts {
+                    estimate: 34,
+                    lower_bound: 0,
+                    unsupported: 0,
+                    along_current_excluded: 0,
+                    along_current_bounded: 0,
+                },
+                max_self_field_ratio: 0.1,
+                limiting_self_field_ratio: None,
+                max_transport_self_field_ratio: None,
+                max_along_current_fraction: 0.1,
+                max_refinement_change_t: 0.0,
+            }),
+            pruned_by: None,
+            coarse_refinement_unresolved: false,
+            full_plan_point_count: 34,
+            coarse_points_evaluated: 8,
+            coarse_kernel_evaluations: 80,
+            full_points_evaluated: 34,
+            full_kernel_evaluations: 340,
+            field_timing_ms: 5.0,
+            cost: ledger(),
+            status: Status::Pass,
+            screens: None,
+        }
+    }
+
+    fn case() -> CoupledSearchCase {
+        crate::author::CaseDraft::default()
+            .build()
+            .expect("default draft must build")
+    }
+
+    #[test]
+    fn explain_pass_reports_coverage_and_utilization() {
+        let why = explain_status(&candidate(), &case());
+        assert_eq!(why.len(), 1);
+        assert!(why[0].contains("all sampled points determined"));
+        assert!(why[0].contains("0.750"));
+    }
+
+    #[test]
+    fn explain_fail_names_the_limiter_station() {
+        let mut c = candidate();
+        c.status = Status::Fail;
+        let s = c.screening.as_mut().unwrap();
+        s.status = Status::Fail;
+        s.max_utilization = Some(1.57);
+        s.limiting = Some(LimitingPoint {
+            station: "p2".into(),
+            tape_index: 1,
+            turn_index: 1,
+            width_index: 0,
+        });
+        let why = explain_status(&c, &case());
+        assert!(
+            why.iter()
+                .any(|r| r.contains("utilization") && r.contains("p2"))
+        );
+    }
+
+    #[test]
+    fn explain_inconclusive_names_each_coverage_gap() {
+        let mut c = candidate();
+        c.status = Status::Inconclusive;
+        let s = c.screening.as_mut().unwrap();
+        s.status = Status::Inconclusive;
+        s.point_counts.unsupported = 3;
+        s.point_counts.lower_bound = 7;
+        s.point_counts.along_current_excluded = 6;
+        let why = explain_status(&c, &case());
+        assert!(
+            why.iter()
+                .any(|r| r.contains("3 sampled point") && r.contains("domain"))
+        );
+        assert!(
+            why.iter()
+                .any(|r| r.contains("7 point") && r.contains("floor"))
+        );
+        assert!(why.iter().any(|r| r.contains("6 along-current")));
+    }
+
+    #[test]
+    fn explain_reports_requirement_and_geometry_gates() {
+        let mut c = candidate();
+        c.status = Status::Fail;
+        c.pack_geometry_valid = false;
+        c.requirement_status = Status::Fail;
+        c.screening = None;
+        let why = explain_status(&c, &case());
+        assert!(why.iter().any(|r| r.contains("degenerate pack")));
+        assert!(why.iter().any(|r| r.contains("bore-field requirement")));
+    }
 
     fn ledger() -> SearchCostLedger {
         SearchCostLedger {

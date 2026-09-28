@@ -6,11 +6,13 @@
 //! what the runner will parse — never a hand-built JSON string that
 //! only looks right.
 //!
-//! Not yet authored: `path` geometry (v9 supports only the racetrack
-//! pair), `tape_specs`/`grading` (v10+), and the declared-screen blocks
-//! (thermal margin, AC loss, quench hotspot/transient, screening
-//! current, transition — v15–v18); those still start from a
-//! hand-written or derived JSON case.
+//! Authored surface: the racetrack pair or a general line+arc `path`
+//! (v9), `tape_specs`/`grading` (v10+), declared field maps (v13+),
+//! v21 geometry search axes, and the declared-screen blocks (thermal
+//! margin, AC loss, quench hotspot/transient, screening current,
+//! transition — v15–v18). Not yet authored: `path3d` helixes (v19)
+//! and angular-sweep segments; those still start from a hand-written
+//! or derived JSON case.
 
 use eframe::egui::{self, RichText};
 use optcoil_model::{
@@ -28,6 +30,7 @@ use optcoil_model::{
         TapeSpec, ThermalMarginScreen, TransitionScreen, TurnBounds,
     },
     material::MaterialDataset,
+    path::{CoilPath, PathSegment},
     product::{ProductRegistry, RegistryProduct},
 };
 use sha2::{Digest, Sha256};
@@ -40,11 +43,21 @@ use parse::{
     price_source,
 };
 
+/// Station addressing: racetrack cases sample straights by x and arcs
+/// by azimuth; `path` cases (schema v9) address the centerline by arc
+/// length `s_m`.
+#[derive(Clone, Copy, PartialEq)]
+enum StationKind {
+    Straight,
+    Arc,
+    Path,
+}
+
 /// One editable station row.
 struct StationRow {
     id: String,
-    is_arc: bool,
-    /// `x_m` for straights, `azimuth_deg` for arcs.
+    kind: StationKind,
+    /// `x_m` for straights, `azimuth_deg` for arcs, `s_m` on a path.
     param: f64,
 }
 
@@ -53,15 +66,59 @@ impl StationRow {
         if self.id.trim().is_empty() {
             return Err("station id must not be empty".into());
         }
-        Ok(if self.is_arc {
-            Station::Arc {
+        Ok(match self.kind {
+            StationKind::Arc => Station::Arc {
                 id: self.id.trim().into(),
                 azimuth_deg: self.param,
-            }
-        } else {
-            Station::Straight {
+            },
+            StationKind::Path => Station::Path {
+                id: self.id.trim().into(),
+                s_m: self.param,
+            },
+            StationKind::Straight => Station::Straight {
                 id: self.id.trim().into(),
                 x_m: self.param,
+            },
+        })
+    }
+}
+
+/// One editable `path` segment row: `Line { length_m }` or
+/// `Arc { radius_m, sweep_deg }`. Both fields stay in the row; the
+/// non-applicable one is ignored on emit.
+struct PathSegmentRow {
+    /// 0 = line, 1 = arc.
+    kind: usize,
+    length_m: f64,
+    radius_m: f64,
+    sweep_deg: f64,
+}
+
+impl PathSegmentRow {
+    fn segment(&self, index: usize) -> Result<PathSegment, String> {
+        Ok(if self.kind == 1 {
+            if self.radius_m <= 0.0 {
+                return Err(format!(
+                    "segment {}: arc radius must be positive",
+                    index + 1
+                ));
+            }
+            if self.sweep_deg == 0.0 {
+                return Err(format!("segment {}: arc sweep must be nonzero", index + 1));
+            }
+            PathSegment::Arc {
+                radius_m: self.radius_m,
+                sweep_deg: self.sweep_deg,
+            }
+        } else {
+            if self.length_m <= 0.0 {
+                return Err(format!(
+                    "segment {}: line length must be positive",
+                    index + 1
+                ));
+            }
+            PathSegment::Line {
+                length_m: self.length_m,
             }
         })
     }
@@ -125,6 +182,13 @@ pub struct CaseDraft {
     harmonic_skew_bound: f64,
     straight_half_length_m: f64,
     bend_radius_m: f64,
+    /// Schema v9: author a general line+arc `path` instead of the
+    /// racetrack pair — the dims and their search axes are suppressed.
+    use_path: bool,
+    path_segments: Vec<PathSegmentRow>,
+    path_start_x_m: f64,
+    path_start_y_m: f64,
+    path_start_heading_deg: f64,
     /// Schema v21: racetrack dims as declared search axes — when set,
     /// the fixed field is absent and the axis list + baseline apply.
     search_bend_radius: bool,
@@ -326,6 +390,11 @@ impl Default for CaseDraft {
             harmonic_skew_bound: 0.001,
             straight_half_length_m: 0.15,
             bend_radius_m: 0.09,
+            use_path: false,
+            path_segments: Vec::new(),
+            path_start_x_m: 0.0,
+            path_start_y_m: 0.0,
+            path_start_heading_deg: 0.0,
             search_bend_radius: false,
             bend_radius_text: "0.09, 0.12, 0.15".into(),
             baseline_bend_radius: 0.09,
@@ -352,10 +421,10 @@ impl Default for CaseDraft {
             low_field_clamp_t: 0.0501,
             monotonicity_tolerance: 0.002,
             stations: vec![
-                StationRow { id: "straight_center".into(), is_arc: false, param: 0.0 },
-                StationRow { id: "straight_near_junction".into(), is_arc: false, param: 0.14 },
-                StationRow { id: "arc_apex".into(), is_arc: true, param: 0.0 },
-                StationRow { id: "arc_mid".into(), is_arc: true, param: 45.0 },
+                StationRow { id: "straight_center".into(), kind: StationKind::Straight, param: 0.0 },
+                StationRow { id: "straight_near_junction".into(), kind: StationKind::Straight, param: 0.14 },
+                StationRow { id: "arc_apex".into(), kind: StationKind::Arc, param: 0.0 },
+                StationRow { id: "arc_mid".into(), kind: StationKind::Arc, param: 45.0 },
             ],
             turn_indices_text:
                 "start:1,2,3,5,10,20 frac:0.25,0.5,0.75 end:19,9,4,1,0".into(),
@@ -388,12 +457,12 @@ impl Default for CaseDraft {
             baseline_tapes: 12,
             baseline_strands: 1,
             refined_stations: vec![
-                StationRow { id: "arc_15".into(), is_arc: true, param: 15.0 },
-                StationRow { id: "arc_30".into(), is_arc: true, param: 30.0 },
-                StationRow { id: "arc_60".into(), is_arc: true, param: 60.0 },
-                StationRow { id: "arc_75".into(), is_arc: true, param: 75.0 },
-                StationRow { id: "straight_005".into(), is_arc: false, param: 0.05 },
-                StationRow { id: "straight_010".into(), is_arc: false, param: 0.10 },
+                StationRow { id: "arc_15".into(), kind: StationKind::Arc, param: 15.0 },
+                StationRow { id: "arc_30".into(), kind: StationKind::Arc, param: 30.0 },
+                StationRow { id: "arc_60".into(), kind: StationKind::Arc, param: 60.0 },
+                StationRow { id: "arc_75".into(), kind: StationKind::Arc, param: 75.0 },
+                StationRow { id: "straight_005".into(), kind: StationKind::Straight, param: 0.05 },
+                StationRow { id: "straight_010".into(), kind: StationKind::Straight, param: 0.10 },
             ],
             tape_specs: Vec::new(),
             grading: Vec::new(),
@@ -483,10 +552,36 @@ impl CaseDraft {
         }
     }
 
+    /// Assemble the declared `path` centerline from the segment table —
+    /// unvalidated, so the preview can draw an in-progress (open) path.
+    /// `build()` re-validates for closure before emitting.
+    fn coil_path(&self) -> Result<CoilPath, String> {
+        if self.path_segments.is_empty() {
+            return Err("a custom path needs at least one segment".into());
+        }
+        let mut segments = Vec::with_capacity(self.path_segments.len());
+        for (i, row) in self.path_segments.iter().enumerate() {
+            segments.push(row.segment(i)?);
+        }
+        Ok(CoilPath {
+            segments,
+            start_position_m: [self.path_start_x_m, self.path_start_y_m],
+            start_heading_deg: self.path_start_heading_deg,
+        })
+    }
+
     /// Build the typed case; the caller still round-trips it through
     /// `CoupledSearchCase::from_json` before writing, so the saved file is
     /// a document the runner accepts verbatim.
-    fn build(&self) -> Result<CoupledSearchCase, String> {
+    pub(crate) fn build(&self) -> Result<CoupledSearchCase, String> {
+        let path = if self.use_path {
+            let path = self.coil_path()?;
+            path.validate()
+                .map_err(|e| format!("fixed_geometry.path: {e}"))?;
+            Some(path)
+        } else {
+            None
+        };
         let stations: Result<Vec<Station>, String> =
             self.stations.iter().map(StationRow::station).collect();
         let refined: Result<Vec<Station>, String> = self
@@ -561,11 +656,13 @@ impl CaseDraft {
                 // A declared v21 search axis owns its dimension — the
                 // fixed field is absent, never shadowed (schema enforces
                 // one declaration site per dimension).
-                straight_half_length_m: (!self.search_straight_half || self.field_map.is_some())
-                    .then_some(self.straight_half_length_m),
-                bend_radius_m: (!self.search_bend_radius || self.field_map.is_some())
-                    .then_some(self.bend_radius_m),
-                path: None,
+                straight_half_length_m: (!self.use_path
+                    && (!self.search_straight_half || self.field_map.is_some()))
+                .then_some(self.straight_half_length_m),
+                bend_radius_m: (!self.use_path
+                    && (!self.search_bend_radius || self.field_map.is_some()))
+                .then_some(self.bend_radius_m),
+                path,
                 path3d: None,
                 radial_pitch_m: self.radial_pitch_m,
                 tape_width_m: self.tape_width_mm / 1000.0,
@@ -583,10 +680,14 @@ impl CaseDraft {
                 turns_along_normal: parse_u32_list(&self.turns_text, "turns_along_normal")?,
                 tapes_along_width: parse_u32_list(&self.tapes_text, "tapes_along_width")?,
                 strands_parallel: Some(strands),
-                bend_radius_m: (self.search_bend_radius && self.field_map.is_none())
+                bend_radius_m: (self.search_bend_radius
+                    && self.field_map.is_none()
+                    && !self.use_path)
                     .then(|| parse_f64_list(&self.bend_radius_text, "choices.bend_radius_m"))
                     .transpose()?,
-                straight_half_length_m: (self.search_straight_half && self.field_map.is_none())
+                straight_half_length_m: (self.search_straight_half
+                    && self.field_map.is_none()
+                    && !self.use_path)
                     .then(|| {
                         parse_f64_list(&self.straight_half_text, "choices.straight_half_length_m")
                     })
@@ -690,9 +791,13 @@ impl CaseDraft {
                             .collect(),
                     )
                 },
-                bend_radius_m: (self.search_bend_radius && self.field_map.is_none())
+                bend_radius_m: (self.search_bend_radius
+                    && self.field_map.is_none()
+                    && !self.use_path)
                     .then_some(self.baseline_bend_radius),
-                straight_half_length_m: (self.search_straight_half && self.field_map.is_none())
+                straight_half_length_m: (self.search_straight_half
+                    && self.field_map.is_none()
+                    && !self.use_path)
                     .then_some(self.baseline_straight_half),
             },
             refinement: Some(RefinementPlan {
@@ -1005,27 +1110,27 @@ impl CaseDraft {
         vec![
             StationRow {
                 id: "straight_center".into(),
-                is_arc: false,
+                kind: StationKind::Straight,
                 param: 0.0,
             },
             StationRow {
                 id: "straight_mid".into(),
-                is_arc: false,
+                kind: StationKind::Straight,
                 param: 0.5 * l,
             },
             StationRow {
                 id: "straight_near_junction".into(),
-                is_arc: false,
+                kind: StationKind::Straight,
                 param: 0.85 * l,
             },
             StationRow {
                 id: "arc_apex".into(),
-                is_arc: true,
+                kind: StationKind::Arc,
                 param: 0.0,
             },
             StationRow {
                 id: "arc_mid".into(),
-                is_arc: true,
+                kind: StationKind::Arc,
                 param: 45.0,
             },
         ]
@@ -1620,7 +1725,7 @@ impl CaseDraft {
         {
             ui.colored_label(
                 brand::MUTED,
-                "Emits optcoil-coupled-search/v24 — the current schema. Fields map one-to-one onto the case JSON; the saved file is validated exactly as the runner will parse it. Path geometry and the declared-screen blocks are not yet authored here.",
+                "Emits optcoil-coupled-search/v24 — the current schema. Fields map one-to-one onto the case JSON; the saved file is validated exactly as the runner will parse it. path3d helixes are not yet authored here — author those as JSON.",
             );
             ui.add_space(8.0);
 
@@ -1811,58 +1916,54 @@ impl CaseDraft {
                 }
             });
 
-            section(ui, "Fixed geometry (racetrack)", |ui| {
-                ui.add_enabled(
-                    self.field_map.is_none(),
-                    egui::Checkbox::new(
-                        &mut self.search_straight_half,
-                        "Search straight half length (schema v21)",
-                    ),
-                );
-                if self.search_straight_half {
-                    ui.indent("straight-axis", |ui| {
-                        field(ui, "Choices (m)", |ui| {
-                            ui.text_edit_singleline(&mut self.straight_half_text)
-                        });
-                        field(ui, "Baseline value (m)", |ui| {
-                            ui.add(
-                                egui::DragValue::new(&mut self.baseline_straight_half).speed(0.01),
-                            )
-                        });
+            section(ui, "Fixed geometry", |ui| {
+                egui::ComboBox::from_label("Centerline")
+                    .selected_text(if self.use_path {
+                        "custom path — lines + arcs (schema v9)"
+                    } else {
+                        "racetrack"
+                    })
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut self.use_path, false, "racetrack");
+                        ui.selectable_value(&mut self.use_path, true, "custom path (v9)");
+                        // Switching to path mode seeds the current
+                        // racetrack as equivalent segments — the
+                        // preview then opens on a valid loop.
+                        if self.use_path && self.path_segments.is_empty() {
+                            let seeded = CoilPath::racetrack(
+                                self.straight_half_length_m,
+                                self.bend_radius_m,
+                            );
+                            self.path_segments = seeded
+                                .segments
+                                .iter()
+                                .map(|s| match *s {
+                                    PathSegment::Line { length_m } => PathSegmentRow {
+                                        kind: 0,
+                                        length_m,
+                                        radius_m: self.bend_radius_m,
+                                        sweep_deg: 90.0,
+                                    },
+                                    PathSegment::Arc {
+                                        radius_m,
+                                        sweep_deg,
+                                    } => PathSegmentRow {
+                                        kind: 1,
+                                        length_m: self.straight_half_length_m * 2.0,
+                                        radius_m,
+                                        sweep_deg,
+                                    },
+                                })
+                                .collect();
+                            self.path_start_x_m = seeded.start_position_m[0];
+                            self.path_start_y_m = seeded.start_position_m[1];
+                            self.path_start_heading_deg = seeded.start_heading_deg;
+                        }
                     });
+                if self.use_path {
+                    self.path_editor(ui);
                 } else {
-                    field(ui, "Straight half length (m)", |ui| {
-                        ui.add(egui::DragValue::new(&mut self.straight_half_length_m).speed(0.01))
-                    });
-                }
-                ui.add_enabled(
-                    self.field_map.is_none(),
-                    egui::Checkbox::new(
-                        &mut self.search_bend_radius,
-                        "Search bend radius (schema v21)",
-                    ),
-                );
-                if self.search_bend_radius {
-                    ui.indent("bend-axis", |ui| {
-                        field(ui, "Choices (m)", |ui| {
-                            ui.text_edit_singleline(&mut self.bend_radius_text)
-                        });
-                        field(ui, "Baseline value (m)", |ui| {
-                            ui.add(
-                                egui::DragValue::new(&mut self.baseline_bend_radius).speed(0.005),
-                            )
-                        });
-                    });
-                } else {
-                    field(ui, "Bend radius (m)", |ui| {
-                        ui.add(egui::DragValue::new(&mut self.bend_radius_m).speed(0.005))
-                    });
-                }
-                if self.search_bend_radius || self.search_straight_half {
-                    ui.colored_label(
-                        brand::MUTED,
-                        "Axis baseline must appear in its choices list. The bracketing refinement runner (coupled-refine) rejects geometry-axis cases — the grid search runs them normally.",
-                    );
+                    self.racetrack_fields(ui);
                 }
                 field(ui, "Radial pitch (m)", |ui| {
                     ui.add(egui::DragValue::new(&mut self.radial_pitch_m).speed(1e-5))
@@ -2046,7 +2147,7 @@ impl CaseDraft {
 
             section(ui, "Sampling plan", |ui| {
                 wide_table(ui, "stations-h", |ui| {
-                    station_table(ui, "sampling-stations", &mut self.stations)
+                    station_table(ui, "sampling-stations", &mut self.stations, self.use_path)
                 });
                 field(ui, "Turn indices", |ui| {
                     ui.text_edit_singleline(&mut self.turn_indices_text)
@@ -2262,7 +2363,12 @@ impl CaseDraft {
 
             section(ui, "Refined acceptance plan", |ui| {
                 wide_table(ui, "refined-h", |ui| {
-                    station_table(ui, "refined-stations", &mut self.refined_stations)
+                    station_table(
+                        ui,
+                        "refined-stations",
+                        &mut self.refined_stations,
+                        self.use_path,
+                    )
                 });
                 field(ui, "Max sampling shortfall", |ui| {
                     ui.add(egui::DragValue::new(&mut self.max_sampling_shortfall).speed(0.005))
@@ -2521,6 +2627,199 @@ impl CaseDraft {
             });
         }
     }
+
+    /// The racetrack-dim fields (legacy fixed geometry) — hidden when a
+    /// custom `path` is authored; v21 search axes stay available.
+    fn racetrack_fields(&mut self, ui: &mut egui::Ui) {
+        ui.add_enabled(
+            self.field_map.is_none(),
+            egui::Checkbox::new(
+                &mut self.search_straight_half,
+                "Search straight half length (schema v21)",
+            ),
+        );
+        if self.search_straight_half {
+            ui.indent("straight-axis", |ui| {
+                field(ui, "Choices (m)", |ui| {
+                    ui.text_edit_singleline(&mut self.straight_half_text)
+                });
+                field(ui, "Baseline value (m)", |ui| {
+                    ui.add(egui::DragValue::new(&mut self.baseline_straight_half).speed(0.01))
+                });
+            });
+        } else {
+            field(ui, "Straight half length (m)", |ui| {
+                ui.add(egui::DragValue::new(&mut self.straight_half_length_m).speed(0.01))
+            });
+        }
+        ui.add_enabled(
+            self.field_map.is_none(),
+            egui::Checkbox::new(
+                &mut self.search_bend_radius,
+                "Search bend radius (schema v21)",
+            ),
+        );
+        if self.search_bend_radius {
+            ui.indent("bend-axis", |ui| {
+                field(ui, "Choices (m)", |ui| {
+                    ui.text_edit_singleline(&mut self.bend_radius_text)
+                });
+                field(ui, "Baseline value (m)", |ui| {
+                    ui.add(egui::DragValue::new(&mut self.baseline_bend_radius).speed(0.005))
+                });
+            });
+        } else {
+            field(ui, "Bend radius (m)", |ui| {
+                ui.add(egui::DragValue::new(&mut self.bend_radius_m).speed(0.005))
+            });
+        }
+        if self.search_bend_radius || self.search_straight_half {
+            ui.colored_label(
+                brand::MUTED,
+                "Axis baseline must appear in its choices list. The bracketing refinement runner (coupled-refine) rejects geometry-axis cases — the grid search runs them normally.",
+            );
+        }
+    }
+
+    /// The custom `path` editor: segment table, loop placement, and a
+    /// live outline drawn by walking `pose_at`. Validation is
+    /// `CoilPath::validate` itself — the same closure check the runner
+    /// applies — so what passes here is what builds.
+    fn path_editor(&mut self, ui: &mut egui::Ui) {
+        ui.colored_label(
+            brand::MUTED,
+            "Ordered centerline segments; the loop must close in position and tangent. Stations on a path case address the centerline by arc length (s, m).",
+        );
+        let mut remove = None;
+        egui::Grid::new("path-segments")
+            .num_columns(5)
+            .show(ui, |ui| {
+                for (i, seg) in self.path_segments.iter_mut().enumerate() {
+                    egui::ComboBox::from_id_salt(("seg-kind", i))
+                        .selected_text(if seg.kind == 1 { "arc" } else { "line" })
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut seg.kind, 0, "line");
+                            ui.selectable_value(&mut seg.kind, 1, "arc");
+                        });
+                    if seg.kind == 0 {
+                        ui.label("length (m)");
+                        ui.add(egui::DragValue::new(&mut seg.length_m).speed(0.01));
+                    } else {
+                        ui.label("radius (m) · sweep (°)");
+                        ui.horizontal(|ui| {
+                            ui.add(egui::DragValue::new(&mut seg.radius_m).speed(0.005));
+                            ui.add(
+                                egui::DragValue::new(&mut seg.sweep_deg)
+                                    .speed(1.0)
+                                    .range(-360.0..=360.0),
+                            );
+                        });
+                    }
+                    if ui.button("×").clicked() {
+                        remove = Some(i);
+                    }
+                    ui.end_row();
+                }
+            });
+        if let Some(i) = remove {
+            self.path_segments.remove(i);
+        }
+        ui.horizontal(|ui| {
+            if ui.button("+ line").clicked() {
+                self.path_segments.push(PathSegmentRow {
+                    kind: 0,
+                    length_m: 0.2,
+                    radius_m: 0.09,
+                    sweep_deg: 90.0,
+                });
+            }
+            if ui.button("+ arc").clicked() {
+                self.path_segments.push(PathSegmentRow {
+                    kind: 1,
+                    length_m: 0.2,
+                    radius_m: 0.09,
+                    sweep_deg: 90.0,
+                });
+            }
+        });
+        field(ui, "Start x / y (m) · heading (°)", |ui| {
+            ui.horizontal(|ui| {
+                ui.add(egui::DragValue::new(&mut self.path_start_x_m).speed(0.01));
+                ui.add(egui::DragValue::new(&mut self.path_start_y_m).speed(0.01));
+                ui.add(egui::DragValue::new(&mut self.path_start_heading_deg).speed(1.0));
+            })
+            .inner
+        });
+        match self.coil_path() {
+            Ok(path) => {
+                let closed = path.validate();
+                draw_path_preview(ui, &path);
+                match closed {
+                    Ok(()) => ui.colored_label(
+                        brand::BLUE,
+                        format!("closed loop — {:.3} m centerline", path.length_m()),
+                    ),
+                    Err(e) => ui.colored_label(status_red(), format!("open loop — {e}")),
+                };
+            }
+            Err(e) => {
+                ui.colored_label(status_red(), e);
+            }
+        }
+    }
+}
+
+/// A scale-to-fit xy outline of the path drawn with `pose_at` samples —
+/// the same evaluation the kernel walks, so the preview is faithful
+/// even for an open in-progress path.
+fn draw_path_preview(ui: &mut egui::Ui, path: &CoilPath) {
+    const SAMPLES: usize = 240;
+    let total = path.length_m();
+    if !(total.is_finite() && total > 0.0) {
+        return;
+    }
+    let mut pts = Vec::with_capacity(SAMPLES + 1);
+    for i in 0..=SAMPLES {
+        if let Ok(pose) = path.pose_at(total * i as f64 / SAMPLES as f64) {
+            pts.push([pose.position_m[0], pose.position_m[1]]);
+        }
+    }
+    if pts.len() < 2 {
+        return;
+    }
+    let (mut x0, mut x1, mut y0, mut y1) = (f64::MAX, f64::MIN, f64::MAX, f64::MIN);
+    for &[x, y] in &pts {
+        x0 = x0.min(x);
+        x1 = x1.max(x);
+        y0 = y0.min(y);
+        y1 = y1.max(y);
+    }
+    let (rect, _) = ui.allocate_exact_size(
+        egui::vec2(ui.available_width().min(320.0), 150.0),
+        egui::Sense::hover(),
+    );
+    let scale = (rect.width() as f64 * 0.8 / (x1 - x0).max(1e-9))
+        .min(rect.height() as f64 * 0.8 / (y1 - y0).max(1e-9));
+    let (cx, cy) = ((x0 + x1) / 2.0, (y0 + y1) / 2.0);
+    let to_screen = |[x, y]: [f64; 2]| {
+        rect.center() + egui::vec2(((x - cx) * scale) as f32, ((cy - y) * scale) as f32)
+    };
+    let painter = ui.painter_at(rect);
+    painter.rect_stroke(
+        rect.shrink(2.0),
+        4.0,
+        egui::Stroke::new(1.0, brand::MUTED.gamma_multiply(0.4)),
+        egui::StrokeKind::Inside,
+    );
+    let polyline: Vec<egui::Pos2> = pts.iter().map(|&p| to_screen(p)).collect();
+    painter.add(egui::Shape::line(
+        polyline,
+        egui::Stroke::new(1.8, brand::BLUE),
+    ));
+    // Segment-0 start marker — the loop's declared origin.
+    if let Some(&first) = pts.first() {
+        painter.circle_filled(to_screen(first), 3.0, status_red());
+    }
 }
 
 fn status_red() -> egui::Color32 {
@@ -2578,22 +2877,33 @@ fn wide_table(ui: &mut egui::Ui, salt: &str, add: impl FnOnce(&mut egui::Ui)) {
         .show(ui, add);
 }
 
-fn station_table(ui: &mut egui::Ui, id: &str, stations: &mut Vec<StationRow>) {
+fn station_table(ui: &mut egui::Ui, id: &str, stations: &mut Vec<StationRow>, path_case: bool) {
     let mut remove = None;
     egui::Grid::new(id).num_columns(4).show(ui, |ui| {
         for (i, s) in stations.iter_mut().enumerate() {
             ui.add(egui::TextEdit::singleline(&mut s.id).desired_width(140.0));
             egui::ComboBox::from_id_salt((id, i))
-                .selected_text(if s.is_arc { "arc" } else { "straight" })
+                .selected_text(match s.kind {
+                    StationKind::Arc => "arc",
+                    StationKind::Path => "path (s)",
+                    StationKind::Straight => "straight",
+                })
                 .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut s.is_arc, false, "straight");
-                    ui.selectable_value(&mut s.is_arc, true, "arc");
+                    // Straight/arc stations address racetrack geometry;
+                    // a declared `path` case samples by arc length.
+                    if !path_case {
+                        ui.selectable_value(&mut s.kind, StationKind::Straight, "straight");
+                        ui.selectable_value(&mut s.kind, StationKind::Arc, "arc");
+                    }
+                    ui.selectable_value(&mut s.kind, StationKind::Path, "path (s)");
                 });
-            ui.add(
-                egui::DragValue::new(&mut s.param)
-                    .speed(0.01)
-                    .suffix(if s.is_arc { " °" } else { " m" }),
-            );
+            ui.add(egui::DragValue::new(&mut s.param).speed(0.01).suffix(
+                if s.kind == StationKind::Arc {
+                    " °"
+                } else {
+                    " m"
+                },
+            ));
             if ui.button("×").clicked() {
                 remove = Some(i);
             }
@@ -2606,7 +2916,11 @@ fn station_table(ui: &mut egui::Ui, id: &str, stations: &mut Vec<StationRow>) {
     if ui.button("+ station").clicked() {
         stations.push(StationRow {
             id: format!("station_{}", stations.len() + 1),
-            is_arc: false,
+            kind: if path_case {
+                StationKind::Path
+            } else {
+                StationKind::Straight
+            },
             param: 0.0,
         });
     }
@@ -2654,6 +2968,88 @@ mod tests {
         assert_eq!(parsed.cost.price_source, Some(PriceSource::Synthetic));
     }
 
+    /// A closed custom path must emit `fixed_geometry.path` (dims
+    /// absent), pass the engine's own closure check, and survive the
+    /// v24 round-trip the runner applies.
+    #[test]
+    fn path_geometry_builds_a_valid_case() {
+        let seeded = CoilPath::racetrack(0.15, 0.09);
+        let draft = CaseDraft {
+            use_path: true,
+            path_segments: seeded
+                .segments
+                .iter()
+                .map(|s| match *s {
+                    PathSegment::Line { length_m } => PathSegmentRow {
+                        kind: 0,
+                        length_m,
+                        radius_m: 0.09,
+                        sweep_deg: 90.0,
+                    },
+                    PathSegment::Arc {
+                        radius_m,
+                        sweep_deg,
+                    } => PathSegmentRow {
+                        kind: 1,
+                        length_m: 0.3,
+                        radius_m,
+                        sweep_deg,
+                    },
+                })
+                .collect(),
+            path_start_x_m: seeded.start_position_m[0],
+            path_start_y_m: seeded.start_position_m[1],
+            path_start_heading_deg: seeded.start_heading_deg,
+            // Stations on a path case address the centerline by s; the
+            // §9.4 refined plan needs 6 additional ones.
+            stations: vec![
+                StationRow {
+                    id: "s0".into(),
+                    kind: StationKind::Path,
+                    param: 0.0,
+                },
+                StationRow {
+                    id: "s1".into(),
+                    kind: StationKind::Path,
+                    param: 0.5,
+                },
+            ],
+            refined_stations: (1..=6)
+                .map(|i| StationRow {
+                    id: format!("refined_s{i}"),
+                    kind: StationKind::Path,
+                    param: i as f64 * 0.15,
+                })
+                .collect(),
+            ..Default::default()
+        };
+        let case = draft.build().expect("closed path must build");
+        let geometry = &case.fixed_geometry;
+        assert!(geometry.path.is_some());
+        assert_eq!(geometry.straight_half_length_m, None);
+        assert_eq!(geometry.bend_radius_m, None);
+        let json = serde_json::to_string_pretty(&case).unwrap();
+        CoupledSearchCase::from_json(&json).expect("path case must validate as v24");
+    }
+
+    /// A path that does not return to its start must fail `build` —
+    /// `CoilPath::validate` is the engine's own closure check.
+    #[test]
+    fn open_path_is_rejected() {
+        let draft = CaseDraft {
+            use_path: true,
+            path_segments: vec![PathSegmentRow {
+                kind: 0,
+                length_m: 0.5,
+                radius_m: 0.09,
+                sweep_deg: 90.0,
+            }],
+            ..Default::default()
+        };
+        let err = draft.build().expect_err("open path must not build");
+        assert!(err.contains("path"), "unexpected error: {err}");
+    }
+
     /// A product pick must land on the draft's actual fields — dataset
     /// binding, tape width and price — and the resulting case must still
     /// validate as v24.
@@ -2693,7 +3089,7 @@ mod tests {
         assert_eq!(draft.bore_probe, [0.0, 0.0, 0.0]);
         assert!(draft.use_region);
         assert_eq!(draft.stations.len(), 5);
-        assert!(draft.stations.iter().any(|s| s.is_arc));
+        assert!(draft.stations.iter().any(|s| s.kind == StationKind::Arc));
         // Station params derive from the declared envelope.
         let mid = draft
             .stations
@@ -2769,22 +3165,22 @@ mod tests {
         draft.stations = vec![
             StationRow {
                 id: "s15".into(),
-                is_arc: false,
+                kind: StationKind::Straight,
                 param: 0.15,
             },
             StationRow {
                 id: "a45".into(),
-                is_arc: true,
+                kind: StationKind::Arc,
                 param: 45.0,
             },
             StationRow {
                 id: "a90".into(),
-                is_arc: true,
+                kind: StationKind::Arc,
                 param: 90.0,
             },
             StationRow {
                 id: "a0".into(),
-                is_arc: true,
+                kind: StationKind::Arc,
                 param: 0.0,
             },
         ];
@@ -2819,32 +3215,32 @@ mod tests {
         draft.refined_stations = vec![
             StationRow {
                 id: "arc_15".into(),
-                is_arc: true,
+                kind: StationKind::Arc,
                 param: 15.0,
             },
             StationRow {
                 id: "arc_30".into(),
-                is_arc: true,
+                kind: StationKind::Arc,
                 param: 30.0,
             },
             StationRow {
                 id: "arc_60".into(),
-                is_arc: true,
+                kind: StationKind::Arc,
                 param: 60.0,
             },
             StationRow {
                 id: "arc_75".into(),
-                is_arc: true,
+                kind: StationKind::Arc,
                 param: 75.0,
             },
             StationRow {
                 id: "straight_015".into(),
-                is_arc: false,
+                kind: StationKind::Straight,
                 param: 0.15,
             },
             StationRow {
                 id: "straight_025".into(),
-                is_arc: false,
+                kind: StationKind::Straight,
                 param: 0.25,
             },
         ];
