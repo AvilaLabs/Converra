@@ -10,8 +10,9 @@ use std::{
     collections::BTreeMap,
     path::Path,
     sync::atomic::{AtomicU64, Ordering},
-    time::{Instant, SystemTime, UNIX_EPOCH},
 };
+
+use crate::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use optcoil_model::{
     Check, Status,

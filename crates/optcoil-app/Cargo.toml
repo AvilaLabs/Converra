@@ -35,7 +35,7 @@ console_error_panic_hook = "0.1"
 js-sys = "0.3"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-web-sys = { version = "0.3", features = ["Blob", "HtmlCanvasElement", "HtmlElement", "Url", "Window"] }
+web-sys = { version = "0.3", features = ["Blob", "DedicatedWorkerGlobalScope", "HtmlCanvasElement", "HtmlElement", "MessageEvent", "Url", "Window", "Worker", "WorkerOptions", "WorkerType"] }
 # std::time::Instant does not exist in the browser — web-time supplies
 # the drop-in performance.now() implementation.
 web-time = "1"

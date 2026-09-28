@@ -13,10 +13,9 @@
 //! `case_json` stores the mutated case verbatim — so a scaled dataset can
 //! never be mistaken for the base measurements.
 
-use std::{
-    sync::atomic::AtomicBool,
-    time::{Instant, SystemTime, UNIX_EPOCH},
-};
+use std::sync::atomic::AtomicBool;
+
+use crate::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};

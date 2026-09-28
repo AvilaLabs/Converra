@@ -1,9 +1,8 @@
 //! Headless, reproducible field calculation and independent-reference comparison.
 
-use std::{
-    path::Path,
-    time::{Instant, SystemTime, UNIX_EPOCH},
-};
+use std::path::Path;
+
+use crate::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use optcoil_model::{
     Check, Status,

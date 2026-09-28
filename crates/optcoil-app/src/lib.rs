@@ -233,6 +233,11 @@ struct Worker {
     receiver: Receiver<Result<JobResult, String>>,
     cancel: Arc<AtomicBool>,
     kind: JobKind,
+    /// The browser `Worker` a wasm search runs on — terminate() is the
+    /// only cancel it can honor (a blocked wasm thread cannot poll a
+    /// flag). Unused on native.
+    #[cfg(target_arch = "wasm32")]
+    web_worker: Option<web_sys::Worker>,
 }
 struct Workbench {
     case: Case,
@@ -453,6 +458,82 @@ impl Workbench {
             receiver,
             cancel,
             kind,
+            #[cfg(target_arch = "wasm32")]
+            web_worker: None,
+        });
+    }
+
+    /// The browser search path: spawn `worker.js` — a second wasm
+    /// instance inside a Web Worker — hand it the case (and any loaded
+    /// dataset) over postMessage, and deliver its reply through the
+    /// same channel a native thread uses. Cancel = `terminate()`.
+    #[cfg(target_arch = "wasm32")]
+    fn launch_search_worker(
+        &mut self,
+        ctx: &egui::Context,
+        json: String,
+        dataset: Option<MaterialDataset>,
+    ) {
+        use wasm_bindgen::JsCast as _;
+        if self.worker.is_some() {
+            return;
+        }
+        let options = web_sys::WorkerOptions::new();
+        options.set_type(web_sys::WorkerType::Module);
+        let web_worker = match web_sys::Worker::new_with_options("./worker.js", &options) {
+            Ok(w) => w,
+            Err(e) => {
+                self.message = (
+                    true,
+                    format!(
+                        "could not start the search worker ({:?}) — serve the built bundle, or use the desktop build",
+                        e
+                    ),
+                );
+                return;
+            }
+        };
+        let (sender, receiver) = mpsc::channel();
+        let reply_ctx = ctx.clone();
+        let onmessage =
+            wasm_bindgen::closure::Closure::wrap(Box::new(move |event: web_sys::MessageEvent| {
+                let result = event
+                    .data()
+                    .as_string()
+                    .ok_or_else(|| "worker replied with a non-string message".to_owned())
+                    .and_then(|text| {
+                        let payload: serde_json::Value =
+                            serde_json::from_str(&text).map_err(|e| e.to_string())?;
+                        match payload.get("status").and_then(|s| s.as_str()) {
+                            Some("ok") => {
+                                let record: CoupledSearchRunRecord = serde_json::from_str(
+                                    payload["record"].as_str().unwrap_or_default(),
+                                )
+                                .map_err(|e| e.to_string())?;
+                                Ok(JobResult::SearchCompleted(Box::new(record)))
+                            }
+                            _ => Err(payload["error"]
+                                .as_str()
+                                .unwrap_or("worker error")
+                                .to_owned()),
+                        }
+                    });
+                let _ = sender.send(result);
+                reply_ctx.request_repaint();
+            }) as Box<dyn FnMut(_)>);
+        web_worker.set_onmessage(Some(onmessage.as_ref().unchecked_ref()));
+        onmessage.forget(); // lives until the page does — one per run
+        let payload = serde_json::json!({
+            "case_json": json,
+            "dataset_json": dataset
+                .and_then(|d| serde_json::to_string(&d).ok()),
+        });
+        let _ = web_worker.post_message(&wasm_bindgen::JsValue::from_str(&payload.to_string()));
+        self.worker = Some(Worker {
+            receiver,
+            cancel: Arc::new(AtomicBool::new(false)),
+            kind: JobKind::Search,
+            web_worker: Some(web_worker),
         });
     }
 
@@ -479,6 +560,7 @@ impl Workbench {
             receiver,
             cancel: Arc::new(AtomicBool::new(false)),
             kind,
+            web_worker: None,
         });
     }
 
@@ -486,17 +568,41 @@ impl Workbench {
         if self.worker.is_some() {
             return;
         }
-        // The browser build is single-threaded — a search would freeze
-        // the tab for the whole grid. Save the case and run the native
-        // build or the CLI instead.
+        // The browser build runs the search on a Web Worker holding a
+        // second copy of the engine — the page thread stays free and
+        // Cancel terminates the worker. Single-threaded wasm is ~2×
+        // slower than the desktop build; fine for real cases.
         #[cfg(target_arch = "wasm32")]
         {
-            let _ = ctx;
-            self.message = (
-                true,
-                "Searches need a worker thread, which the browser build does not have. Save the case and run it with the desktop build or `optcoil coupled-search`."
-                    .into(),
-            );
+            if self.search_case.is_some() {
+                if self.search_json.is_empty() {
+                    return;
+                }
+                if self.search_dataset.is_none() {
+                    self.message = (
+                        true,
+                        format!(
+                            "Declared dataset '{}' is not embedded — load a dataset bundle on the Materials page first.",
+                            self.search_case
+                                .as_ref()
+                                .map(|c| c.material.dataset_id.as_str())
+                                .unwrap_or("?")
+                        ),
+                    );
+                    return;
+                }
+                let json = self.search_json.clone();
+                let dataset = self
+                    .search_dataset
+                    .as_ref()
+                    .map(|source| source.dataset.clone());
+                self.search_record = None;
+                self.message = (
+                    false,
+                    "Searching in a browser worker — single-threaded, so a real grid takes a while; the page stays responsive…".into(),
+                );
+                self.launch_search_worker(ctx, json, dataset);
+            }
             return;
         }
         #[cfg(not(target_arch = "wasm32"))]
@@ -1870,6 +1976,12 @@ impl Workbench {
                     );
             }
             if let Some(worker) = &self.worker {
+                // The browser's search runs on a Web Worker — nothing
+                // else wakes egui while it runs, so keep repainting to
+                // keep the spinner honest.
+                #[cfg(target_arch = "wasm32")]
+                ui.ctx()
+                    .request_repaint_after(std::time::Duration::from_millis(500));
                 ui.add_space(4.0);
                 ui.spinner();
                 ui.colored_label(
@@ -1919,6 +2031,10 @@ impl Workbench {
                 }
                 if worker.kind == JobKind::Search && ui.button("Cancel").clicked() {
                     worker.cancel.store(true, Ordering::Relaxed);
+                    #[cfg(target_arch = "wasm32")]
+                    if let Some(w) = worker.web_worker.as_ref() {
+                        w.terminate();
+                    }
                 }
             }
         });
@@ -2655,6 +2771,10 @@ impl Drop for Workbench {
     fn drop(&mut self) {
         if let Some(worker) = &self.worker {
             worker.cancel.store(true, Ordering::Relaxed);
+            #[cfg(target_arch = "wasm32")]
+            if let Some(w) = worker.web_worker.as_ref() {
+                w.terminate();
+            }
         }
     }
 }

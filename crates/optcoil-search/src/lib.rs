@@ -1,6 +1,18 @@
 //! Deterministic, bounded exact enumeration for small allocation cases.
 //! Desktop and CLI share this API. No external solver is invoked here.
 
+/// Time types: `std::time` panics on wasm32 — `web-time` supplies the
+/// same API against `performance.now()`/`Date` there and forwards to
+/// `std` on native.
+#[cfg(target_arch = "wasm32")]
+pub(crate) mod time {
+    pub(crate) use web_time::{Instant, SystemTime, UNIX_EPOCH};
+}
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) mod time {
+    pub(crate) use std::time::{Instant, SystemTime, UNIX_EPOCH};
+}
+
 pub mod acceptance;
 pub mod bakeoff;
 pub mod bom;
@@ -8,6 +20,7 @@ pub mod coupled;
 pub mod coupled_refine;
 pub mod coupled_search;
 pub mod field;
+pub mod fieldmap;
 pub mod gradereport;
 pub mod kernel_crosscheck;
 pub mod material;
@@ -23,8 +36,9 @@ use std::{
     io::Write,
     path::Path,
     sync::atomic::{AtomicBool, Ordering},
-    time::{Instant, SystemTime, UNIX_EPOCH},
 };
+
+use crate::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use optcoil_model::{
     Allocation, Assessment, Candidate, Case, ModelError, Status, allocation_changed,

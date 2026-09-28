@@ -6,6 +6,9 @@
   <title>Converra workbench</title>
   <!-- The cdylib artifact is the wasm entry point; the bin stays native-only. -->
   <link data-trunk rel="rust" data-target-name="optcoil_app" data-wasm-opt="z">
+  <!-- The search worker script — a static module the app spawns via
+       `new Worker('./worker.js', {type:'module'})`. -->
+  <link data-trunk rel="copy-file" href="worker.js">
   <style>
     html, body { margin: 0; padding: 0; height: 100%; background: #F7F8FC; }
     #converra_canvas { width: 100%; height: 100%; display: block; }

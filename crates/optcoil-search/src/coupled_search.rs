@@ -20,8 +20,9 @@ use std::{
         Arc, Mutex,
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
-    time::{Instant, SystemTime, UNIX_EPOCH},
 };
+
+use crate::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use optcoil_model::{
     Check, Status,
@@ -1147,55 +1148,63 @@ pub fn run_coupled_search_case_with_dataset_progress(
     let results: Mutex<Vec<(usize, Result<SearchCandidateResult, RunError>)>> =
         Mutex::new(Vec::with_capacity(n));
 
+    // Each worker pulls candidate indices off `counter` until the pool
+    // drains or cancellation lands. wasm32 has no OS threads — the same
+    // loop runs inline on the caller there (single worker thread, no
+    // parallelism; the progress counters and the mutex stay correct).
+    let work = || loop {
+        if cancel.load(Ordering::Relaxed) {
+            break;
+        }
+        let index = counter.fetch_add(1, Ordering::Relaxed);
+        if index >= n {
+            break;
+        }
+        let leg = progress.map(|p| {
+            p.legs.lock().expect("progress legs mutex poisoned")[index]
+                .done
+                .clone()
+        });
+        let (turns, tapes, strands, assignment, dims) = &geometry_candidates[index];
+        if let Some(p) = progress {
+            p.set_phase(format!(
+                "screening {} × {} × {} — candidate {}/{}",
+                turns,
+                tapes,
+                strands,
+                index + 1,
+                n
+            ));
+        }
+        let outcome = evaluate_one_candidate(
+            &search,
+            index,
+            *turns,
+            *tapes,
+            *strands,
+            assignment,
+            *dims,
+            &runtimes,
+            leg.as_deref(),
+        );
+        results
+            .lock()
+            .expect("search results mutex poisoned")
+            .push((index, outcome));
+        if let Some(p) = progress {
+            p.candidates_done.fetch_add(1, Ordering::Relaxed);
+        }
+    };
+    #[cfg(not(target_arch = "wasm32"))]
     std::thread::scope(|scope| {
         for _ in 0..execution_threads {
-            scope.spawn(|| {
-                loop {
-                    if cancel.load(Ordering::Relaxed) {
-                        break;
-                    }
-                    let index = counter.fetch_add(1, Ordering::Relaxed);
-                    if index >= n {
-                        break;
-                    }
-                    let leg = progress.map(|p| {
-                        p.legs.lock().expect("progress legs mutex poisoned")[index]
-                            .done
-                            .clone()
-                    });
-                    let (turns, tapes, strands, assignment, dims) = &geometry_candidates[index];
-                    if let Some(p) = progress {
-                        p.set_phase(format!(
-                            "screening {} × {} × {} — candidate {}/{}",
-                            turns,
-                            tapes,
-                            strands,
-                            index + 1,
-                            n
-                        ));
-                    }
-                    let outcome = evaluate_one_candidate(
-                        &search,
-                        index,
-                        *turns,
-                        *tapes,
-                        *strands,
-                        assignment,
-                        *dims,
-                        &runtimes,
-                        leg.as_deref(),
-                    );
-                    results
-                        .lock()
-                        .expect("search results mutex poisoned")
-                        .push((index, outcome));
-                    if let Some(p) = progress {
-                        p.candidates_done.fetch_add(1, Ordering::Relaxed);
-                    }
-                }
-            });
+            // &work: one Fn closure shared across the scoped workers.
+            #[allow(clippy::needless_borrows_for_generic_args)]
+            scope.spawn(&work);
         }
     });
+    #[cfg(target_arch = "wasm32")]
+    work();
 
     if cancel.load(Ordering::Relaxed) {
         return Err(RunError::Cancelled);

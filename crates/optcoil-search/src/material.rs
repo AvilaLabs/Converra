@@ -1,6 +1,8 @@
 //! Headless measured-data import, bounded queries and withheld-plane validation.
 
-use std::{collections::HashSet, path::Path, time::Instant};
+use std::{collections::HashSet, path::Path};
+
+use crate::time::Instant;
 
 use optcoil_model::{
     Status,

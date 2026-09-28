@@ -255,6 +255,38 @@ enum Command {
         #[arg(long)]
         dataset: Vec<PathBuf>,
     },
+    /// Generate a declared Cartesian field map for a `path3d`
+    /// coupled-search case with the filament Biot-Savart model, and
+    /// write the case back out with `field_map` declared plus the CSV
+    /// source sidecar the sha256 binds. This is a filament-model map —
+    /// label it `optcoil-filament/v1` in the case provenance; it is not
+    /// a substitute for a solver export on a production winding.
+    FieldMap {
+        case: PathBuf,
+        /// Write the updated case JSON here (never overwrites).
+        #[arg(long)]
+        emit_case: PathBuf,
+        /// Write the provenance CSV whose sha256 the declaration binds.
+        #[arg(long)]
+        source: PathBuf,
+        /// Grid pitch in metres (levels auto-cover the swept pack hull
+        /// plus margin).
+        #[arg(long, default_value_t = 0.005)]
+        spacing_m: f64,
+        /// Hull margin in metres.
+        #[arg(long, default_value_t = 0.01)]
+        margin_m: f64,
+        /// Arc-length samples per filament. Convergence needs ~1e4+ on
+        /// long helixes.
+        #[arg(long, default_value_t = 24_000)]
+        samples: usize,
+        /// True total ampere-turns the map is evaluated at. Any
+        /// positive value is a valid scale — the engine scales entries
+        /// linearly by candidate NI — but 1.0 reads as a
+        /// per-ampere-turn export.
+        #[arg(long, default_value_t = 1.0)]
+        reference_ni: f64,
+    },
     /// Optimize a versioned JSON case with bounded exact enumeration.
     Run {
         case: PathBuf,
@@ -1076,6 +1108,87 @@ fn execute(cli: Cli) -> Result<(), Box<dyn Error>> {
             use std::io::Write as _;
             file.write_all(html.as_bytes())?;
             eprintln!("Saved {}", output.display());
+        }
+        Command::FieldMap {
+            case,
+            emit_case,
+            source,
+            spacing_m,
+            margin_m,
+            samples,
+            reference_ni,
+        } => {
+            let text = fs::read_to_string(&case)?;
+            let mut case = optcoil_model::coupled_search::CoupledSearchCase::from_json(&text)?;
+            let Some(path3d) = case.fixed_geometry.path3d.clone() else {
+                return Err(
+                    "field-map generation applies to path3d cases — this case's \
+                            fixed_geometry declares no path3d"
+                        .into(),
+                );
+            };
+            let (Some(radial_band), Some(width_band)) = (
+                case.fixed_geometry.pack_radial_width_m,
+                case.fixed_geometry.pack_axial_height_m,
+            ) else {
+                return Err("path3d cases must declare \
+                        pack_radial_width_m/pack_axial_height_m"
+                    .into());
+            };
+            let generated = optcoil_search::fieldmap::generate_path3d_field_map(
+                &path3d,
+                radial_band,
+                width_band,
+                case.requirement.bore_probe_m,
+                reference_ni,
+                &optcoil_search::fieldmap::MapGrid {
+                    spacing_m,
+                    margin_m,
+                    line_samples: samples,
+                    ..Default::default()
+                },
+            )
+            .map_err(|e| format!("field-map generation failed: {e}"))?;
+            if source.exists() || emit_case.exists() {
+                return Err("refusing to overwrite an existing file".into());
+            }
+            fs::write(&source, &generated.source_csv)?;
+            case.field_map = Some(optcoil_search::fieldmap::declared_field_map(&generated));
+            // The injected map has to pass the schema's own gates
+            // (product-grid completeness, hull containment, anchor
+            // finiteness) — validate the assembled case before writing
+            // so a bad grid can't ship as a declared case.
+            case.validate()
+                .map_err(|e| format!("generated case fails validation: {e}"))?;
+            let json = serde_json::to_string_pretty(&case)?;
+            fs::write(&emit_case, format!("{json}\n"))?;
+            if let optcoil_model::coupled::FieldMap::CartesianBxByBz {
+                x_levels_m,
+                y_levels_m,
+                z_levels_m,
+                entries,
+                ..
+            } = &generated.map
+            {
+                println!(
+                    "map: {}×{}×{} = {} nodes, source sha256={}",
+                    x_levels_m.len(),
+                    y_levels_m.len(),
+                    z_levels_m.len(),
+                    entries.len(),
+                    generated.source_sha256
+                );
+            }
+            println!(
+                "bore anchor: {:.6} T at {:?} (NI = {})",
+                generated.bore_field_at_reference_t, case.requirement.bore_probe_m, reference_ni
+            );
+            println!(
+                "wrote {} and {} — filament-model map; declare its origin \
+                 in case provenance",
+                emit_case.display(),
+                source.display()
+            );
         }
         Command::Run { case, args } => {
             execute_run(Case::from_json(&fs::read_to_string(case)?)?, args)?

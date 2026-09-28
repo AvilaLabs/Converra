@@ -62,6 +62,113 @@ fn show_boot_error(message: &str) {
     }
 }
 
+/// Worker body: dispatch on `kind` — `search` (default) runs a coupled
+/// search, `fieldmap` generates a declared filament-model map for the
+/// builder. Cancellation is `worker.terminate()` from the page — a
+/// blocked worker thread cannot observe a flag.
+fn run_request(text: &str) -> String {
+    let request: serde_json::Value = match serde_json::from_str(text) {
+        Ok(r) => r,
+        Err(e) => {
+            return serde_json::json!({
+                "status": "err",
+                "error": format!("worker request parse: {e}"),
+            })
+            .to_string();
+        }
+    };
+    match request
+        .get("kind")
+        .and_then(|v| v.as_str())
+        .unwrap_or("search")
+    {
+        "fieldmap" => match run_fieldmap(&request) {
+            Ok(generated) => {
+                serde_json::json!({"status": "ok", "generated": generated}).to_string()
+            }
+            Err(error) => serde_json::json!({"status": "err", "error": error}).to_string(),
+        },
+        _ => match run_search(&request) {
+            Ok(record) => serde_json::json!({"status": "ok", "record": record}).to_string(),
+            Err(error) => serde_json::json!({"status": "err", "error": error}).to_string(),
+        },
+    }
+}
+
+fn run_search(request: &serde_json::Value) -> Result<String, String> {
+    let case_json = request
+        .get("case_json")
+        .and_then(|v| v.as_str())
+        .ok_or("worker request lacks case_json")?;
+    let dataset: Option<optcoil_model::material::MaterialDataset> = request
+        .get("dataset_json")
+        .and_then(|v| v.as_str())
+        .map(serde_json::from_str)
+        .transpose()
+        .map_err(|e| format!("worker dataset parse: {e}"))?;
+    let cancel = std::sync::atomic::AtomicBool::new(false);
+    let record = optcoil_search::coupled_search::run_coupled_search_case_with_dataset_progress(
+        case_json,
+        &optcoil_search::coupled_search::CoupledSearchOptions { threads: Some(1) },
+        dataset,
+        &cancel,
+        None,
+    )
+    .map_err(|e| e.to_string())?;
+    serde_json::to_string(&record).map_err(|e| e.to_string())
+}
+
+fn run_fieldmap(
+    request: &serde_json::Value,
+) -> Result<optcoil_search::fieldmap::GeneratedFieldMap, String> {
+    let take = |key: &str| {
+        request
+            .get(key)
+            .cloned()
+            .ok_or_else(|| format!("worker request lacks {key}"))
+    };
+    let path3d: optcoil_model::path3d::CoilPath3D =
+        serde_json::from_value(take("path3d")?).map_err(|e| format!("worker path3d parse: {e}"))?;
+    let probe: [f64; 3] = serde_json::from_value(take("bore_probe_m")?)
+        .map_err(|e| format!("worker probe parse: {e}"))?;
+    let radial: f64 = serde_json::from_value(take("radial_band_m")?).map_err(|e| e.to_string())?;
+    let width: f64 = serde_json::from_value(take("width_band_m")?).map_err(|e| e.to_string())?;
+    let ni: f64 = serde_json::from_value(take("reference_ni_a")?).map_err(|e| e.to_string())?;
+    let grid: optcoil_search::fieldmap::MapGrid = serde_json::from_value(
+        request
+            .get("grid")
+            .cloned()
+            .unwrap_or(serde_json::json!({})),
+    )
+    .map_err(|e| e.to_string())?;
+    optcoil_search::fieldmap::generate_path3d_field_map(&path3d, radial, width, probe, ni, &grid)
+        .map_err(|e| e.to_string())
+}
+
+/// Entry point for `worker.js` — runs inside the worker's global
+/// scope and registers the search handler. The search is synchronous
+/// (that is the point of the worker: it blocks its own thread, not
+/// the page's).
+#[wasm_bindgen]
+pub fn converra_search_worker_main() {
+    console_error_panic_hook::set_once();
+    let scope = js_sys::global().unchecked_into::<web_sys::DedicatedWorkerGlobalScope>();
+    let out = scope.clone();
+    let onmessage = Closure::wrap(Box::new(move |event: web_sys::MessageEvent| {
+        let reply = match event.data().as_string() {
+            Some(text) => run_request(&text),
+            None => serde_json::json!({
+                "status": "err",
+                "error": "search worker received a non-string message",
+            })
+            .to_string(),
+        };
+        let _ = out.post_message(&wasm_bindgen::JsValue::from_str(&reply));
+    }) as Box<dyn FnMut(_)>);
+    scope.set_onmessage(Some(onmessage.as_ref().unchecked_ref()));
+    onmessage.forget();
+}
+
 #[wasm_bindgen(start)]
 pub async fn start_web() -> Result<(), JsValue> {
     console_error_panic_hook::set_once();

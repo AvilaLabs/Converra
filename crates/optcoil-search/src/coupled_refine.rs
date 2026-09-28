@@ -18,8 +18,9 @@ use std::{
         Mutex,
         atomic::{AtomicUsize, Ordering},
     },
-    time::{Instant, SystemTime, UNIX_EPOCH},
 };
+
+use crate::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use optcoil_model::{
     Check, Status,
@@ -290,38 +291,44 @@ pub fn run_coupled_refine_case_with_dataset(
     let results: Mutex<Vec<(usize, Result<PancakeRefinementResult, RunError>)>> =
         Mutex::new(Vec::with_capacity(n_p));
 
+    // Same shape as the candidate-screening pool in coupled_search:
+    // wasm32 has no OS threads — the shared work loop runs inline.
+    let refine_work = || loop {
+        let idx = counter.fetch_add(1, Ordering::Relaxed);
+        if idx >= n_p {
+            break;
+        }
+        let (tapes, assignment) = work[idx];
+        let bracket = *refinement
+            .brackets
+            .iter()
+            .find(|b| b.tapes == tapes)
+            .expect("CoupledSearchCase::validate enforces a bijection between pancake_counts and brackets");
+        let outcome = bisect_one_pancake(
+            &search,
+            tapes,
+            assignment,
+            &bracket,
+            refinement.turn_resolution,
+            &refinement.turn_bounds,
+            refinement.monotonicity_check,
+            &runtimes,
+        );
+        results
+            .lock()
+            .expect("refine results mutex poisoned")
+            .push((idx, outcome));
+    };
+    #[cfg(not(target_arch = "wasm32"))]
     std::thread::scope(|scope| {
         for _ in 0..execution_threads.min(n_p as u32).max(1) {
-            scope.spawn(|| {
-                loop {
-                    let idx = counter.fetch_add(1, Ordering::Relaxed);
-                    if idx >= n_p {
-                        break;
-                    }
-                    let (tapes, assignment) = work[idx];
-                    let bracket = *refinement
-                        .brackets
-                        .iter()
-                        .find(|b| b.tapes == tapes)
-                        .expect("CoupledSearchCase::validate enforces a bijection between pancake_counts and brackets");
-                    let outcome = bisect_one_pancake(
-                        &search,
-                        tapes,
-                        assignment,
-                        &bracket,
-                        refinement.turn_resolution,
-                        &refinement.turn_bounds,
-                        refinement.monotonicity_check,
-                        &runtimes,
-                    );
-                    results
-                        .lock()
-                        .expect("refine results mutex poisoned")
-                        .push((idx, outcome));
-                }
-            });
+            // &refine_work: one Fn closure shared across the workers.
+            #[allow(clippy::needless_borrows_for_generic_args)]
+            scope.spawn(&refine_work);
         }
     });
+    #[cfg(target_arch = "wasm32")]
+    refine_work();
 
     let mut ordered = results.into_inner().expect("refine results mutex poisoned");
     ordered.sort_by_key(|(idx, _)| *idx);

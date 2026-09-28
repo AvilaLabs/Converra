@@ -328,6 +328,19 @@ impl CoilPath3D {
             .collect::<Result<Vec<_>, _>>()
     }
 
+    /// Total winding turns — Σ|turns| over the helix segments. This is
+    /// the NI↔current divisor for any model that treats the centerline
+    /// as a single wire (each filament loop carries NI/turns).
+    pub fn winding_turns(&self) -> f64 {
+        self.segments
+            .iter()
+            .map(|s| {
+                let PathSegment3D::Helix { turns, .. } = *s;
+                turns.abs()
+            })
+            .sum()
+    }
+
     /// Total centerline length (m).
     pub fn length_m(&self) -> f64 {
         self.segments

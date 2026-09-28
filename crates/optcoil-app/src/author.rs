@@ -133,6 +133,15 @@ impl PathSegmentRow {
     }
 }
 
+/// A field map arriving off the event loop — either a picked file or
+/// the filament-model generator's output.
+enum PendingFieldMap {
+    /// Only the browser's async file pick produces this variant.
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    Picked(String, Result<FieldMap, String>),
+    Generated(Result<optcoil_search::fieldmap::GeneratedFieldMap, String>),
+}
+
 /// One editable `path3d` helix segment — the CCT/CORC element.
 struct HelixSegmentRow {
     axis_origin_m: [f64; 3],
@@ -327,10 +336,17 @@ pub struct CaseDraft {
     /// customer's artifact; only its identity is editable here.
     field_map: Option<FieldMap>,
     field_map_label: String,
-    /// Browser field-map pick resolves asynchronously — the parsed map
-    /// (or its error) lands here and is applied at the top of `show`.
-    #[cfg(target_arch = "wasm32")]
-    field_map_pending: Option<std::sync::mpsc::Receiver<(String, Result<FieldMap, String>)>>,
+    /// The CSV sidecar a generated map binds — keepable as the
+    /// provenance artifact; `None` for imported maps.
+    field_map_source_csv: Option<Vec<u8>>,
+    /// Filament-model generation controls (path3d only).
+    map_gen_spacing_m: f64,
+    map_gen_margin_m: f64,
+    map_gen_reference_ni: f64,
+    /// Async field-map work — the browser's file pick and (on both
+    /// targets) the filament generator's result land here and apply at
+    /// the top of `show`.
+    field_map_pending: Option<std::sync::mpsc::Receiver<PendingFieldMap>>,
     field_map_bore_field_t: f64,
     /// Pack extents — emitted only under a declared map, which
     /// validates candidates against them.
@@ -524,7 +540,10 @@ impl Default for CaseDraft {
             baseline_specs_text: "base".into(),
             field_map: None,
             field_map_label: String::new(),
-            #[cfg(target_arch = "wasm32")]
+            field_map_source_csv: None,
+            map_gen_spacing_m: 0.005,
+            map_gen_margin_m: 0.01,
+            map_gen_reference_ni: 1.0e4,
             field_map_pending: None,
             field_map_bore_field_t: 1.0,
             pack_radial_width_m: 0.048,
@@ -665,7 +684,7 @@ impl CaseDraft {
             // its section instead of surfacing a bare contract error.
             if self.field_map.is_none() {
                 return Err(
-                    "path3d windings cannot use the built-in field evaluator — load a field map (schema v9: sampling.field_map) in the Field map section"
+                    "path3d windings cannot use the built-in field evaluator — load a field map or generate one (filament model) in the Field map section"
                         .into(),
                 );
             }
@@ -1054,14 +1073,26 @@ impl CaseDraft {
     /// The modal window. Returns `Some((case, json))` when the user asked
     /// to save — the caller writes `json` to disk and opens it.
     pub fn show(&mut self, ctx: &egui::Context) -> Option<(CoupledSearchCase, String)> {
-        // Browser field-map pick — the async dialog resolves between
-        // frames; apply whatever landed.
-        #[cfg(target_arch = "wasm32")]
-        if let Some(receiver) = &self.field_map_pending
-            && let Ok((name, result)) = receiver.try_recv()
-        {
-            self.field_map_pending = None;
-            self.apply_field_map(result, name);
+        // Async field-map work — the browser pick's dialog and the
+        // filament generator both resolve between frames.
+        if let Some(receiver) = &self.field_map_pending {
+            match receiver.try_recv() {
+                Ok(PendingFieldMap::Picked(name, result)) => {
+                    self.field_map_pending = None;
+                    self.apply_field_map(result, name);
+                }
+                Ok(PendingFieldMap::Generated(result)) => {
+                    self.field_map_pending = None;
+                    self.apply_generated_map(result);
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    // Keep repainting while the generator runs.
+                    ctx.request_repaint_after(std::time::Duration::from_millis(200));
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    self.field_map_pending = None;
+                }
+            }
         }
         let mut open = true;
         let mut save: Option<(CoupledSearchCase, String)> = None;
@@ -1172,7 +1203,7 @@ impl CaseDraft {
                         optcoil_adapters::field_map::cartesian_csv_to_field_map(&text, sha, 1.0)
                     })
             };
-            let _ = sender.send((name, result));
+            let _ = sender.send(PendingFieldMap::Picked(name, result));
         });
         self.field_map_pending = Some(receiver);
     }
@@ -1182,6 +1213,7 @@ impl CaseDraft {
             Ok(map @ FieldMap::CartesianBxByBz { .. }) => {
                 self.field_map_label = label;
                 self.field_map = Some(map);
+                self.field_map_source_csv = None;
             }
             Ok(FieldMap::CylindricalBrBz { .. }) => {
                 self.error = Some(
@@ -1189,6 +1221,181 @@ impl CaseDraft {
                 );
             }
             Err(e) => self.error = Some(format!("field map: {e}")),
+        }
+    }
+
+    /// Inputs for the filament generator, read off the form. Errors
+    /// name the owning section.
+    #[allow(clippy::type_complexity)]
+    fn field_map_gen_inputs(
+        &self,
+    ) -> Result<
+        (
+            CoilPath3D,
+            f64,
+            f64,
+            [f64; 3],
+            f64,
+            optcoil_search::fieldmap::MapGrid,
+        ),
+        String,
+    > {
+        let path3d = self
+            .coil_path3d()
+            .map_err(|e| format!("Fixed geometry: {e}"))?;
+        if !(self.pack_radial_width_m > 0.0 && self.pack_axial_height_m > 0.0) {
+            return Err(
+                "Field map: pack extents (radial × axial) must be positive to size a map".into(),
+            );
+        }
+        if !(self.map_gen_spacing_m > 0.0 && self.map_gen_margin_m >= 0.0) {
+            return Err("Field map: grid spacing must be positive".into());
+        }
+        if !(self.map_gen_reference_ni.is_finite() && self.map_gen_reference_ni > 0.0) {
+            return Err("Field map: reference ampere-turns must be positive".into());
+        }
+        Ok((
+            path3d,
+            self.pack_radial_width_m,
+            self.pack_axial_height_m,
+            self.bore_probe,
+            self.map_gen_reference_ni,
+            optcoil_search::fieldmap::MapGrid {
+                spacing_m: self.map_gen_spacing_m,
+                margin_m: self.map_gen_margin_m,
+                ..Default::default()
+            },
+        ))
+    }
+
+    /// Generate a declared map for the authored `path3d` winding with
+    /// the filament Biot-Savart model — off the event loop (a real
+    /// grid is millions of field evaluations).
+    #[cfg(not(target_arch = "wasm32"))]
+    fn generate_field_map(&mut self, ctx: &egui::Context) {
+        let inputs = self.field_map_gen_inputs();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let ctx = ctx.clone();
+        std::thread::spawn(move || {
+            let result = inputs.and_then(|(path3d, radial, width, probe, ni, grid)| {
+                optcoil_search::fieldmap::generate_path3d_field_map(
+                    &path3d, radial, width, probe, ni, &grid,
+                )
+                .map_err(|e| e.to_string())
+            });
+            let _ = sender.send(PendingFieldMap::Generated(result));
+            ctx.request_repaint();
+        });
+        self.field_map_pending = Some(receiver);
+    }
+
+    /// Browser counterpart: the same generator runs on the search
+    /// worker's wasm instance (it posts `{kind:"fieldmap",…}`), so a
+    /// multi-second grid does not freeze the page.
+    #[cfg(target_arch = "wasm32")]
+    fn generate_field_map(&mut self, ctx: &egui::Context) {
+        use wasm_bindgen::JsCast as _;
+        let inputs = self.field_map_gen_inputs();
+        let (path3d, radial, width, probe, ni, grid) = match inputs {
+            Ok(t) => t,
+            Err(e) => {
+                self.error = Some(e);
+                return;
+            }
+        };
+        let options = web_sys::WorkerOptions::new();
+        options.set_type(web_sys::WorkerType::Module);
+        let Ok(worker) = web_sys::Worker::new_with_options("./worker.js", &options) else {
+            self.error = Some("could not start the search worker".into());
+            return;
+        };
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let ctx = ctx.clone();
+        let done_worker = worker.clone();
+        let onmessage =
+            wasm_bindgen::closure::Closure::wrap(Box::new(move |event: web_sys::MessageEvent| {
+                let result = event
+                    .data()
+                    .as_string()
+                    .ok_or_else(|| "worker replied with a non-string message".to_owned())
+                    .and_then(|text| {
+                        let payload: serde_json::Value =
+                            serde_json::from_str(&text).map_err(|e| e.to_string())?;
+                        match payload.get("status").and_then(|s| s.as_str()) {
+                            Some("ok") => serde_json::from_value::<
+                                optcoil_search::fieldmap::GeneratedFieldMap,
+                            >(
+                                payload["generated"].clone()
+                            )
+                            .map_err(|e| e.to_string()),
+                            _ => Err(payload["error"]
+                                .as_str()
+                                .unwrap_or("worker error")
+                                .to_owned()),
+                        }
+                    });
+                let _ = sender.send(PendingFieldMap::Generated(result));
+                ctx.request_repaint();
+                done_worker.terminate(); // one-shot job — retire it
+            }) as Box<dyn FnMut(_)>);
+        worker.set_onmessage(Some(onmessage.as_ref().unchecked_ref()));
+        onmessage.forget();
+        let payload = serde_json::json!({
+            "kind": "fieldmap",
+            "path3d": path3d,
+            "radial_band_m": radial,
+            "width_band_m": width,
+            "bore_probe_m": probe,
+            "reference_ni_a": ni,
+            "grid": {
+                "spacing_m": grid.spacing_m,
+                "margin_m": grid.margin_m,
+                "line_samples": grid.line_samples,
+                "n_rho": grid.n_rho,
+                "n_width": grid.n_width,
+            },
+        });
+        let _ = worker.post_message(&wasm_bindgen::JsValue::from_str(&payload.to_string()));
+        self.field_map_pending = Some(receiver);
+    }
+
+    /// Write the generated map's CSV sidecar to disk — the artifact
+    /// `source_sha256` binds to.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn save_field_map_source(&mut self, csv: Vec<u8>) {
+        if let Some(path) = rfd::FileDialog::new()
+            .set_title("Save field-map source CSV")
+            .set_file_name("field-map-source.csv")
+            .save_file()
+            && let Err(e) = std::fs::write(&path, csv)
+        {
+            self.error = Some(format!("save field-map source: {e}"));
+        }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn save_field_map_source(&mut self, csv: Vec<u8>) {
+        crate::web::download_bytes("field-map-source.csv", &csv);
+    }
+
+    fn apply_generated_map(
+        &mut self,
+        result: Result<optcoil_search::fieldmap::GeneratedFieldMap, String>,
+    ) {
+        match result {
+            Ok(g) => {
+                self.field_map_bore_field_t = g.bore_field_at_reference_t;
+                self.field_map_source_csv = Some(g.source_csv.clone());
+                self.field_map_label = "generated — filament model (optcoil-filament/v1)".into();
+                self.field_map = Some(g.map);
+                if !self.provenance.contains("optcoil-filament") {
+                    self.provenance = format!(
+                        "{}\nField map: optcoil-filament/v1 — band-smeared Biot-Savart over the declared centerline (screening-grade; not an FEM export).",
+                        self.provenance.trim_end()
+                    );
+                }
+            }
+            Err(e) => self.error = Some(format!("field map generation: {e}")),
         }
     }
 
@@ -2041,20 +2248,70 @@ impl CaseDraft {
                         brand::MUTED,
                         "A declared map fixes the winding shape — the usable-volume region and geometry axes are suppressed, and the map's own grid is the field resolution (refinement evidence reports zero by construction). Baseline turns×pitch and tapes×width must equal the pack extents.",
                     );
-                    if ui.button("Clear map").clicked() {
-                        self.field_map = None;
-                        self.field_map_label.clear();
+                    ui.horizontal(|ui| {
+                        if ui.button("Clear map").clicked() {
+                            self.field_map = None;
+                            self.field_map_label.clear();
+                            self.field_map_source_csv = None;
+                        }
+                        if let Some(csv) = self.field_map_source_csv.clone()
+                            && ui.button("Save source CSV…").clicked()
+                        {
+                            self.save_field_map_source(csv);
+                        }
+                    });
+                    if self.field_map_source_csv.is_some() {
+                        ui.colored_label(
+                            brand::MUTED,
+                            "Generated map — the CSV is the provenance artifact its sha256 binds; keep it next to the case.",
+                        );
                     }
-                } else if ui
-                    .button("Load field map — JSON or solver CSV export…")
-                    .clicked()
-                {
-                    self.load_field_map_dialog();
                 } else {
+                    let map_pending = self.field_map_pending.is_some();
+                    ui.add_enabled_ui(!map_pending, |ui| {
+                        if ui
+                            .button("Load field map — JSON or solver CSV export…")
+                            .clicked()
+                        {
+                            self.load_field_map_dialog();
+                        }
+                    });
                     ui.colored_label(
                         brand::MUTED,
                         "Optional — a customer-declared field solution (their FEA export) replaces the engine's solve at sampled points. Accepts the serialized JSON map or a lab-frame export of x y z Bx By Bz rows. Cartesian maps only; cylindrical maps pair with circular path geometry this builder does not author.",
                     );
+                    if self.centerline == CenterlineKind::Path3D {
+                        ui.separator();
+                        ui.label("Or generate one from the winding:");
+                        field(ui, "Grid pitch × margin (m)", |ui| {
+                            ui.horizontal(|ui| {
+                                ui.add(
+                                    egui::DragValue::new(&mut self.map_gen_spacing_m).speed(0.001),
+                                );
+                                ui.add(
+                                    egui::DragValue::new(&mut self.map_gen_margin_m).speed(0.001),
+                                );
+                            })
+                            .inner
+                        });
+                        field(ui, "Reference ampere-turns", |ui| {
+                            ui.add(
+                                egui::DragValue::new(&mut self.map_gen_reference_ni).speed(100.0),
+                            )
+                        });
+                        ui.add_enabled_ui(!map_pending, |ui| {
+                            if ui.button("Generate field map — filament model").clicked() {
+                                self.generate_field_map(ui.ctx());
+                            }
+                        });
+                        ui.colored_label(
+                            brand::MUTED,
+                            "Evaluates the winding as band-smeared Biot-Savart filaments over its own declared (radial × binormal) band — screening-grade, not FEM. The bore anchor is computed with the same model so the NI solve stays self-consistent. Provenance is labeled optcoil-filament/v1 in the emitted case.",
+                        );
+                        if map_pending {
+                            ui.spinner();
+                        }
+                    }
                 }
             });
 

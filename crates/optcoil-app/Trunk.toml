@@ -3,6 +3,10 @@
 [build]
 target = "index.html"
 release = true
+# Unhashed asset names: worker.js imports ./optcoil-app.js and
+# ./optcoil-app_bg.wasm directly — a hashed name it cannot predict.
+# Cache freshness is handled by the deploy layer, not filenames.
+filehash = false
 
 [serve]
 port = 8080

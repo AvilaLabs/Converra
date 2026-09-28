@@ -27,10 +27,9 @@
 //! FAIL, then error rows — never a vendor endorsement. A FAIL row means
 //! no passing design under that entry, not that the tape is bad.
 
-use std::{
-    sync::atomic::AtomicBool,
-    time::{Instant, SystemTime, UNIX_EPOCH},
-};
+use std::sync::atomic::AtomicBool;
+
+use crate::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
