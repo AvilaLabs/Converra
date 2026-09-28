@@ -1,0 +1,171 @@
+{
+  "schema": "optcoil-coupled-search/v15",
+  "id": "oc-024-32t-outer",
+  "provenance": "OC-024: NHMFL 32 T all-superconducting magnet REBCO insert field parity. Published geometry/tape length (Weijers et al., NHMFL 32 T magnet technology; IEEE TASC 22(3) 4300704 and successors). Solenoid pancake stack modeled as a 360-degree circular path pack: turns_along_normal = radial spiral turns per pancake (147, from 6.6 km / 72 pancakes at mean circumference), tapes_along_width = axial pancake count (72). tape_width_m is the pancake pitch (4 mm tape + co-wind); radial_pitch_m the spiral pitch (tape thickness + insulation). Field-side parity only: conductor fields exceed every embedded dataset, so material screening is INCONCLUSIVE by construction. Operating point declared at 25 K (strictly interior to the dataset span; the built magnet runs 4.2 K) \u2014 the field parity is temperature-independent and material screening is INCONCLUSIVE on coverage regardless.",
+  "requirement": {
+    "bore_probe_m": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "b_target_t": 8.5,
+    "tolerance_fraction": 1e-09,
+    "good_field_region": {
+      "half_extents_m": [
+        0.005,
+        0.005,
+        0.005
+      ],
+      "points_per_axis": 3
+    }
+  },
+  "fixed_geometry": {
+    "path": {
+      "segments": [
+        {
+          "kind": "arc",
+          "radius_m": 0.099,
+          "sweep_deg": 360.0
+        }
+      ],
+      "start_position_m": [
+        0.099,
+        0.0
+      ],
+      "start_heading_deg": 90.0
+    },
+    "radial_pitch_m": 0.00023129251700680273,
+    "tape_width_m": 0.0044444444444444444,
+    "tape_normal": "radial"
+  },
+  "choices": {
+    "turns_along_normal": [
+      147
+    ],
+    "tapes_along_width": [
+      72
+    ]
+  },
+  "operating": {
+    "temperature_k": 25.0,
+    "electric_field_criterion_v_per_m": 0.0001
+  },
+  "material": {
+    "dataset_id": "robinson-superpower-ap-v3",
+    "csv_sha256": "889cc2cf8b91b822cbc6cceb7388e5d8afcb8a8911bb20ab175e50c7e6dc0354",
+    "method": "measured-coordinate-tetrahedral-log-field-log-ic/v1",
+    "angle_mapping": "period_180_field_reversal",
+    "mirror_policy": "minimum_of_mirror_pair",
+    "field_basis_mapping": "pack_field_as_applied_field_self_field_consistent",
+    "field_magnitude_policy": "total_magnitude_with_transverse_angle",
+    "low_field_policy": "monotone_field_lower_bound",
+    "low_field_clamp_t": 1.001,
+    "monotonicity_tolerance": 0.001
+  },
+  "sampling": {
+    "stations": [
+      {
+        "id": "s0",
+        "kind": "path",
+        "s_m": 0.0
+      },
+      {
+        "id": "sq",
+        "kind": "path",
+        "s_m": 0.15550883635269477
+      }
+    ],
+    "relative_turn_indices": [
+      {
+        "kind": "from_start",
+        "offset": 1
+      },
+      {
+        "kind": "from_end",
+        "offset": 0
+      }
+    ],
+    "width_points": 5
+  },
+  "limits": {
+    "max_along_current_field_fraction": 0.2,
+    "max_self_field_ratio": 1000000.0,
+    "interpolation_overprediction_budget": 0.1,
+    "utilization_limit": 0.8
+  },
+  "numerics": {
+    "quadrature_orders": [
+      2,
+      4
+    ],
+    "field_scale_t": 1.0,
+    "max_refinement_change_fraction": 0.5
+  },
+  "pruning": null,
+  "cost": {
+    "price_usd_per_m": 30.0,
+    "scrap_fraction": 0.1,
+    "assembly_cost_per_pancake_usd": 500.0,
+    "joint_cost_usd": 200.0
+  },
+  "baseline": {
+    "turns_along_normal": 147,
+    "tapes_along_width": 72
+  },
+  "refinement": {
+    "pancake_counts": [
+      72
+    ],
+    "turn_resolution": 10,
+    "turn_bounds": {
+      "min": 1,
+      "max": 247
+    },
+    "brackets": [
+      {
+        "tapes": 72,
+        "fail_turns": 127,
+        "pass_turns": 167
+      }
+    ],
+    "monotonicity_check": false
+  },
+  "refined_plan": {
+    "additional_stations": [
+      {
+        "id": "rp0",
+        "kind": "path",
+        "s_m": 0.088862
+      },
+      {
+        "id": "rp1",
+        "kind": "path",
+        "s_m": 0.177724
+      },
+      {
+        "id": "rp2",
+        "kind": "path",
+        "s_m": 0.266587
+      },
+      {
+        "id": "rp3",
+        "kind": "path",
+        "s_m": 0.355449
+      },
+      {
+        "id": "rp4",
+        "kind": "path",
+        "s_m": 0.444311
+      },
+      {
+        "id": "rp5",
+        "kind": "path",
+        "s_m": 0.533173
+      }
+    ],
+    "max_sampling_shortfall_fraction": 0.02
+  },
+  "execution": {
+    "max_threads": 2
+  }
+}

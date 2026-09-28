@@ -1,0 +1,13 @@
+{
+  "schema": "optcoil-bakeoff/v1",
+  "provenance": "OC-025b: vendor bake-off on the OC-025 SPARC TFMC screening-parity case (see oc-025-tfmc.json for the case's own provenance and limitations). Question: does the reconstructed as-built TFMC winding (256 turns x ~250-strand stacks, 5 T bore target, 25 K) screen against measured commercial REBCO tapes from multiple vendors, and how do the screening margins compare? Datasets: the four measured vendor characterisations in the embedded registry (SuperPower AP, Shanghai HFLT, FFJ YBCO, THEVA AP - all Wimbush/Strickland/Pantoja Robinson-source figshare measurements, CC-BY, 20-40 K, ~1-8 T), plus the case's declared SuperPower AP measured+model-extension variant, plus the two Babouche et al. 2026 MEM-model-fit datasets (doi:10.1088/1361-6668/ae940e, CC-BY) whose declared field support starts at 8 T - above this case's ~5.8 T modeled peak - so their rows are expected to report limited coverage honestly rather than pretend an answer. All rows run the identical case with only dataset_id/csv_sha256 mutated; $30/m price is the case's declared synthetic figure, not a supplier quote. This is a public-data screening comparison, not procurement advice and not a vendor endorsement.",
+  "datasets": [
+    { "dataset_id": "robinson-superpower-ap-v3-modelext" },
+    { "dataset_id": "robinson-superpower-ap-v3" },
+    { "dataset_id": "robinson-shanghai-hflt-v3" },
+    { "dataset_id": "robinson-ffj-ybco-v1" },
+    { "dataset_id": "robinson-theva-ap-v2" },
+    { "dataset_id": "babouche-superpower-m31477-memfit-v1" },
+    { "dataset_id": "babouche-sst-yp506-memfit-v1" }
+  ]
+}

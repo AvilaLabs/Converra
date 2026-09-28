@@ -1,0 +1,101 @@
+{
+  "schema": "optcoil-coupled-search/v10",
+  "id": "oc-020-graded-pack",
+  "provenance": "OC-020: synthetic graded-pack case exercising coupled-search schema v10 per-region tape-spec assignment. Racetrack skeleton matches the OC-007 family (0.3 m straight half-length, 0.2 m bend radius); the two grading regions split turns_along_normal at the radial midpoint: inner half (higher field) may take the base tape or the low-field-binned variant, outer half (lower field) the same pair. Both specs bind real embedded measured datasets -- base is robinson-superpower-ap-v3 (csv_sha256 889cc2cf8b91b822cbc6cceb7388e5d8afcb8a8911bb20ab175e50c7e6dc0354), 'hts-lowfield' is robinson-superpower-ap-v3-lowfield (csv_sha256 043cbaab9a32da5de6394b136265835b9c5917e28861d0793544c5e3885f893b) -- so the mechanism under test is honest per-region material resolution, not an invented conductor. Prices (base 30 USD/m, hts-lowfield 18 USD/m, plus the OC-007 placeholder assembly/joint/scrap figures) are invented placeholders, not supplier data; the result is a modeled saving under a screening model, never a production claim. Schema v10 forbids the `refinement` block on graded cases (assignment-aware bisection is not implemented), so none is declared; the baseline assignment is all-base at the cheapest all-base feasible geometry (160x4), so savings read as grading-on-top-of-geometry. Note: the lowfield dataset shares the base dataset's measured rows in the field range this case operates in, so the two specs screen identically here and grading exercises per-region pricing and resolution rather than feasibility discrimination; that discrimination is covered by a declared-synthetic scaled-Ic unit test. Not a production design.",
+  "requirement": {
+    "bore_probe_m": [0.0, 0.0, 0.0],
+    "b_target_t": 0.9,
+    "tolerance_fraction": 0.02,
+    "good_field_region": {"half_extents_m": [0.05, 0.05, 0.05], "points_per_axis": 3}
+  },
+  "fixed_geometry": {
+    "straight_half_length_m": 0.3,
+    "bend_radius_m": 0.2,
+    "radial_pitch_m": 0.0001,
+    "tape_width_m": 0.012,
+    "tape_normal": "radial"
+  },
+  "choices": {"turns_along_normal": [120, 160, 200, 240, 300], "tapes_along_width": [2, 3, 4], "strands_parallel": [1]},
+  "operating": {"temperature_k": 25.0, "electric_field_criterion_v_per_m": 0.0001},
+  "material": {
+    "dataset_id": "robinson-superpower-ap-v3",
+    "csv_sha256": "889cc2cf8b91b822cbc6cceb7388e5d8afcb8a8911bb20ab175e50c7e6dc0354",
+    "method": "measured-coordinate-tetrahedral-log-field-log-ic/v1",
+    "angle_mapping": "period_180_field_reversal",
+    "mirror_policy": "minimum_of_mirror_pair",
+    "field_basis_mapping": "pack_field_as_applied_field_self_field_consistent",
+    "field_magnitude_policy": "total_magnitude_with_transverse_angle",
+    "low_field_policy": "monotone_field_lower_bound",
+    "low_field_clamp_t": 1.001,
+    "monotonicity_tolerance": 0.001
+  },
+  "tape_specs": {
+    "hts-lowfield": {
+      "material": {
+        "dataset_id": "robinson-superpower-ap-v3-lowfield",
+        "csv_sha256": "043cbaab9a32da5de6394b136265835b9c5917e28861d0793544c5e3885f893b",
+        "method": "measured-coordinate-tetrahedral-log-field-log-ic/v1",
+        "angle_mapping": "period_180_field_reversal",
+        "mirror_policy": "minimum_of_mirror_pair",
+        "field_basis_mapping": "pack_field_as_applied_field_self_field_consistent",
+        "field_magnitude_policy": "total_magnitude_with_transverse_angle",
+        "low_field_policy": "monotone_field_lower_bound",
+        "low_field_clamp_t": 0.0501,
+        "monotonicity_tolerance": 0.002
+      },
+      "price_usd_per_m": 18.0
+    }
+  },
+  "grading": {
+    "regions": [
+      {"turn_range": [0.0, 0.5], "tape_spec_choices": ["base", "hts-lowfield"]},
+      {"turn_range": [0.5, 1.0], "tape_spec_choices": ["base", "hts-lowfield"]}
+    ]
+  },
+  "sampling": {
+    "stations": [
+      {"id": "s15", "kind": "straight", "x_m": 0.15},
+      {"id": "a45", "kind": "arc", "azimuth_deg": 45.0},
+      {"id": "a90", "kind": "arc", "azimuth_deg": 90.0},
+      {"id": "a0", "kind": "arc", "azimuth_deg": 0.0}
+    ],
+    "relative_turn_indices": [
+      {"kind": "from_start", "offset": 1},
+      {"kind": "fraction", "value": 0.125},
+      {"kind": "fraction", "value": 0.5},
+      {"kind": "from_end", "offset": 0}
+    ],
+    "width_points": 5
+  },
+  "limits": {
+    "max_along_current_field_fraction": 0.2,
+    "max_self_field_ratio": 0.1,
+    "interpolation_overprediction_budget": 0.1,
+    "utilization_limit": 0.8
+  },
+  "numerics": {"quadrature_orders": [10, 14], "field_scale_t": 1.0, "max_refinement_change_fraction": 0.0025},
+  "pruning": null,
+  "cost": {
+    "price_usd_per_m": 30.0,
+    "scrap_fraction": 0.1,
+    "assembly_cost_per_pancake_usd": 500.0,
+    "joint_cost_usd": 200.0
+  },
+  "baseline": {
+    "turns_along_normal": 160,
+    "tapes_along_width": 4,
+    "tape_spec_ids": ["base", "base"]
+  },
+  "refined_plan": {
+    "additional_stations": [
+      {"id": "arc_15", "kind": "arc", "azimuth_deg": 15.0},
+      {"id": "arc_30", "kind": "arc", "azimuth_deg": 30.0},
+      {"id": "arc_60", "kind": "arc", "azimuth_deg": 60.0},
+      {"id": "arc_75", "kind": "arc", "azimuth_deg": 75.0},
+      {"id": "straight_015", "kind": "straight", "x_m": 0.15},
+      {"id": "straight_025", "kind": "straight", "x_m": 0.25}
+    ],
+    "max_sampling_shortfall_fraction": 0.02
+  },
+  "execution": {"max_threads": 4}
+}

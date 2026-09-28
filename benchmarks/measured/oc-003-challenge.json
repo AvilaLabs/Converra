@@ -1,0 +1,16 @@
+{
+  "schema": "optcoil-material-benchmark/v1",
+  "id": "oc-003-challenge",
+  "description": "Reserved before logarithmic-model assessment: previously unused 45 K measurements between training planes at 40 and 50 K, with the original error limits. Same specimen, not independent batch or experimental validation.",
+  "dataset_id": "robinson-superpower-ap-v3-challenge-20-50k",
+  "method": "measured-coordinate-tetrahedral-log-field-log-ic/v1",
+  "folds": [{"id": "reserved_45k_plane", "axis": "temperature", "holdout_values": [45.0]}],
+  "holdout_policy": "Remove complete nominal coordinate planes from training. Score every removed point that lies strictly inside the other two nominal axis bounds; preserve every eligible point in the coverage denominator.",
+  "acceptance": {
+    "minimum_coverage_fraction": 1.0,
+    "max_p95_relative_error": 0.1,
+    "max_relative_error": 0.2,
+    "max_positive_relative_error": 0.2,
+    "max_node_relative_error": 1e-12
+  }
+}

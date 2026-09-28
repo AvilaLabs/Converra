@@ -1,0 +1,217 @@
+{
+ "schema": "optcoil-coupled-search/v10",
+ "id": "oc-022",
+ "provenance": "OC-022: first graded-pack benchmark over two physically-distinct measured datasets. Geometry, sampling, limits and cost blocks match the OC-020 family (racetrack, 0.3 m straight half-length, 0.2 m bend radius, 0.9 T bore target, util limit 0.8); sampling adds a 0.85-fraction turn index after a refined plan found an interior minimum at ~0.85N that the coarse plan missed (3.9% shortfall in calibration). Regions split turns_along_normal at the radial midpoint: inner half sees the higher field, outer half the lower. Each region takes base or hts-shanghai. Both specs bind real embedded measured datasets from the same Robinson instrument/criterion: base is robinson-superpower-ap-v3 (SuperPower AP 12 mm tape, 1 mm bridge, csv_sha256 889cc2cf8b91b822cbc6cceb7388e5d8afcb8a8911bb20ab175e50c7e6dc0354, monotonicity_tolerance 0.001, low_field_clamp_t 1.001); hts-shanghai is robinson-shanghai-hflt-v3 (Shanghai Superconductor HFLT 4 mm tape, 0.5 mm bridge, csv_sha256 d53fbab65426c2d2f00ddd19ebe0470b1f73fb8a3e64b23b8f7ae871ec29c4a3, low_field_clamp_t 1.001). The hts-shanghai binding declares monotonicity_tolerance 0.025, justified against the dataset audit: 4 of 1289 nominal (T, angle) field-sweep pairs show measured Ic increasing between 7 and 8 T, worst +2.32% \u2014 plausibly IV-fit noise at the instrument field limit, but a real non-monotonicity the stricter 0.002 tolerance rejects, sending every lower-bound point to UNSUPPORTED per contract A8. The base binding keeps 0.001. Prices are invented placeholders (base 30 USD/m, hts-shanghai 34 USD/m \u2014 a ~13% premium for the tape with the stronger measured high-field response), not vendor quotes. Per-width measured capacity is compared at the case-level 12 mm tape width; the 4 mm product-width difference is a stated limitation, not modeled.",
+ "requirement": {
+  "bore_probe_m": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "b_target_t": 0.9,
+  "tolerance_fraction": 0.02,
+  "good_field_region": {
+   "half_extents_m": [
+    0.05,
+    0.05,
+    0.05
+   ],
+   "points_per_axis": 3
+  }
+ },
+ "fixed_geometry": {
+  "straight_half_length_m": 0.3,
+  "bend_radius_m": 0.2,
+  "radial_pitch_m": 0.0001,
+  "tape_width_m": 0.012,
+  "tape_normal": "radial"
+ },
+ "choices": {
+  "turns_along_normal": [
+   120,
+   160,
+   200,
+   240,
+   300
+  ],
+  "tapes_along_width": [
+   2,
+   3,
+   4
+  ],
+  "strands_parallel": [
+   1
+  ]
+ },
+ "operating": {
+  "temperature_k": 25.0,
+  "electric_field_criterion_v_per_m": 0.0001
+ },
+ "material": {
+  "dataset_id": "robinson-superpower-ap-v3",
+  "csv_sha256": "889cc2cf8b91b822cbc6cceb7388e5d8afcb8a8911bb20ab175e50c7e6dc0354",
+  "method": "measured-coordinate-tetrahedral-log-field-log-ic/v1",
+  "angle_mapping": "period_180_field_reversal",
+  "mirror_policy": "minimum_of_mirror_pair",
+  "field_basis_mapping": "pack_field_as_applied_field_self_field_consistent",
+  "field_magnitude_policy": "total_magnitude_with_transverse_angle",
+  "low_field_policy": "monotone_field_lower_bound",
+  "low_field_clamp_t": 1.001,
+  "monotonicity_tolerance": 0.001
+ },
+ "tape_specs": {
+  "hts-shanghai": {
+   "material": {
+    "dataset_id": "robinson-shanghai-hflt-v3",
+    "csv_sha256": "d53fbab65426c2d2f00ddd19ebe0470b1f73fb8a3e64b23b8f7ae871ec29c4a3",
+    "method": "measured-coordinate-tetrahedral-log-field-log-ic/v1",
+    "angle_mapping": "period_180_field_reversal",
+    "mirror_policy": "minimum_of_mirror_pair",
+    "field_basis_mapping": "pack_field_as_applied_field_self_field_consistent",
+    "field_magnitude_policy": "total_magnitude_with_transverse_angle",
+    "low_field_policy": "monotone_field_lower_bound",
+    "low_field_clamp_t": 1.001,
+    "monotonicity_tolerance": 0.025
+   },
+   "price_usd_per_m": 34.0
+  }
+ },
+ "grading": {
+  "regions": [
+   {
+    "turn_range": [
+     0.0,
+     0.5
+    ],
+    "tape_spec_choices": [
+     "base",
+     "hts-shanghai"
+    ]
+   },
+   {
+    "turn_range": [
+     0.5,
+     1.0
+    ],
+    "tape_spec_choices": [
+     "base",
+     "hts-shanghai"
+    ]
+   }
+  ]
+ },
+ "sampling": {
+  "stations": [
+   {
+    "id": "s15",
+    "kind": "straight",
+    "x_m": 0.15
+   },
+   {
+    "id": "a45",
+    "kind": "arc",
+    "azimuth_deg": 45.0
+   },
+   {
+    "id": "a90",
+    "kind": "arc",
+    "azimuth_deg": 90.0
+   },
+   {
+    "id": "a0",
+    "kind": "arc",
+    "azimuth_deg": 0.0
+   }
+  ],
+  "relative_turn_indices": [
+   {
+    "kind": "from_start",
+    "offset": 1
+   },
+   {
+    "kind": "fraction",
+    "value": 0.125
+   },
+   {
+    "kind": "fraction",
+    "value": 0.5
+   },
+   {
+    "kind": "fraction",
+    "value": 0.85
+   },
+   {
+    "kind": "from_end",
+    "offset": 0
+   }
+  ],
+  "width_points": 5
+ },
+ "limits": {
+  "max_along_current_field_fraction": 0.2,
+  "max_self_field_ratio": 0.1,
+  "interpolation_overprediction_budget": 0.1,
+  "utilization_limit": 0.8
+ },
+ "numerics": {
+  "quadrature_orders": [
+   10,
+   14
+  ],
+  "field_scale_t": 1.0,
+  "max_refinement_change_fraction": 0.0025
+ },
+ "pruning": null,
+ "cost": {
+  "price_usd_per_m": 30.0,
+  "scrap_fraction": 0.1,
+  "assembly_cost_per_pancake_usd": 500.0,
+  "joint_cost_usd": 200.0
+ },
+ "baseline": {
+  "turns_along_normal": 160,
+  "tapes_along_width": 4,
+  "tape_spec_ids": [
+   "base",
+   "base"
+  ]
+ },
+ "refined_plan": {
+  "additional_stations": [
+   {
+    "id": "arc_15",
+    "kind": "arc",
+    "azimuth_deg": 15.0
+   },
+   {
+    "id": "arc_30",
+    "kind": "arc",
+    "azimuth_deg": 30.0
+   },
+   {
+    "id": "arc_60",
+    "kind": "arc",
+    "azimuth_deg": 60.0
+   },
+   {
+    "id": "arc_75",
+    "kind": "arc",
+    "azimuth_deg": 75.0
+   },
+   {
+    "id": "straight_015",
+    "kind": "straight",
+    "x_m": 0.15
+   },
+   {
+    "id": "straight_025",
+    "kind": "straight",
+    "x_m": 0.25
+   }
+  ],
+  "max_sampling_shortfall_fraction": 0.02
+ },
+ "execution": {
+  "max_threads": 4
+ }
+}

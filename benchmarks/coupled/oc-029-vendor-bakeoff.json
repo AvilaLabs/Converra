@@ -1,0 +1,27 @@
+{
+  "schema": "optcoil-bakeoff/v2",
+  "provenance": "OC-029 lever study — vendor axis: three products at their measured tape widths (SuperPower AP 12 mm, Shanghai high-field 4 mm, THEVA 6 mm) on the oc-029-vendor substrate. Prices repeat oc-023's declared spec prices, labeled synthetic — illustrative placeholders, not quotes.",
+  "products": [
+    {
+      "product_id": "superpower-ap-12mm",
+      "dataset_id": "robinson-superpower-ap-v3",
+      "tape_width_m": 0.012,
+      "price_usd_per_m": 30.0,
+      "price_source": "synthetic"
+    },
+    {
+      "product_id": "shanghai-hflt-4mm",
+      "dataset_id": "robinson-shanghai-hflt-v3",
+      "tape_width_m": 0.004,
+      "price_usd_per_m": 34.0,
+      "price_source": "synthetic"
+    },
+    {
+      "product_id": "theva-6mm",
+      "dataset_id": "robinson-theva-ap-v2",
+      "tape_width_m": 0.006,
+      "price_usd_per_m": 38.0,
+      "price_source": "synthetic"
+    }
+  ]
+}

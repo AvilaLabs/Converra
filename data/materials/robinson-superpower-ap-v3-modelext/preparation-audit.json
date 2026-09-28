@@ -1,0 +1,1969 @@
+{
+  "tool": "tools/prepare_oc016.py",
+  "tool_sha256": "09af3dcc9ca25b2dbd17af5594efe274ebaaf804bfa4d07584a5b9a60c70c45f",
+  "source_dataset": "robinson-superpower-ap-v3-lowfield",
+  "source_csv_sha256": "043cbaab9a32da5de6394b136265835b9c5917e28861d0793544c5e3885f893b",
+  "measured_rows_byte_identical": true,
+  "model": "anchored_power_law_per_T_angle_curve",
+  "anchor_field_t": 8.0,
+  "tail_fit_fields_t": [
+    3.0,
+    5.0,
+    7.0,
+    8.0
+  ],
+  "alpha_floor": 0.1,
+  "extended_fields_t": [
+    10.0,
+    12.5,
+    16.0,
+    20.0
+  ],
+  "edge_checks": {
+    "predictions": 645,
+    "max_over_prediction": 0.20877536081864734,
+    "p95_over_prediction": 0.14108793491552363,
+    "max_under_prediction": -0.07015209893200036,
+    "margin_applied": 0.2587753608186473,
+    "margin_pad": 0.05
+  },
+  "curves": [
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 0.0,
+      "alpha_tail_fit": 0.8079,
+      "alpha_local_7_8": 1.0548,
+      "alpha_used": 1.0548,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 76953.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 5.0,
+      "alpha_tail_fit": 0.7924,
+      "alpha_local_7_8": 0.8735,
+      "alpha_used": 0.8735,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 78896.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 10.0,
+      "alpha_tail_fit": 0.7905,
+      "alpha_local_7_8": 0.9767,
+      "alpha_used": 0.9767,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 79126.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 15.0,
+      "alpha_tail_fit": 0.7932,
+      "alpha_local_7_8": 0.8898,
+      "alpha_used": 0.8898,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 79076.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 20.0,
+      "alpha_tail_fit": 0.7913,
+      "alpha_local_7_8": 0.9598,
+      "alpha_used": 0.9598,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 79775.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 25.0,
+      "alpha_tail_fit": 0.8065,
+      "alpha_local_7_8": 0.9683,
+      "alpha_used": 0.9683,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 78698.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 30.0,
+      "alpha_tail_fit": 0.8124,
+      "alpha_local_7_8": 0.9265,
+      "alpha_used": 0.9265,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 78443.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 35.0,
+      "alpha_tail_fit": 0.8188,
+      "alpha_local_7_8": 0.99,
+      "alpha_used": 0.99,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 78468.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 40.0,
+      "alpha_tail_fit": 0.8279,
+      "alpha_local_7_8": 0.9299,
+      "alpha_used": 0.9299,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 79800.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 45.0,
+      "alpha_tail_fit": 0.8271,
+      "alpha_local_7_8": 0.9347,
+      "alpha_used": 0.9347,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 81605.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 50.0,
+      "alpha_tail_fit": 0.8329,
+      "alpha_local_7_8": 0.9462,
+      "alpha_used": 0.9462,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 84162.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 55.0,
+      "alpha_tail_fit": 0.8244,
+      "alpha_local_7_8": 0.9245,
+      "alpha_used": 0.9245,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 88565.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 60.0,
+      "alpha_tail_fit": 0.8112,
+      "alpha_local_7_8": 0.9174,
+      "alpha_used": 0.9174,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 94781.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 65.0,
+      "alpha_tail_fit": 0.7837,
+      "alpha_local_7_8": 0.8871,
+      "alpha_used": 0.8871,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 104249.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 70.0,
+      "alpha_tail_fit": 0.7462,
+      "alpha_local_7_8": 0.9104,
+      "alpha_used": 0.9104,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 116974.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 75.0,
+      "alpha_tail_fit": 0.6741,
+      "alpha_local_7_8": 0.8217,
+      "alpha_used": 0.8217,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 138144.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 78.0,
+      "alpha_tail_fit": 0.6233,
+      "alpha_local_7_8": 0.7905,
+      "alpha_used": 0.7905,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 155306.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 81.0,
+      "alpha_tail_fit": 0.5521,
+      "alpha_local_7_8": 0.6884,
+      "alpha_used": 0.6884,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 180167.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 84.0,
+      "alpha_tail_fit": 0.4561,
+      "alpha_local_7_8": 0.6615,
+      "alpha_used": 0.6615,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 213560.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 86.0,
+      "alpha_tail_fit": 0.3492,
+      "alpha_local_7_8": 0.5319,
+      "alpha_used": 0.5319,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 247786.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 88.0,
+      "alpha_tail_fit": 0.2086,
+      "alpha_local_7_8": 0.3616,
+      "alpha_used": 0.3616,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 290646.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 90.0,
+      "alpha_tail_fit": 0.1119,
+      "alpha_local_7_8": 0.2388,
+      "alpha_used": 0.2388,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 318510.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 92.0,
+      "alpha_tail_fit": 0.1249,
+      "alpha_local_7_8": 0.1326,
+      "alpha_used": 0.1326,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 306739.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 94.0,
+      "alpha_tail_fit": 0.229,
+      "alpha_local_7_8": 0.2424,
+      "alpha_used": 0.2424,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 265024.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 96.0,
+      "alpha_tail_fit": 0.3314,
+      "alpha_local_7_8": 0.3857,
+      "alpha_used": 0.3857,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 226864.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 99.0,
+      "alpha_tail_fit": 0.4507,
+      "alpha_local_7_8": 0.5204,
+      "alpha_used": 0.5204,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 185861.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 102.0,
+      "alpha_tail_fit": 0.5403,
+      "alpha_local_7_8": 0.6621,
+      "alpha_used": 0.6621,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 157870.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 105.0,
+      "alpha_tail_fit": 0.5982,
+      "alpha_local_7_8": 0.7136,
+      "alpha_used": 0.7136,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 139787.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 110.0,
+      "alpha_tail_fit": 0.6801,
+      "alpha_local_7_8": 0.8357,
+      "alpha_used": 0.8357,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 117455.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 115.0,
+      "alpha_tail_fit": 0.7278,
+      "alpha_local_7_8": 0.8757,
+      "alpha_used": 0.8757,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 103583.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 120.0,
+      "alpha_tail_fit": 0.7608,
+      "alpha_local_7_8": 0.8761,
+      "alpha_used": 0.8761,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 94321.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 125.0,
+      "alpha_tail_fit": 0.7812,
+      "alpha_local_7_8": 0.8656,
+      "alpha_used": 0.8656,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 87433.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 130.0,
+      "alpha_tail_fit": 0.7928,
+      "alpha_local_7_8": 0.9078,
+      "alpha_used": 0.9078,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 82759.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 135.0,
+      "alpha_tail_fit": 0.8055,
+      "alpha_local_7_8": 0.9195,
+      "alpha_used": 0.9195,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 79162.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 140.0,
+      "alpha_tail_fit": 0.8079,
+      "alpha_local_7_8": 0.9424,
+      "alpha_used": 0.9424,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 76722.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 145.0,
+      "alpha_tail_fit": 0.8055,
+      "alpha_local_7_8": 0.9262,
+      "alpha_used": 0.9262,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 75626.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 150.0,
+      "alpha_tail_fit": 0.8079,
+      "alpha_local_7_8": 0.94,
+      "alpha_used": 0.94,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 74733.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 155.0,
+      "alpha_tail_fit": 0.8079,
+      "alpha_local_7_8": 0.9305,
+      "alpha_used": 0.9305,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 74529.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 160.0,
+      "alpha_tail_fit": 0.7927,
+      "alpha_local_7_8": 0.935,
+      "alpha_used": 0.935,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 75416.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 165.0,
+      "alpha_tail_fit": 0.7814,
+      "alpha_local_7_8": 0.829,
+      "alpha_used": 0.829,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 76960.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 170.0,
+      "alpha_tail_fit": 0.7769,
+      "alpha_local_7_8": 0.867,
+      "alpha_used": 0.867,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 77774.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 175.0,
+      "alpha_tail_fit": 0.7714,
+      "alpha_local_7_8": 0.9057,
+      "alpha_used": 0.9057,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 78994.0
+    },
+    {
+      "nominal_temperature_k": 20.0,
+      "nominal_angle_deg": 180.0,
+      "alpha_tail_fit": 0.7541,
+      "alpha_local_7_8": 0.9029,
+      "alpha_used": 0.9029,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 80322.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 0.0,
+      "alpha_tail_fit": 0.7791,
+      "alpha_local_7_8": 0.8803,
+      "alpha_used": 0.8803,
+      "anchor_applied_field_t": 7.999,
+      "anchor_ic_a_per_m": 65596.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 5.0,
+      "alpha_tail_fit": 0.7596,
+      "alpha_local_7_8": 0.9423,
+      "alpha_used": 0.9423,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 67197.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 10.0,
+      "alpha_tail_fit": 0.7808,
+      "alpha_local_7_8": 0.972,
+      "alpha_used": 0.972,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 66154.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 15.0,
+      "alpha_tail_fit": 0.7851,
+      "alpha_local_7_8": 0.9118,
+      "alpha_used": 0.9118,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 66186.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 20.0,
+      "alpha_tail_fit": 0.7952,
+      "alpha_local_7_8": 0.905,
+      "alpha_used": 0.905,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 64955.99999999999
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 25.0,
+      "alpha_tail_fit": 0.8033,
+      "alpha_local_7_8": 0.9014,
+      "alpha_used": 0.9014,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 63916.99999999999
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 30.0,
+      "alpha_tail_fit": 0.8068,
+      "alpha_local_7_8": 0.9448,
+      "alpha_used": 0.9448,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 63304.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 35.0,
+      "alpha_tail_fit": 0.8111,
+      "alpha_local_7_8": 0.9291,
+      "alpha_used": 0.9291,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 62854.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 40.0,
+      "alpha_tail_fit": 0.8211,
+      "alpha_local_7_8": 0.8851,
+      "alpha_used": 0.8851,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 63134.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 45.0,
+      "alpha_tail_fit": 0.8255,
+      "alpha_local_7_8": 0.8965,
+      "alpha_used": 0.8965,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 63584.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 50.0,
+      "alpha_tail_fit": 0.8315,
+      "alpha_local_7_8": 0.8917,
+      "alpha_used": 0.8917,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 64839.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 55.0,
+      "alpha_tail_fit": 0.8351,
+      "alpha_local_7_8": 0.8988,
+      "alpha_used": 0.8988,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 66948.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 60.0,
+      "alpha_tail_fit": 0.8313,
+      "alpha_local_7_8": 0.8968,
+      "alpha_used": 0.8968,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 70398.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 65.0,
+      "alpha_tail_fit": 0.8206,
+      "alpha_local_7_8": 0.9208,
+      "alpha_used": 0.9208,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 75537.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 70.0,
+      "alpha_tail_fit": 0.7951,
+      "alpha_local_7_8": 0.9082,
+      "alpha_used": 0.9082,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 83830.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 75.0,
+      "alpha_tail_fit": 0.7386,
+      "alpha_local_7_8": 0.8183,
+      "alpha_used": 0.8183,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 97612.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 78.0,
+      "alpha_tail_fit": 0.6856,
+      "alpha_local_7_8": 1.0165,
+      "alpha_used": 1.0165,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 109091.00000000001
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 81.0,
+      "alpha_tail_fit": 0.582,
+      "alpha_local_7_8": 0.3981,
+      "alpha_used": 0.582,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 135047.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 84.0,
+      "alpha_tail_fit": 0.5012,
+      "alpha_local_7_8": 0.2491,
+      "alpha_used": 0.5012,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 163504.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 86.0,
+      "alpha_tail_fit": 0.428,
+      "alpha_local_7_8": 0.5554,
+      "alpha_used": 0.5554,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 184984.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 88.0,
+      "alpha_tail_fit": 0.2485,
+      "alpha_local_7_8": 0.4974,
+      "alpha_used": 0.4974,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 228871.99999999997
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 90.0,
+      "alpha_tail_fit": 0.103,
+      "alpha_local_7_8": 0.1455,
+      "alpha_used": 0.1455,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 264495.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 92.0,
+      "alpha_tail_fit": 0.1436,
+      "alpha_local_7_8": 0.1,
+      "alpha_used": 0.1436,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 244479.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 94.0,
+      "alpha_tail_fit": 0.2957,
+      "alpha_local_7_8": 0.3338,
+      "alpha_used": 0.3338,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 195626.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 96.0,
+      "alpha_tail_fit": 0.4181,
+      "alpha_local_7_8": 0.5069,
+      "alpha_used": 0.5069,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 160630.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 99.0,
+      "alpha_tail_fit": 0.5337,
+      "alpha_local_7_8": 0.7686,
+      "alpha_used": 0.7686,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 128058.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 102.0,
+      "alpha_tail_fit": 0.6123,
+      "alpha_local_7_8": 0.7473,
+      "alpha_used": 0.7473,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 109192.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 105.0,
+      "alpha_tail_fit": 0.6927,
+      "alpha_local_7_8": 0.9546,
+      "alpha_used": 0.9546,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 93997.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 110.0,
+      "alpha_tail_fit": 0.7118,
+      "alpha_local_7_8": 0.6136,
+      "alpha_used": 0.7118,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 85352.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 115.0,
+      "alpha_tail_fit": 0.7608,
+      "alpha_local_7_8": 0.8355,
+      "alpha_used": 0.8355,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 74823.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 120.0,
+      "alpha_tail_fit": 0.7839,
+      "alpha_local_7_8": 0.8711,
+      "alpha_used": 0.8711,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 69051.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 125.0,
+      "alpha_tail_fit": 0.7934,
+      "alpha_local_7_8": 0.8962,
+      "alpha_used": 0.8962,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 65184.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 130.0,
+      "alpha_tail_fit": 0.7957,
+      "alpha_local_7_8": 0.8865,
+      "alpha_used": 0.8865,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 62827.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 135.0,
+      "alpha_tail_fit": 0.7961,
+      "alpha_local_7_8": 0.9028,
+      "alpha_used": 0.9028,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 61182.00000000001
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 140.0,
+      "alpha_tail_fit": 0.7961,
+      "alpha_local_7_8": 0.9062,
+      "alpha_used": 0.9062,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 60097.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 145.0,
+      "alpha_tail_fit": 0.7981,
+      "alpha_local_7_8": 0.8991,
+      "alpha_used": 0.8991,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 59750.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 150.0,
+      "alpha_tail_fit": 0.7967,
+      "alpha_local_7_8": 0.9091,
+      "alpha_used": 0.9091,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 59595.00000000001
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 155.0,
+      "alpha_tail_fit": 0.7895,
+      "alpha_local_7_8": 0.905,
+      "alpha_used": 0.905,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 60129.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 160.0,
+      "alpha_tail_fit": 0.7855,
+      "alpha_local_7_8": 0.8848,
+      "alpha_used": 0.8848,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 61104.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 165.0,
+      "alpha_tail_fit": 0.7867,
+      "alpha_local_7_8": 0.9383,
+      "alpha_used": 0.9383,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 61773.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 170.0,
+      "alpha_tail_fit": 0.778,
+      "alpha_local_7_8": 0.9107,
+      "alpha_used": 0.9107,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 63583.00000000001
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 175.0,
+      "alpha_tail_fit": 0.7641,
+      "alpha_local_7_8": 0.9183,
+      "alpha_used": 0.9183,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 65066.0
+    },
+    {
+      "nominal_temperature_k": 25.0,
+      "nominal_angle_deg": 180.0,
+      "alpha_tail_fit": 0.7664,
+      "alpha_local_7_8": 0.9372,
+      "alpha_used": 0.9372,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 65687.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 0.0,
+      "alpha_tail_fit": 0.7711,
+      "alpha_local_7_8": 1.0064,
+      "alpha_used": 1.0064,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 54442.99999999999
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 5.0,
+      "alpha_tail_fit": 0.7644,
+      "alpha_local_7_8": 0.9709,
+      "alpha_used": 0.9709,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 55314.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 10.0,
+      "alpha_tail_fit": 0.7684,
+      "alpha_local_7_8": 0.918,
+      "alpha_used": 0.918,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 55649.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 15.0,
+      "alpha_tail_fit": 0.7855,
+      "alpha_local_7_8": 0.9421,
+      "alpha_used": 0.9421,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 54216.99999999999
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 20.0,
+      "alpha_tail_fit": 0.7856,
+      "alpha_local_7_8": 0.9245,
+      "alpha_used": 0.9245,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 53444.00000000001
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 25.0,
+      "alpha_tail_fit": 0.7912,
+      "alpha_local_7_8": 0.9251,
+      "alpha_used": 0.9251,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 52302.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 30.0,
+      "alpha_tail_fit": 0.7951,
+      "alpha_local_7_8": 0.9175,
+      "alpha_used": 0.9175,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 51408.00000000001
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 35.0,
+      "alpha_tail_fit": 0.7888,
+      "alpha_local_7_8": 0.892,
+      "alpha_used": 0.892,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 50768.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 40.0,
+      "alpha_tail_fit": 0.7985,
+      "alpha_local_7_8": 0.8549,
+      "alpha_used": 0.8549,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 50260.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 45.0,
+      "alpha_tail_fit": 0.8024,
+      "alpha_local_7_8": 0.8596,
+      "alpha_used": 0.8596,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 50076.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 50.0,
+      "alpha_tail_fit": 0.7955,
+      "alpha_local_7_8": 0.8392,
+      "alpha_used": 0.8392,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 50626.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 55.0,
+      "alpha_tail_fit": 0.7999,
+      "alpha_local_7_8": 0.8639,
+      "alpha_used": 0.8639,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 51245.00000000001
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 60.0,
+      "alpha_tail_fit": 0.8059,
+      "alpha_local_7_8": 0.8402,
+      "alpha_used": 0.8402,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 52725.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 65.0,
+      "alpha_tail_fit": 0.8086,
+      "alpha_local_7_8": 0.8295,
+      "alpha_used": 0.8295,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 55212.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 70.0,
+      "alpha_tail_fit": 0.8012,
+      "alpha_local_7_8": 0.8404,
+      "alpha_used": 0.8404,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 59304.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 75.0,
+      "alpha_tail_fit": 0.788,
+      "alpha_local_7_8": 0.864,
+      "alpha_used": 0.864,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 65944.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 78.0,
+      "alpha_tail_fit": 0.7687,
+      "alpha_local_7_8": 0.9104,
+      "alpha_used": 0.9104,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 71960.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 81.0,
+      "alpha_tail_fit": 0.6634,
+      "alpha_local_7_8": 0.2715,
+      "alpha_used": 0.6634,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 89990.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 84.0,
+      "alpha_tail_fit": 0.6316,
+      "alpha_local_7_8": 0.637,
+      "alpha_used": 0.637,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 104398.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 86.0,
+      "alpha_tail_fit": 0.5285,
+      "alpha_local_7_8": 0.6306,
+      "alpha_used": 0.6306,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 127626.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 88.0,
+      "alpha_tail_fit": 0.3213,
+      "alpha_local_7_8": 0.5126,
+      "alpha_used": 0.5126,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 167967.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 90.0,
+      "alpha_tail_fit": 0.1241,
+      "alpha_local_7_8": 0.1655,
+      "alpha_used": 0.1655,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 205698.99999999997
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 92.0,
+      "alpha_tail_fit": 0.2037,
+      "alpha_local_7_8": 0.2107,
+      "alpha_used": 0.2107,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 176808.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 94.0,
+      "alpha_tail_fit": 0.3921,
+      "alpha_local_7_8": 0.444,
+      "alpha_used": 0.444,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 131734.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 96.0,
+      "alpha_tail_fit": 0.5299,
+      "alpha_local_7_8": 0.6377,
+      "alpha_used": 0.6377,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 103156.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 99.0,
+      "alpha_tail_fit": 0.6356,
+      "alpha_local_7_8": 0.6798,
+      "alpha_used": 0.6798,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 81994.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 102.0,
+      "alpha_tail_fit": 0.6945,
+      "alpha_local_7_8": 0.7879,
+      "alpha_used": 0.7879,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 70911.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 105.0,
+      "alpha_tail_fit": 0.7236,
+      "alpha_local_7_8": 0.766,
+      "alpha_used": 0.766,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 64204.99999999999
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 110.0,
+      "alpha_tail_fit": 0.7462,
+      "alpha_local_7_8": 0.8099,
+      "alpha_used": 0.8099,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 57649.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 115.0,
+      "alpha_tail_fit": 0.7551,
+      "alpha_local_7_8": 0.82,
+      "alpha_used": 0.82,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 53735.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 120.0,
+      "alpha_tail_fit": 0.7489,
+      "alpha_local_7_8": 0.7902,
+      "alpha_used": 0.7902,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 51496.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 125.0,
+      "alpha_tail_fit": 0.7576,
+      "alpha_local_7_8": 0.8372,
+      "alpha_used": 0.8372,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 49588.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 130.0,
+      "alpha_tail_fit": 0.7528,
+      "alpha_local_7_8": 0.8133,
+      "alpha_used": 0.8133,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 48744.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 135.0,
+      "alpha_tail_fit": 0.7569,
+      "alpha_local_7_8": 0.8229,
+      "alpha_used": 0.8229,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 48052.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 140.0,
+      "alpha_tail_fit": 0.7598,
+      "alpha_local_7_8": 0.8212,
+      "alpha_used": 0.8212,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 47873.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 145.0,
+      "alpha_tail_fit": 0.7568,
+      "alpha_local_7_8": 0.8514,
+      "alpha_used": 0.8514,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 47941.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 150.0,
+      "alpha_tail_fit": 0.7648,
+      "alpha_local_7_8": 0.8728,
+      "alpha_used": 0.8728,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 48209.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 155.0,
+      "alpha_tail_fit": 0.7712,
+      "alpha_local_7_8": 0.9003,
+      "alpha_used": 0.9003,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 48802.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 160.0,
+      "alpha_tail_fit": 0.7711,
+      "alpha_local_7_8": 0.9172,
+      "alpha_used": 0.9172,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 49579.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 165.0,
+      "alpha_tail_fit": 0.7712,
+      "alpha_local_7_8": 0.9409,
+      "alpha_used": 0.9409,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 50562.0
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 170.0,
+      "alpha_tail_fit": 0.7796,
+      "alpha_local_7_8": 0.9511,
+      "alpha_used": 0.9511,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 51779.99999999999
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 175.0,
+      "alpha_tail_fit": 0.7686,
+      "alpha_local_7_8": 0.9309,
+      "alpha_used": 0.9309,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 53479.99999999999
+    },
+    {
+      "nominal_temperature_k": 30.0,
+      "nominal_angle_deg": 180.0,
+      "alpha_tail_fit": 0.7594,
+      "alpha_local_7_8": 0.9701,
+      "alpha_used": 0.9701,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 54495.00000000001
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 0.0,
+      "alpha_tail_fit": 0.7914,
+      "alpha_local_7_8": 1.0483,
+      "alpha_used": 1.0483,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 44206.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 5.0,
+      "alpha_tail_fit": 0.7766,
+      "alpha_local_7_8": 1.0058,
+      "alpha_used": 1.0058,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 45273.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 10.0,
+      "alpha_tail_fit": 0.7884,
+      "alpha_local_7_8": 1.0479,
+      "alpha_used": 1.0479,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 45009.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 15.0,
+      "alpha_tail_fit": 0.784,
+      "alpha_local_7_8": 1.0788,
+      "alpha_used": 1.0788,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 44583.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 20.0,
+      "alpha_tail_fit": 0.788,
+      "alpha_local_7_8": 1.0339,
+      "alpha_used": 1.0339,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 43541.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 25.0,
+      "alpha_tail_fit": 0.7906,
+      "alpha_local_7_8": 0.9455,
+      "alpha_used": 0.9455,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 42597.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 30.0,
+      "alpha_tail_fit": 0.7758,
+      "alpha_local_7_8": 0.9784,
+      "alpha_used": 0.9784,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 41752.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 35.0,
+      "alpha_tail_fit": 0.7618,
+      "alpha_local_7_8": 0.8841,
+      "alpha_used": 0.8841,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 41268.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 40.0,
+      "alpha_tail_fit": 0.7664,
+      "alpha_local_7_8": 0.8664,
+      "alpha_used": 0.8664,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 40594.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 45.0,
+      "alpha_tail_fit": 0.7543,
+      "alpha_local_7_8": 0.8584,
+      "alpha_used": 0.8584,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 40313.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 50.0,
+      "alpha_tail_fit": 0.7536,
+      "alpha_local_7_8": 0.8357,
+      "alpha_used": 0.8357,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 40174.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 55.0,
+      "alpha_tail_fit": 0.7604,
+      "alpha_local_7_8": 0.7476,
+      "alpha_used": 0.7604,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 40360.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 60.0,
+      "alpha_tail_fit": 0.759,
+      "alpha_local_7_8": 0.7863,
+      "alpha_used": 0.7863,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 40620.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 65.0,
+      "alpha_tail_fit": 0.7619,
+      "alpha_local_7_8": 0.744,
+      "alpha_used": 0.7619,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 41455.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 70.0,
+      "alpha_tail_fit": 0.7756,
+      "alpha_local_7_8": 0.7321,
+      "alpha_used": 0.7756,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 42944.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 75.0,
+      "alpha_tail_fit": 0.7874,
+      "alpha_local_7_8": 0.7219,
+      "alpha_used": 0.7874,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 45683.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 78.0,
+      "alpha_tail_fit": 0.7814,
+      "alpha_local_7_8": 0.6719,
+      "alpha_used": 0.7814,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 48684.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 81.0,
+      "alpha_tail_fit": 0.789,
+      "alpha_local_7_8": 0.7313,
+      "alpha_used": 0.789,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 53433.00000000001
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 84.0,
+      "alpha_tail_fit": 0.7534,
+      "alpha_local_7_8": 0.4975,
+      "alpha_used": 0.7534,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 64866.99999999999
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 86.0,
+      "alpha_tail_fit": 0.6663,
+      "alpha_local_7_8": 0.2666,
+      "alpha_used": 0.6663,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 82286.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 88.0,
+      "alpha_tail_fit": 0.4323,
+      "alpha_local_7_8": 0.1,
+      "alpha_used": 0.4323,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 117510.99999999999
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 90.0,
+      "alpha_tail_fit": 0.1398,
+      "alpha_local_7_8": 0.1565,
+      "alpha_used": 0.1565,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 153822.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 92.0,
+      "alpha_tail_fit": 0.2444,
+      "alpha_local_7_8": 0.8995,
+      "alpha_used": 0.8995,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 119550.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 94.0,
+      "alpha_tail_fit": 0.4732,
+      "alpha_local_7_8": 1.0891,
+      "alpha_used": 1.0891,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 81074.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 96.0,
+      "alpha_tail_fit": 0.62,
+      "alpha_local_7_8": 1.1369,
+      "alpha_used": 1.1369,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 61659.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 99.0,
+      "alpha_tail_fit": 0.6894,
+      "alpha_local_7_8": 0.9413,
+      "alpha_used": 0.9413,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 50978.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 102.0,
+      "alpha_tail_fit": 0.7113,
+      "alpha_local_7_8": 0.8267,
+      "alpha_used": 0.8267,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 46196.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 105.0,
+      "alpha_tail_fit": 0.7067,
+      "alpha_local_7_8": 0.7999,
+      "alpha_used": 0.7999,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 43922.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 110.0,
+      "alpha_tail_fit": 0.6959,
+      "alpha_local_7_8": 0.7151,
+      "alpha_used": 0.7151,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 41868.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 115.0,
+      "alpha_tail_fit": 0.6899,
+      "alpha_local_7_8": 0.7341,
+      "alpha_used": 0.7341,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 40585.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 120.0,
+      "alpha_tail_fit": 0.6905,
+      "alpha_local_7_8": 0.6931,
+      "alpha_used": 0.6931,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 39644.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 125.0,
+      "alpha_tail_fit": 0.6985,
+      "alpha_local_7_8": 0.7454,
+      "alpha_used": 0.7454,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 38898.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 130.0,
+      "alpha_tail_fit": 0.705,
+      "alpha_local_7_8": 0.7626,
+      "alpha_used": 0.7626,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 38528.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 135.0,
+      "alpha_tail_fit": 0.7087,
+      "alpha_local_7_8": 0.776,
+      "alpha_used": 0.776,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 38388.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 140.0,
+      "alpha_tail_fit": 0.7208,
+      "alpha_local_7_8": 0.7994,
+      "alpha_used": 0.7994,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 38439.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 145.0,
+      "alpha_tail_fit": 0.7358,
+      "alpha_local_7_8": 0.8632,
+      "alpha_used": 0.8632,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 38440.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 150.0,
+      "alpha_tail_fit": 0.744,
+      "alpha_local_7_8": 0.854,
+      "alpha_used": 0.854,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 39017.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 155.0,
+      "alpha_tail_fit": 0.7508,
+      "alpha_local_7_8": 0.9221,
+      "alpha_used": 0.9221,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 39509.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 160.0,
+      "alpha_tail_fit": 0.7636,
+      "alpha_local_7_8": 0.8614,
+      "alpha_used": 0.8614,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 40461.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 165.0,
+      "alpha_tail_fit": 0.7798,
+      "alpha_local_7_8": 0.9329,
+      "alpha_used": 0.9329,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 41159.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 170.0,
+      "alpha_tail_fit": 0.7765,
+      "alpha_local_7_8": 1.0087,
+      "alpha_used": 1.0087,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 42260.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 175.0,
+      "alpha_tail_fit": 0.7828,
+      "alpha_local_7_8": 0.9677,
+      "alpha_used": 0.9677,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 43500.0
+    },
+    {
+      "nominal_temperature_k": 35.0,
+      "nominal_angle_deg": 180.0,
+      "alpha_tail_fit": 0.7768,
+      "alpha_local_7_8": 1.0057,
+      "alpha_used": 1.0057,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 44451.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 0.0,
+      "alpha_tail_fit": 0.8117,
+      "alpha_local_7_8": 1.1211,
+      "alpha_used": 1.1211,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 35744.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 5.0,
+      "alpha_tail_fit": 0.806,
+      "alpha_local_7_8": 1.0822,
+      "alpha_used": 1.0822,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 36540.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 10.0,
+      "alpha_tail_fit": 0.808,
+      "alpha_local_7_8": 1.1015,
+      "alpha_used": 1.1015,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 36618.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 15.0,
+      "alpha_tail_fit": 0.8103,
+      "alpha_local_7_8": 1.0418,
+      "alpha_used": 1.0418,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 36173.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 20.0,
+      "alpha_tail_fit": 0.8024,
+      "alpha_local_7_8": 1.0262,
+      "alpha_used": 1.0262,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 35408.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 25.0,
+      "alpha_tail_fit": 0.7947,
+      "alpha_local_7_8": 1.0589,
+      "alpha_used": 1.0589,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 34303.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 30.0,
+      "alpha_tail_fit": 0.7852,
+      "alpha_local_7_8": 0.9844,
+      "alpha_used": 0.9844,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 33733.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 35.0,
+      "alpha_tail_fit": 0.774,
+      "alpha_local_7_8": 0.9465,
+      "alpha_used": 0.9465,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 33001.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 40.0,
+      "alpha_tail_fit": 0.7568,
+      "alpha_local_7_8": 0.8596,
+      "alpha_used": 0.8596,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 32704.000000000004
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 45.0,
+      "alpha_tail_fit": 0.7422,
+      "alpha_local_7_8": 0.836,
+      "alpha_used": 0.836,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 32287.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 50.0,
+      "alpha_tail_fit": 0.7233,
+      "alpha_local_7_8": 0.8174,
+      "alpha_used": 0.8174,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 32169.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 55.0,
+      "alpha_tail_fit": 0.7188,
+      "alpha_local_7_8": 0.8065,
+      "alpha_used": 0.8065,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 31926.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 60.0,
+      "alpha_tail_fit": 0.7123,
+      "alpha_local_7_8": 0.7584,
+      "alpha_used": 0.7584,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 31979.000000000004
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 65.0,
+      "alpha_tail_fit": 0.7089,
+      "alpha_local_7_8": 0.7507,
+      "alpha_used": 0.7507,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 32008.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 70.0,
+      "alpha_tail_fit": 0.7186,
+      "alpha_local_7_8": 0.7171,
+      "alpha_used": 0.7186,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 32314.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 75.0,
+      "alpha_tail_fit": 0.7378,
+      "alpha_local_7_8": 0.7611,
+      "alpha_used": 0.7611,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 32924.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 78.0,
+      "alpha_tail_fit": 0.7532,
+      "alpha_local_7_8": 0.7482,
+      "alpha_used": 0.7532,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 33818.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 81.0,
+      "alpha_tail_fit": 0.7872,
+      "alpha_local_7_8": 0.734,
+      "alpha_used": 0.7872,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 35591.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 84.0,
+      "alpha_tail_fit": 0.7946,
+      "alpha_local_7_8": 0.7724,
+      "alpha_used": 0.7946,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 40896.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 86.0,
+      "alpha_tail_fit": 0.7162,
+      "alpha_local_7_8": 0.7851,
+      "alpha_used": 0.7851,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 51315.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 88.0,
+      "alpha_tail_fit": 0.4852,
+      "alpha_local_7_8": 0.6077,
+      "alpha_used": 0.6077,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 77469.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 90.0,
+      "alpha_tail_fit": 0.1914,
+      "alpha_local_7_8": 0.3428,
+      "alpha_used": 0.3428,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 106330.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 92.0,
+      "alpha_tail_fit": 0.4097,
+      "alpha_local_7_8": 0.4283,
+      "alpha_used": 0.4283,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 72259.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 94.0,
+      "alpha_tail_fit": 0.635,
+      "alpha_local_7_8": 0.6774,
+      "alpha_used": 0.6774,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 46773.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 96.0,
+      "alpha_tail_fit": 0.7131,
+      "alpha_local_7_8": 0.7464,
+      "alpha_used": 0.7464,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 37251.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 99.0,
+      "alpha_tail_fit": 0.6993,
+      "alpha_local_7_8": 0.6167,
+      "alpha_used": 0.6993,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 33461.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 102.0,
+      "alpha_tail_fit": 0.6722,
+      "alpha_local_7_8": 0.6675,
+      "alpha_used": 0.6722,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 32060.000000000004
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 105.0,
+      "alpha_tail_fit": 0.6545,
+      "alpha_local_7_8": 0.6695,
+      "alpha_used": 0.6695,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 31747.000000000004
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 110.0,
+      "alpha_tail_fit": 0.6427,
+      "alpha_local_7_8": 0.6272,
+      "alpha_used": 0.6427,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 31398.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 115.0,
+      "alpha_tail_fit": 0.636,
+      "alpha_local_7_8": 0.6658,
+      "alpha_used": 0.6658,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 31189.999999999996
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 120.0,
+      "alpha_tail_fit": 0.6407,
+      "alpha_local_7_8": 0.6731,
+      "alpha_used": 0.6731,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 31030.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 125.0,
+      "alpha_tail_fit": 0.6529,
+      "alpha_local_7_8": 0.7871,
+      "alpha_used": 0.7871,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 30779.000000000004
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 130.0,
+      "alpha_tail_fit": 0.6718,
+      "alpha_local_7_8": 0.7716,
+      "alpha_used": 0.7716,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 30676.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 135.0,
+      "alpha_tail_fit": 0.6882,
+      "alpha_local_7_8": 0.8362,
+      "alpha_used": 0.8362,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 30626.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 140.0,
+      "alpha_tail_fit": 0.7051,
+      "alpha_local_7_8": 0.8334,
+      "alpha_used": 0.8334,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 30763.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 145.0,
+      "alpha_tail_fit": 0.7253,
+      "alpha_local_7_8": 0.8738,
+      "alpha_used": 0.8738,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 30908.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 150.0,
+      "alpha_tail_fit": 0.7471,
+      "alpha_local_7_8": 0.8965,
+      "alpha_used": 0.8965,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 31242.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 155.0,
+      "alpha_tail_fit": 0.7602,
+      "alpha_local_7_8": 0.9626,
+      "alpha_used": 0.9626,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 31706.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 160.0,
+      "alpha_tail_fit": 0.7749,
+      "alpha_local_7_8": 0.9942,
+      "alpha_used": 0.9942,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 32324.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 165.0,
+      "alpha_tail_fit": 0.7991,
+      "alpha_local_7_8": 0.9924,
+      "alpha_used": 0.9924,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 33042.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 170.0,
+      "alpha_tail_fit": 0.7953,
+      "alpha_local_7_8": 1.0383,
+      "alpha_used": 1.0383,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 34146.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 175.0,
+      "alpha_tail_fit": 0.8087,
+      "alpha_local_7_8": 1.054,
+      "alpha_used": 1.054,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 35189.0
+    },
+    {
+      "nominal_temperature_k": 40.0,
+      "nominal_angle_deg": 180.0,
+      "alpha_tail_fit": 0.8071,
+      "alpha_local_7_8": 1.1472,
+      "alpha_used": 1.1472,
+      "anchor_applied_field_t": 8.0,
+      "anchor_ic_a_per_m": 35713.0
+    }
+  ],
+  "modeled_point_count": 860,
+  "output_csv_sha256": "2d8262e4071f995eb239594c5dbc4cd0faffb0426eb2cec66d5ef9240cfe9ede"
+}

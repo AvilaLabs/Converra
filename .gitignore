@@ -1,0 +1,10 @@
+/target/
+/runs/
+/workspaces/
+/customer-data/
+/.local/
+__pycache__/
+.env
+.env.*
+*.rs.bk
+.DS_Store

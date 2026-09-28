@@ -1,0 +1,221 @@
+{
+  "schema": "optcoil-coupled-search/v12",
+  "id": "oc-021-transverse-pressure",
+  "provenance": "OC-021: synthetic D-shape case exercising coupled-search schema v12 -- the optional mechanical.max_transverse_pressure_pa declared bound, end to end. Same centerline as OC-019 (inner leg 0.7 m, R=0.08 m corners, R=0.43 m outer bulge; robinson-superpower-ap-v3 measured dataset) at a 1.0 T bore target so pack fields sit inside dataset coverage (4-8 T at the tape) and transverse pressures land in the 24-58 MPa range -- the scale where REBCO broad-face delamination is a real concern. The declared 30 MPa bound is a case-author screening figure in that regime, not a measured delamination limit; the declared 8e-6 m^2 tension section represents a support structure sharing the hoop load. The verified outcome: 200x2, the cheapest screening-passing candidate, is eliminated by the pressure bound alone (36.6 MPa > 30 MPa while its hoop stress and utilization pass), so the bound demonstrably changes the selected optimum. Prices are invented placeholders; the result is a modeled screening outcome under declared bounds, never a production or mechanical-acceptance claim. The pressure estimate itself is a first-order screen -- no pack stiffness, insulation compliance or stress redistribution is modeled, and its value depends on the declared sampling plan.",
+  "requirement": {
+    "bore_probe_m": [
+      0.2,
+      0.0,
+      0.0
+    ],
+    "b_target_t": 1.0,
+    "tolerance_fraction": 1e-09,
+    "good_field_region": {
+      "half_extents_m": [
+        0.02,
+        0.02,
+        0.02
+      ],
+      "points_per_axis": 2
+    }
+  },
+  "fixed_geometry": {
+    "path": {
+      "segments": [
+        {
+          "kind": "line",
+          "length_m": 0.7
+        },
+        {
+          "kind": "arc",
+          "radius_m": 0.08,
+          "sweep_deg": 90.0
+        },
+        {
+          "kind": "arc",
+          "radius_m": 0.43,
+          "sweep_deg": 180.0
+        },
+        {
+          "kind": "arc",
+          "radius_m": 0.08,
+          "sweep_deg": 90.0
+        }
+      ],
+      "start_position_m": [
+        0.0,
+        0.35
+      ],
+      "start_heading_deg": 270.0
+    },
+    "radial_pitch_m": 0.0005,
+    "tape_width_m": 0.012,
+    "tape_normal": "radial"
+  },
+  "choices": {
+    "turns_along_normal": [
+      60,
+      120,
+      200
+    ],
+    "tapes_along_width": [
+      2,
+      3
+    ]
+  },
+  "operating": {
+    "temperature_k": 21.0,
+    "electric_field_criterion_v_per_m": 0.0001
+  },
+  "material": {
+    "dataset_id": "robinson-superpower-ap-v3",
+    "csv_sha256": "889cc2cf8b91b822cbc6cceb7388e5d8afcb8a8911bb20ab175e50c7e6dc0354",
+    "method": "measured-coordinate-tetrahedral-log-field-log-ic/v1",
+    "angle_mapping": "period_180_field_reversal",
+    "mirror_policy": "minimum_of_mirror_pair",
+    "field_basis_mapping": "pack_field_as_applied_field_self_field_consistent",
+    "field_magnitude_policy": "total_magnitude_with_transverse_angle",
+    "low_field_policy": "monotone_field_lower_bound",
+    "low_field_clamp_t": 1.001,
+    "monotonicity_tolerance": 0.001
+  },
+  "sampling": {
+    "stations": [
+      {
+        "id": "leg_mid",
+        "kind": "path",
+        "s_m": 0.35
+      },
+      {
+        "id": "corner_low_mid",
+        "kind": "path",
+        "s_m": 0.762832
+      },
+      {
+        "id": "outer_mid",
+        "kind": "path",
+        "s_m": 1.501107
+      },
+      {
+        "id": "corner_high_mid",
+        "kind": "path",
+        "s_m": 2.239381
+      }
+    ],
+    "relative_turn_indices": [
+      {
+        "kind": "from_start",
+        "offset": 1
+      },
+      {
+        "kind": "fraction",
+        "value": 0.5
+      },
+      {
+        "kind": "from_end",
+        "offset": 0
+      },
+      {
+        "kind": "fraction",
+        "value": 0.15
+      }
+    ],
+    "width_points": 5
+  },
+  "limits": {
+    "max_along_current_field_fraction": 0.2,
+    "max_self_field_ratio": 0.1,
+    "interpolation_overprediction_budget": 0.1,
+    "utilization_limit": 0.8
+  },
+  "numerics": {
+    "quadrature_orders": [
+      2,
+      4
+    ],
+    "field_scale_t": 1.0,
+    "max_refinement_change_fraction": 0.5
+  },
+  "manufacturing": {
+    "min_inner_bend_radius_m": 0.02
+  },
+  "mechanical": {
+    "max_lorentz_load_n_per_m": 500000.0,
+    "max_hoop_stress_pa": 450000000.0,
+    "tension_section_area_m2": 8e-06,
+    "max_transverse_pressure_pa": 30000000.0
+  },
+  "refinement": {
+    "pancake_counts": [
+      2,
+      3
+    ],
+    "turn_resolution": 2,
+    "turn_bounds": {
+      "min": 1,
+      "max": 200
+    },
+    "brackets": [
+      {
+        "tapes": 2,
+        "fail_turns": 10,
+        "pass_turns": 50
+      },
+      {
+        "tapes": 3,
+        "fail_turns": 10,
+        "pass_turns": 50
+      }
+    ],
+    "monotonicity_check": true
+  },
+  "pruning": null,
+  "cost": {
+    "price_usd_per_m": 30.0,
+    "scrap_fraction": 0.1,
+    "assembly_cost_per_pancake_usd": 500.0,
+    "joint_cost_usd": 200.0
+  },
+  "baseline": {
+    "turns_along_normal": 200,
+    "tapes_along_width": 3
+  },
+  "refined_plan": {
+    "additional_stations": [
+      {
+        "id": "leg_q1",
+        "kind": "path",
+        "s_m": 0.175
+      },
+      {
+        "id": "leg_q3",
+        "kind": "path",
+        "s_m": 0.525
+      },
+      {
+        "id": "corner_low_entry",
+        "kind": "path",
+        "s_m": 0.71
+      },
+      {
+        "id": "outer_q1",
+        "kind": "path",
+        "s_m": 1.163384
+      },
+      {
+        "id": "outer_q3",
+        "kind": "path",
+        "s_m": 1.838829
+      },
+      {
+        "id": "corner_high_exit",
+        "kind": "path",
+        "s_m": 2.29
+      }
+    ],
+    "max_sampling_shortfall_fraction": 0.02
+  },
+  "execution": {
+    "max_threads": 2
+  }
+}

@@ -1,0 +1,266 @@
+{
+ "schema": "optcoil-coupled-search/v5",
+ "id": "oc-015",
+ "provenance": "Avila Labs OC-015 corrected-price case \u2014 the schema-v5 counterpart of OC-013, created as a versioned new case (OC-007 frozen at v1/$30, OC-013 frozen at v4/$62.5 uncorrected). Identical requirement, geometry, choices, cost model and baseline as OC-013; the only semantic change is limits.self_field_correction = uniform_transport \u2014 the OC-014 Phase 1 carried-current sheet bound that queries Ic at |B_applied| + mu0*K_tape/2 and gates INCONCLUSIVE at the transport-dominance boundary (ratio > 1) instead of the v4 max_self_field_ratio = 0.1 screening gate. Purpose: measure whether the corrected semantics change the verified optimum/savings at sourced $62.5/m pricing, and serve as the reference priced case under the corrected model. Pair with docs/OC013.md (v4 result) for the before/after.",
+ "requirement": {
+  "bore_probe_m": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "b_target_t": 0.9,
+  "tolerance_fraction": 1e-09,
+  "good_field_region": {
+   "half_extents_m": [
+    0.1,
+    0.025,
+    0.025
+   ],
+   "points_per_axis": 3
+  }
+ },
+ "fixed_geometry": {
+  "straight_half_length_m": 0.3,
+  "bend_radius_m": 0.2,
+  "radial_pitch_m": 0.0001,
+  "tape_width_m": 0.012,
+  "tape_normal": "radial"
+ },
+ "choices": {
+  "turns_along_normal": [
+   120,
+   160,
+   200,
+   240,
+   300
+  ],
+  "tapes_along_width": [
+   2,
+   3,
+   4
+  ],
+  "strands_parallel": [
+   1
+  ]
+ },
+ "operating": {
+  "temperature_k": 21.0,
+  "electric_field_criterion_v_per_m": 0.0001
+ },
+ "material": {
+  "dataset_id": "robinson-superpower-ap-v3-lowfield",
+  "csv_sha256": "043cbaab9a32da5de6394b136265835b9c5917e28861d0793544c5e3885f893b",
+  "method": "measured-coordinate-tetrahedral-log-field-log-ic/v1",
+  "angle_mapping": "period_180_field_reversal",
+  "mirror_policy": "minimum_of_mirror_pair",
+  "field_basis_mapping": "pack_field_as_applied_field_self_field_consistent",
+  "field_magnitude_policy": "total_magnitude_with_transverse_angle",
+  "low_field_policy": "monotone_field_lower_bound",
+  "low_field_clamp_t": 0.0501,
+  "monotonicity_tolerance": 0.002
+ },
+ "sampling": {
+  "stations": [
+   {
+    "id": "straight_center",
+    "kind": "straight",
+    "x_m": 0.0
+   },
+   {
+    "id": "straight_near_junction",
+    "kind": "straight",
+    "x_m": 0.29
+   },
+   {
+    "id": "arc_apex",
+    "kind": "arc",
+    "azimuth_deg": 0.0
+   },
+   {
+    "id": "arc_mid",
+    "kind": "arc",
+    "azimuth_deg": 45.0
+   }
+  ],
+  "relative_turn_indices": [
+   {
+    "kind": "from_start",
+    "offset": 1
+   },
+   {
+    "kind": "from_start",
+    "offset": 2
+   },
+   {
+    "kind": "from_start",
+    "offset": 3
+   },
+   {
+    "kind": "from_start",
+    "offset": 5
+   },
+   {
+    "kind": "from_start",
+    "offset": 10
+   },
+   {
+    "kind": "from_start",
+    "offset": 20
+   },
+   {
+    "kind": "fraction",
+    "value": 0.25
+   },
+   {
+    "kind": "fraction",
+    "value": 0.5
+   },
+   {
+    "kind": "fraction",
+    "value": 0.75
+   },
+   {
+    "kind": "from_end",
+    "offset": 19
+   },
+   {
+    "kind": "from_end",
+    "offset": 9
+   },
+   {
+    "kind": "from_end",
+    "offset": 4
+   },
+   {
+    "kind": "from_end",
+    "offset": 1
+   },
+   {
+    "kind": "from_end",
+    "offset": 0
+   }
+  ],
+  "width_points": 5
+ },
+ "limits": {
+  "max_along_current_field_fraction": 0.2,
+  "max_self_field_ratio": 0.1,
+  "interpolation_overprediction_budget": 0.1,
+  "utilization_limit": 0.8,
+  "self_field_correction": "uniform_transport"
+ },
+ "numerics": {
+  "quadrature_orders": [
+   10,
+   14
+  ],
+  "field_scale_t": 1.0,
+  "max_refinement_change_fraction": 0.0025
+ },
+ "pruning": {
+  "coarse_stations": [
+   "arc_apex",
+   "straight_center"
+  ],
+  "coarse_turn_fractions": [
+   {
+    "kind": "from_start",
+    "offset": 1
+   },
+   {
+    "kind": "fraction",
+    "value": 0.5
+   },
+   {
+    "kind": "from_end",
+    "offset": 0
+   }
+  ],
+  "coarse_width_indices": [
+   0,
+   4
+  ]
+ },
+ "cost": {
+  "price_usd_per_m": 62.5,
+  "scrap_fraction": 0.1,
+  "assembly_cost_per_pancake_usd": 500.0,
+  "joint_cost_usd": 200.0
+ },
+ "baseline": {
+  "turns_along_normal": 200,
+  "tapes_along_width": 3,
+  "strands_parallel": 1
+ },
+ "refined_plan": {
+  "additional_stations": [
+   {
+    "id": "arc_15",
+    "kind": "arc",
+    "azimuth_deg": 15.0
+   },
+   {
+    "id": "arc_30",
+    "kind": "arc",
+    "azimuth_deg": 30.0
+   },
+   {
+    "id": "arc_60",
+    "kind": "arc",
+    "azimuth_deg": 60.0
+   },
+   {
+    "id": "arc_75",
+    "kind": "arc",
+    "azimuth_deg": 75.0
+   },
+   {
+    "id": "straight_015",
+    "kind": "straight",
+    "x_m": 0.15
+   },
+   {
+    "id": "straight_025",
+    "kind": "straight",
+    "x_m": 0.25
+   }
+  ],
+  "max_sampling_shortfall_fraction": 0.02
+ },
+ "execution": {
+  "max_threads": 5
+ },
+ "mechanical": {
+  "max_lorentz_load_n_per_m": 300000.0
+ },
+ "refinement": {
+  "pancake_counts": [
+   2,
+   3,
+   4
+  ],
+  "turn_resolution": 5,
+  "turn_bounds": {
+   "min": 1,
+   "max": 400
+  },
+  "brackets": [
+   {
+    "tapes": 2,
+    "fail_turns": 40,
+    "pass_turns": 300
+   },
+   {
+    "tapes": 3,
+    "fail_turns": 40,
+    "pass_turns": 240
+   },
+   {
+    "tapes": 4,
+    "fail_turns": 40,
+    "pass_turns": 200
+   }
+  ],
+  "monotonicity_check": true
+ }
+}

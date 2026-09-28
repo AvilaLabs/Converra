@@ -1,0 +1,3450 @@
+{
+  "schema": "optcoil-coupled-reference/v1",
+  "case_sha256": "1ece7bf1052e83badc0e4b38cad39a2a7ba02f366e4fe270ba76a9393bdeb61b",
+  "method": "analytical-z-integral-planar-duffy-gauss-graded+independent-measured-coordinate-tetrahedral-log-ic/v1",
+  "source_sha256": "ca85e1160b303ba5eef6067bfe46748c1c9c6b25adf954c498f11987ea1dfc69",
+  "field_source_sha256": "83f2cc1bbb30b8ed22bc0bb50c47b580cf2074a7c3ba3d16f33c3b5f1445d393",
+  "source_path": "tools/reference_oc004.py",
+  "csv_sha256": "889cc2cf8b91b822cbc6cceb7388e5d8afcb8a8911bb20ab175e50c7e6dc0354",
+  "python_version": "3.14.4",
+  "numpy_version": "2.3.5",
+  "platform": "Linux-7.0.0-31-generic-x86_64-with-glibc2.43",
+  "orders": [
+    24,
+    48
+  ],
+  "component_subdivisions": 16,
+  "mu0_h_per_m": 1.2566370614359173e-06,
+  "evaluated_current_a": 870.0,
+  "points": [
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 1,
+      "width_index": 0,
+      "position_m": [
+        0.0,
+        0.19005,
+        0.005999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          2.961306592939839e-24,
+          2.817390729261305e-06,
+          1.2460784099933195e-05
+        ],
+        [
+          2.839986769765395e-25,
+          2.8173907292613e-06,
+          1.2460784099933214e-05
+        ]
+      ],
+      "field_t": [
+        1.4824730938175362e-19,
+        1.4706779606743985,
+        6.504529300165138
+      ],
+      "magnitude_t": 6.668717648897739,
+      "angle_raw_deg": 77.25960965127523,
+      "angle_folded_deg": 77.25960965127524,
+      "mirror_angle_deg": 102.74039034872476,
+      "along_current_fraction": 2.2230257327847304e-20,
+      "query_field_t": 6.668717648897739,
+      "basis": "estimate",
+      "k_folded_a_per_m": 172851.90337336098,
+      "k_mirror_a_per_m": 153069.23845189196,
+      "k_used_a_per_m": 153069.23845189196
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 1,
+      "width_index": 1,
+      "position_m": [
+        0.0,
+        0.19005,
+        0.008072077975752134
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          3.2425480012078684e-24,
+          3.820533274395141e-06,
+          1.218079917232731e-05
+        ],
+        [
+          -1.378634354255046e-26,
+          3.820533274395134e-06,
+          1.218079917232733e-05
+        ]
+      ],
+      "field_t": [
+        -7.196471329211341e-21,
+        1.99431836923426,
+        6.358377167954866
+      ],
+      "magnitude_t": 6.663802665733353,
+      "angle_raw_deg": 72.58585730734603,
+      "angle_folded_deg": 72.58585730734603,
+      "mirror_angle_deg": 107.41414269265397,
+      "along_current_fraction": 1.0799346394539982e-21,
+      "query_field_t": 6.663802665733353,
+      "basis": "estimate",
+      "k_folded_a_per_m": 144317.38616759545,
+      "k_mirror_a_per_m": 132828.73440272154,
+      "k_used_a_per_m": 132828.73440272154
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 1,
+      "width_index": 2,
+      "position_m": [
+        0.0,
+        0.19005,
+        0.011999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          1.6543612251060554e-25,
+          5.799579060423915e-06,
+          1.1309641703705132e-05
+        ],
+        [
+          8.768114493062094e-25,
+          5.799579060424093e-06,
+          1.130964170370547e-05
+        ]
+      ],
+      "field_t": [
+        4.576955765378413e-19,
+        3.0273802695413763,
+        5.9036329693342555
+      ],
+      "magnitude_t": 6.634599726661648,
+      "angle_raw_deg": 62.851269761369885,
+      "angle_folded_deg": 62.85126976136988,
+      "mirror_angle_deg": 117.14873023863012,
+      "along_current_fraction": 6.89861627519979e-20,
+      "query_field_t": 6.634599726661648,
+      "basis": "estimate",
+      "k_folded_a_per_m": 112595.60315760567,
+      "k_mirror_a_per_m": 108107.00108188229,
+      "k_used_a_per_m": 108107.00108188229
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 1,
+      "width_index": 3,
+      "position_m": [
+        0.0,
+        0.19005,
+        0.015927922024247858
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          1.6175976423259209e-25,
+          7.916290145939377e-06,
+          9.675660816460564e-06
+        ],
+        [
+          9.154132112253506e-25,
+          7.916290098608774e-06,
+          9.675660810737979e-06
+        ]
+      ],
+      "field_t": [
+        4.77845696259633e-19,
+        4.13230343147378,
+        5.050694943205225
+      ],
+      "magnitude_t": 6.525752911280721,
+      "angle_raw_deg": 50.71115945991514,
+      "angle_folded_deg": 50.71115945991514,
+      "mirror_angle_deg": 129.28884054008486,
+      "along_current_fraction": 7.322460760560006e-20,
+      "query_field_t": 6.525752911280721,
+      "basis": "estimate",
+      "k_folded_a_per_m": 97095.04589188026,
+      "k_mirror_a_per_m": 94051.93184979226,
+      "k_used_a_per_m": 94051.93184979226
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 1,
+      "width_index": 4,
+      "position_m": [
+        0.0,
+        0.19005,
+        0.017999999999999995
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -3.0660828038632225e-24,
+          9.152476333903109e-06,
+          7.898014207292828e-06
+        ],
+        [
+          -3.308722450212111e-26,
+          9.152476333903132e-06,
+          7.898014207292836e-06
+        ]
+      ],
+      "field_t": [
+        -1.7271531190107218e-20,
+        4.777592646297435,
+        4.122763416206861
+      ],
+      "magnitude_t": 6.310512632105969,
+      "angle_raw_deg": 40.7921376703813,
+      "angle_folded_deg": 40.792137670381294,
+      "mirror_angle_deg": 139.2078623296187,
+      "along_current_fraction": 2.736945823107131e-21,
+      "query_field_t": 6.310512632105969,
+      "basis": "estimate",
+      "k_folded_a_per_m": 94541.2666887104,
+      "k_mirror_a_per_m": 90734.04889442433,
+      "k_used_a_per_m": 90734.04889442433
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 2,
+      "width_index": 0,
+      "position_m": [
+        0.0,
+        0.19015,
+        0.005999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -1.2885635764437164e-24,
+          2.828484069812542e-06,
+          1.2334241395792782e-05
+        ],
+        [
+          1.09831203555652e-24,
+          2.828484069812536e-06,
+          1.2334241395792802e-05
+        ]
+      ],
+      "field_t": [
+        5.733188825605035e-19,
+        1.4764686844421437,
+        6.438474008603843
+      ],
+      "magnitude_t": 6.605596667645214,
+      "angle_raw_deg": 77.08426300657652,
+      "angle_folded_deg": 77.08426300657652,
+      "mirror_angle_deg": 102.91573699342348,
+      "along_current_fraction": 8.6792898720061e-20,
+      "query_field_t": 6.605596667645214,
+      "basis": "estimate",
+      "k_folded_a_per_m": 172540.4316017153,
+      "k_mirror_a_per_m": 153013.11541466595,
+      "k_used_a_per_m": 153013.11541466595
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 2,
+      "width_index": 1,
+      "position_m": [
+        0.0,
+        0.19015,
+        0.008072077975752134
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -1.2260654857174878e-24,
+          3.8365637583934475e-06,
+          1.2055393961461161e-05
+        ],
+        [
+          9.788303915210828e-25,
+          3.836563758393441e-06,
+          1.2055393961461182e-05
+        ]
+      ],
+      "field_t": [
+        5.109494643740052e-19,
+        2.002686281881376,
+        6.292915647882737
+      ],
+      "magnitude_t": 6.603903368084913,
+      "angle_raw_deg": 72.34661056771012,
+      "angle_folded_deg": 72.34661056771012,
+      "mirror_angle_deg": 107.65338943228988,
+      "along_current_fraction": 7.737082690266213e-20,
+      "query_field_t": 6.603903368084913,
+      "basis": "estimate",
+      "k_folded_a_per_m": 144261.30239412558,
+      "k_mirror_a_per_m": 132666.87272287675,
+      "k_used_a_per_m": 132666.87272287675
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 2,
+      "width_index": 2,
+      "position_m": [
+        0.0,
+        0.19015,
+        0.011999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -1.4834105651784295e-24,
+          5.829030606108846e-06,
+          1.1187285696766767e-05
+        ],
+        [
+          -3.9337033574743984e-25,
+          5.829030606109011e-06,
+          1.1187285696767103e-05
+        ]
+      ],
+      "field_t": [
+        -2.053393152601636e-19,
+        3.0427539763889038,
+        5.839763133712427
+      ],
+      "magnitude_t": 6.584921048782382,
+      "angle_raw_deg": 62.47865446725897,
+      "angle_folded_deg": 62.47865446725896,
+      "mirror_angle_deg": 117.52134553274104,
+      "along_current_fraction": 3.118326153631453e-20,
+      "query_field_t": 6.584921048782382,
+      "basis": "estimate",
+      "k_folded_a_per_m": 112549.21457498863,
+      "k_mirror_a_per_m": 108011.16434818771,
+      "k_used_a_per_m": 108011.16434818771
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 2,
+      "width_index": 3,
+      "position_m": [
+        0.0,
+        0.19015,
+        0.015927922024247858
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -2.4925709124931233e-24,
+          7.975146124525861e-06,
+          9.557889089923149e-06
+        ],
+        [
+          6.617444900424222e-25,
+          7.975146077597764e-06,
+          9.557889084199427e-06
+        ]
+      ],
+      "field_t": [
+        3.4543062380214436e-19,
+        4.163026252506033,
+        4.989218101952101
+      ],
+      "magnitude_t": 6.4979292738457035,
+      "angle_raw_deg": 50.15822619059652,
+      "angle_folded_deg": 50.15822619059651,
+      "mirror_angle_deg": 129.8417738094035,
+      "along_current_fraction": 5.3160108281342735e-20,
+      "query_field_t": 6.4979292738457035,
+      "basis": "estimate",
+      "k_folded_a_per_m": 97053.7599073618,
+      "k_mirror_a_per_m": 94041.96202645321,
+      "k_used_a_per_m": 94041.96202645321
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 2,
+      "width_index": 4,
+      "position_m": [
+        0.0,
+        0.19015,
+        0.017999999999999995
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -2.8307958740703612e-24,
+          9.297076627595663e-06,
+          7.824705878534079e-06
+        ],
+        [
+          2.4925709124931233e-24,
+          9.297076627595686e-06,
+          7.82470587853409e-06
+        ]
+      ],
+      "field_t": [
+        1.3011220163214104e-18,
+        4.853073999604948,
+        4.084496468594795
+      ],
+      "magnitude_t": 6.3431410710786595,
+      "angle_raw_deg": 40.084997751829036,
+      "angle_folded_deg": 40.084997751829036,
+      "mirror_angle_deg": 139.91500224817096,
+      "along_current_fraction": 2.0512266742006305e-19,
+      "query_field_t": 6.3431410710786595,
+      "basis": "estimate",
+      "k_folded_a_per_m": 93958.86359498824,
+      "k_mirror_a_per_m": 90056.92528326891,
+      "k_used_a_per_m": 90056.92528326891
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 3,
+      "width_index": 0,
+      "position_m": [
+        0.0,
+        0.19025,
+        0.005999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          1.7462701820563918e-25,
+          2.8395295962776806e-06,
+          1.2207915248068388e-05
+        ],
+        [
+          -1.1313992600586412e-24,
+          2.8395295962776746e-06,
+          1.220791524806838e-05
+        ]
+      ],
+      "field_t": [
+        -5.905904137506107e-19,
+        1.4822344492569461,
+        6.372531759491695
+      ],
+      "magnitude_t": 6.5426431958570355,
+      "angle_raw_deg": 76.90597179743418,
+      "angle_folded_deg": 76.90597179743418,
+      "mirror_angle_deg": 103.09402820256582,
+      "along_current_fraction": 9.026786209655866e-20,
+      "query_field_t": 6.5426431958570355,
+      "basis": "estimate",
+      "k_folded_a_per_m": 172250.53176852915,
+      "k_mirror_a_per_m": 152947.1180910705,
+      "k_used_a_per_m": 152947.1180910705
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 3,
+      "width_index": 1,
+      "position_m": [
+        0.0,
+        0.19025,
+        0.008072077975752134
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -1.0109985264537005e-26,
+          3.852530037948205e-06,
+          1.1930251643176597e-05
+        ],
+        [
+          -7.867406714948797e-25,
+          3.852530037948197e-06,
+          1.193025164317659e-05
+        ]
+      ],
+      "field_t": [
+        -4.106786305203272e-19,
+        2.0110206798089587,
+        6.22759135773818
+      ],
+      "magnitude_t": 6.544241613326524,
+      "angle_raw_deg": 72.1036368148078,
+      "angle_folded_deg": 72.1036368148078,
+      "mirror_angle_deg": 107.8963631851922,
+      "along_current_fraction": 6.27541974740101e-20,
+      "query_field_t": 6.544241613326524,
+      "basis": "estimate",
+      "k_folded_a_per_m": 144193.1871388502,
+      "k_mirror_a_per_m": 132494.29541986724,
+      "k_used_a_per_m": 132494.29541986724
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 3,
+      "width_index": 2,
+      "position_m": [
+        0.0,
+        0.19025,
+        0.011999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -2.683741542949823e-25,
+          5.858385430488673e-06,
+          1.106538183589197e-05
+        ],
+        [
+          6.985080728225567e-26,
+          5.858385430488825e-06,
+          1.1065381835892274e-05
+        ]
+      ],
+      "field_t": [
+        3.646212140133746e-20,
+        3.0580771947151666,
+        5.776129318335767
+      ],
+      "magnitude_t": 6.535710063258238,
+      "angle_raw_deg": 62.10174980996171,
+      "angle_folded_deg": 62.10174980996172,
+      "mirror_angle_deg": 117.89825019003828,
+      "along_current_fraction": 5.5789074252721754e-21,
+      "query_field_t": 6.535710063258238,
+      "basis": "estimate",
+      "k_folded_a_per_m": 112492.30783415391,
+      "k_mirror_a_per_m": 107905.70361410163,
+      "k_used_a_per_m": 107905.70361410163
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 3,
+      "width_index": 3,
+      "position_m": [
+        0.0,
+        0.19025,
+        0.015927922024247858
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          5.689164435225824e-24,
+          8.033803283519897e-06,
+          9.441456933092729e-06
+        ],
+        [
+          1.4301033701472345e-24,
+          8.033803236989855e-06,
+          9.44145692737028e-06
+        ]
+      ],
+      "field_t": [
+        7.465139592168564e-19,
+        4.193645289708704,
+        4.928440516087287
+      ],
+      "magnitude_t": 6.471181247384957,
+      "angle_raw_deg": 49.60530215352626,
+      "angle_folded_deg": 49.60530215352625,
+      "mirror_angle_deg": 130.39469784647375,
+      "along_current_fraction": 1.153597667378776e-19,
+      "query_field_t": 6.471181247384957,
+      "basis": "estimate",
+      "k_folded_a_per_m": 97048.61608827866,
+      "k_mirror_a_per_m": 94123.35388817992,
+      "k_used_a_per_m": 94123.35388817992
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 3,
+      "width_index": 4,
+      "position_m": [
+        0.0,
+        0.19025,
+        0.017999999999999995
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -2.0293497694634277e-24,
+          9.421354423555358e-06,
+          7.75141559784952e-06
+        ],
+        [
+          3.8234126091339944e-25,
+          9.421354423555353e-06,
+          7.751415597849516e-06
+        ]
+      ],
+      "field_t": [
+        1.9958213819679452e-19,
+        4.917947009095894,
+        4.046238942077448
+      ],
+      "magnitude_t": 6.368536123840334,
+      "angle_raw_deg": 39.44582600386313,
+      "angle_folded_deg": 39.44582600386315,
+      "mirror_angle_deg": 140.55417399613685,
+      "along_current_fraction": 3.13387777529702e-20,
+      "query_field_t": 6.368536123840334,
+      "basis": "estimate",
+      "k_folded_a_per_m": 93515.6876423033,
+      "k_mirror_a_per_m": 89670.69689499239,
+      "k_used_a_per_m": 89670.69689499239
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 5,
+      "width_index": 0,
+      "position_m": [
+        0.0,
+        0.19045,
+        0.005999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          3.817898071716975e-24,
+          2.8614702496238715e-06,
+          1.1955909326598759e-05
+        ],
+        [
+          -2.1322878012478046e-25,
+          2.861470249623866e-06,
+          1.1955909326598764e-05
+        ]
+      ],
+      "field_t": [
+        -1.113054232251354e-19,
+        1.493687470303658,
+        6.240984668484555
+      ],
+      "magnitude_t": 6.417241766616045,
+      "angle_raw_deg": 76.54028651826594,
+      "angle_folded_deg": 76.54028651826593,
+      "mirror_angle_deg": 103.45971348173407,
+      "along_current_fraction": 1.7344745183853223e-20,
+      "query_field_t": 6.417241766616045,
+      "basis": "estimate",
+      "k_folded_a_per_m": 171671.670945769,
+      "k_mirror_a_per_m": 153119.40445811555,
+      "k_used_a_per_m": 153119.40445811555
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 5,
+      "width_index": 1,
+      "position_m": [
+        0.0,
+        0.19045,
+        0.008072077975752134
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          1.0266230491352576e-24,
+          3.884258728312217e-06,
+          1.1680752326450918e-05
+        ],
+        [
+          1.3850679812415696e-24,
+          3.884258728312209e-06,
+          1.1680752326450927e-05
+        ]
+      ],
+      "field_t": [
+        7.230054862080994e-19,
+        2.0275830561789734,
+        6.097352714407384
+      ],
+      "magnitude_t": 6.425636402224698,
+      "angle_raw_deg": 71.60622913844217,
+      "angle_folded_deg": 71.60622913844219,
+      "mirror_angle_deg": 108.39377086155781,
+      "along_current_fraction": 1.1251889166305438e-19,
+      "query_field_t": 6.425636402224698,
+      "basis": "estimate",
+      "k_folded_a_per_m": 144019.7639298159,
+      "k_mirror_a_per_m": 132577.44811989283,
+      "k_used_a_per_m": 132577.44811989283
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 5,
+      "width_index": 2,
+      "position_m": [
+        0.0,
+        0.19045,
+        0.011999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          1.2223891274394743e-24,
+          5.9167729240174975e-06,
+          1.0822925990274954e-05
+        ],
+        [
+          4.043994105814802e-25,
+          5.9167729240176245e-06,
+          1.0822925990275264e-05
+        ]
+      ],
+      "field_t": [
+        2.1109649232353266e-19,
+        3.0885554663372,
+        5.649567366923688
+      ],
+      "magnitude_t": 6.4386944563358846,
+      "angle_raw_deg": 61.335064487894876,
+      "angle_folded_deg": 61.33506448789487,
+      "mirror_angle_deg": 118.66493551210513,
+      "along_current_fraction": 3.2785604869913787e-20,
+      "query_field_t": 6.4386944563358846,
+      "basis": "estimate",
+      "k_folded_a_per_m": 112346.6379054598,
+      "k_mirror_a_per_m": 107877.6676320185,
+      "k_used_a_per_m": 107877.6676320185
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 5,
+      "width_index": 3,
+      "position_m": [
+        0.0,
+        0.19045,
+        0.015927922024247858
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          5.67997353953079e-25,
+          8.150269885130864e-06,
+          9.212555537192746e-06
+        ],
+        [
+          4.779265761417493e-25,
+          8.150269839383544e-06,
+          9.21255553148004e-06
+        ]
+      ],
+      "field_t": [
+        2.4947767274599315e-19,
+        4.25444085615821,
+        4.808953987432581
+      ],
+      "magnitude_t": 6.420771406286937,
+      "angle_raw_deg": 48.50108425072911,
+      "angle_folded_deg": 48.50108425072909,
+      "mirror_angle_deg": 131.4989157492709,
+      "along_current_fraction": 3.8854781919461515e-20,
+      "query_field_t": 6.420771406286937,
+      "basis": "estimate",
+      "k_folded_a_per_m": 97048.20826346205,
+      "k_mirror_a_per_m": 93937.38028334585,
+      "k_used_a_per_m": 93937.38028334585
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 5,
+      "width_index": 4,
+      "position_m": [
+        0.0,
+        0.19045,
+        0.017999999999999995
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -8.823259867232295e-26,
+          9.638682146604675e-06,
+          7.604888613962443e-06
+        ],
+        [
+          -5.220428754779108e-25,
+          9.638682146604675e-06,
+          7.604888613962447e-06
+        ]
+      ],
+      "field_t": [
+        -2.7250638099946944e-19,
+        5.03139208052764,
+        3.969751856488397
+      ],
+      "magnitude_t": 6.408887272381168,
+      "angle_raw_deg": 38.27332415256336,
+      "angle_folded_deg": 38.27332415256336,
+      "mirror_angle_deg": 141.72667584743664,
+      "along_current_fraction": 4.2520077108209455e-20,
+      "query_field_t": 6.408887272381168,
+      "basis": "estimate",
+      "k_folded_a_per_m": 92747.51655290596,
+      "k_mirror_a_per_m": 88853.98066465465,
+      "k_used_a_per_m": 88853.98066465465
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 10,
+      "width_index": 0,
+      "position_m": [
+        0.0,
+        0.19095,
+        0.005999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -4.1211976296530845e-24,
+          2.9153635377188127e-06,
+          1.1329622248453923e-05
+        ],
+        [
+          3.1708590147866063e-25,
+          2.9153635377188077e-06,
+          1.1329622248453928e-05
+        ]
+      ],
+      "field_t": [
+        1.6551884057186084e-19,
+        1.5218197666892177,
+        5.91406281369295
+      ],
+      "magnitude_t": 6.106723701510639,
+      "angle_raw_deg": 75.56958798498225,
+      "angle_folded_deg": 75.56958798498226,
+      "mirror_angle_deg": 104.43041201501774,
+      "along_current_fraction": 2.7104360482350943e-20,
+      "query_field_t": 6.106723701510639,
+      "basis": "estimate",
+      "k_folded_a_per_m": 172066.55121656423,
+      "k_mirror_a_per_m": 153926.94154971215,
+      "k_used_a_per_m": 153926.94154971215
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 10,
+      "width_index": 1,
+      "position_m": [
+        0.0,
+        0.19095,
+        0.008072077975752134
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -3.316075166768137e-24,
+          3.962260307656261e-06,
+          1.1061539056561432e-05
+        ],
+        [
+          -1.0872829607224798e-24,
+          3.9622603076562535e-06,
+          1.1061539056561432e-05
+        ]
+      ],
+      "field_t": [
+        -5.675617054971344e-19,
+        2.068299880596564,
+        5.7741233875250675
+      ],
+      "magnitude_t": 6.133381228200292,
+      "angle_raw_deg": 70.29239778189742,
+      "angle_folded_deg": 70.29239778189742,
+      "mirror_angle_deg": 109.70760221810258,
+      "along_current_fraction": 9.253651197932679e-20,
+      "query_field_t": 6.133381228200292,
+      "basis": "estimate",
+      "k_folded_a_per_m": 143355.88597510886,
+      "k_mirror_a_per_m": 133270.4767616316,
+      "k_used_a_per_m": 133270.4767616316
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 10,
+      "width_index": 2,
+      "position_m": [
+        0.0,
+        0.19095,
+        0.011999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          8.474005830821017e-25,
+          6.06049353849167e-06,
+          1.0224592010432634e-05
+        ],
+        [
+          -5.146901589218839e-25,
+          6.060493538491739e-06,
+          1.0224592010432915e-05
+        ]
+      ],
+      "field_t": [
+        -2.686682629572234e-19,
+        3.1635776270926876,
+        5.337237029445982
+      ],
+      "magnitude_t": 6.204379301036548,
+      "angle_raw_deg": 59.34321076982471,
+      "angle_folded_deg": 59.34321076982471,
+      "mirror_angle_deg": 120.65678923017529,
+      "along_current_fraction": 4.330300420419779e-20,
+      "query_field_t": 6.204379301036548,
+      "basis": "estimate",
+      "k_folded_a_per_m": 112184.92924032298,
+      "k_mirror_a_per_m": 108512.74980912017,
+      "k_used_a_per_m": 108512.74980912017
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 10,
+      "width_index": 3,
+      "position_m": [
+        0.0,
+        0.19095,
+        0.015927922024247858
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -4.907938301147965e-25,
+          8.433864348862824e-06,
+          8.662236280440601e-06
+        ],
+        [
+          -8.474005830821017e-25,
+          8.433864304993937e-06,
+          8.662236274791246e-06
+        ]
+      ],
+      "field_t": [
+        -4.423431043688571e-19,
+        4.402477167206835,
+        4.5216873354410305
+      ],
+      "magnitude_t": 6.310900218452621,
+      "angle_raw_deg": 45.76531907209695,
+      "angle_folded_deg": 45.76531907209696,
+      "mirror_angle_deg": 134.23468092790304,
+      "along_current_fraction": 7.009191859435164e-20,
+      "query_field_t": 6.310900218452621,
+      "basis": "estimate",
+      "k_folded_a_per_m": 96803.20940190805,
+      "k_mirror_a_per_m": 93229.77649292244,
+      "k_used_a_per_m": 93229.77649292244
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 10,
+      "width_index": 4,
+      "position_m": [
+        0.0,
+        0.19095,
+        0.017999999999999995
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          1.981557111849253e-24,
+          1.0084951905132697e-05,
+          7.238876958841181e-06
+        ],
+        [
+          -1.3970161456451134e-25,
+          1.0084951905132713e-05,
+          7.238876958841181e-06
+        ]
+      ],
+      "field_t": [
+        -7.292424280267492e-20,
+        5.264344894479276,
+        3.7786937725150964
+      ],
+      "magnitude_t": 6.480112174528648,
+      "angle_raw_deg": 35.670404491995114,
+      "angle_folded_deg": 35.6704044919951,
+      "mirror_angle_deg": 144.3295955080049,
+      "along_current_fraction": 1.125354636441603e-20,
+      "query_field_t": 6.480112174528648,
+      "basis": "estimate",
+      "k_folded_a_per_m": 91442.8056763906,
+      "k_mirror_a_per_m": 87280.4166719116,
+      "k_used_a_per_m": 87280.4166719116
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 20,
+      "width_index": 0,
+      "position_m": [
+        0.0,
+        0.19195,
+        0.005999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -3.5155176033503676e-24,
+          3.0183133683227363e-06,
+          1.0092556180292732e-05
+        ],
+        [
+          1.6902057183166866e-24,
+          3.0183133683227303e-06,
+          1.0092556180292732e-05
+        ]
+      ],
+      "field_t": [
+        8.822873849613104e-19,
+        1.5755595782644651,
+        5.268314326112806
+      ],
+      "magnitude_t": 5.498865685156015,
+      "angle_raw_deg": 73.35000492319638,
+      "angle_folded_deg": 73.35000492319637,
+      "mirror_angle_deg": 106.64999507680363,
+      "along_current_fraction": 1.604489790218031e-19,
+      "query_field_t": 5.498865685156015,
+      "basis": "estimate",
+      "k_folded_a_per_m": 170466.98210696768,
+      "k_mirror_a_per_m": 155614.81151458132,
+      "k_used_a_per_m": 155614.81151458132
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 20,
+      "width_index": 1,
+      "position_m": [
+        0.0,
+        0.19195,
+        0.008072077975752134
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -6.148709219977505e-25,
+          4.111432481925128e-06,
+          9.84200746655182e-06
+        ],
+        [
+          1.0587911840678754e-24,
+          4.111432481925121e-06,
+          9.842007466551818e-06
+        ]
+      ],
+      "field_t": [
+        5.52688998083431e-19,
+        2.146167755564913,
+        5.137527897540049
+      ],
+      "magnitude_t": 5.567784921584957,
+      "angle_raw_deg": 67.32759480288634,
+      "angle_folded_deg": 67.32759480288632,
+      "mirror_angle_deg": 112.67240519711368,
+      "along_current_fraction": 9.926550789359503e-20,
+      "query_field_t": 5.567784921584957,
+      "basis": "estimate",
+      "k_folded_a_per_m": 143785.25131883167,
+      "k_mirror_a_per_m": 134686.83035711444,
+      "k_used_a_per_m": 134686.83035711444
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 20,
+      "width_index": 2,
+      "position_m": [
+        0.0,
+        0.19195,
+        0.011999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          3.6212129038432544e-25,
+          6.335101601253286e-06,
+          9.0601877940758e-06
+        ],
+        [
+          -1.6194358214649276e-24,
+          6.335101601253259e-06,
+          9.06018779407603e-06
+        ]
+      ],
+      "field_t": [
+        -8.453454988046922e-19,
+        3.306923035854201,
+        4.729418028507688
+      ],
+      "magnitude_t": 5.770886834225457,
+      "angle_raw_deg": 55.037827015850475,
+      "angle_folded_deg": 55.03782701585047,
+      "mirror_angle_deg": 124.96217298414953,
+      "along_current_fraction": 1.464845045636995e-19,
+      "query_field_t": 5.770886834225457,
+      "basis": "estimate",
+      "k_folded_a_per_m": 112954.98700931697,
+      "k_mirror_a_per_m": 108660.9439228512,
+      "k_used_a_per_m": 108660.9439228512
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 20,
+      "width_index": 3,
+      "position_m": [
+        0.0,
+        0.19195,
+        0.015927922024247858
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -3.362029645243306e-24,
+          8.952456647318371e-06,
+          7.639637115432556e-06
+        ],
+        [
+          -3.639594695233322e-25,
+          8.952456606869915e-06,
+          7.639637110055494e-06
+        ]
+      ],
+      "field_t": [
+        -1.899868430911794e-19,
+        4.673182348786096,
+        3.987890571448968
+      ],
+      "magnitude_t": 6.143444023905281,
+      "angle_raw_deg": 40.47599985562435,
+      "angle_folded_deg": 40.475999855624366,
+      "mirror_angle_deg": 139.52400014437563,
+      "along_current_fraction": 3.092513618613685e-20,
+      "query_field_t": 6.143444023905281,
+      "basis": "estimate",
+      "k_folded_a_per_m": 96698.63532572011,
+      "k_mirror_a_per_m": 92682.0902676504,
+      "k_used_a_per_m": 92682.0902676504
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 20,
+      "width_index": 4,
+      "position_m": [
+        0.0,
+        0.19195,
+        0.017999999999999995
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -1.4227506535912076e-24,
+          1.0766293451166678e-05,
+          6.508100824237546e-06
+        ],
+        [
+          2.4999236290491503e-25,
+          1.0766293451166692e-05,
+          6.508100824237544e-06
+        ]
+      ],
+      "field_t": [
+        1.3049601343636565e-19,
+        5.620005181509013,
+        3.397228630251998
+      ],
+      "magnitude_t": 6.567010020274982,
+      "angle_raw_deg": 31.15248022896994,
+      "angle_folded_deg": 31.15248022896995,
+      "mirror_angle_deg": 148.84751977103005,
+      "along_current_fraction": 1.9871450330283087e-20,
+      "query_field_t": 6.567010020274982,
+      "basis": "estimate",
+      "k_folded_a_per_m": 89795.7381790522,
+      "k_mirror_a_per_m": 85619.89143419907,
+      "k_used_a_per_m": 85619.89143419907
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 50,
+      "width_index": 0,
+      "position_m": [
+        0.0,
+        0.19495,
+        0.005999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          6.571490421949053e-25,
+          3.2741458424078766e-06,
+          6.4915117506844925e-06
+        ],
+        [
+          -7.637634322572956e-25,
+          3.274145842407872e-06,
+          6.4915117506844925e-06
+        ]
+      ],
+      "field_t": [
+        -3.986845116383083e-19,
+        1.7091041297369092,
+        3.388569133857305
+      ],
+      "magnitude_t": 3.7951861220781,
+      "angle_raw_deg": 63.23483788786349,
+      "angle_folded_deg": 63.23483788786348,
+      "mirror_angle_deg": 116.76516211213652,
+      "along_current_fraction": 1.0505005520519868e-19,
+      "query_field_t": 3.7951861220781,
+      "basis": "estimate",
+      "k_folded_a_per_m": 176894.73917075817,
+      "k_mirror_a_per_m": 165098.0711188632,
+      "k_used_a_per_m": 165098.0711188632
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 50,
+      "width_index": 1,
+      "position_m": [
+        0.0,
+        0.19495,
+        0.008072077975752134
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          6.314145342488111e-25,
+          4.481855123085868e-06,
+          6.317183631210495e-06
+        ],
+        [
+          9.834258393685996e-25,
+          4.4818551230858605e-06,
+          6.317183631210495e-06
+        ]
+      ],
+      "field_t": [
+        5.13348288150409e-19,
+        2.3395283742508193,
+        3.2975698554918784
+      ],
+      "magnitude_t": 4.0431868576375996,
+      "angle_raw_deg": 54.64542532430263,
+      "angle_folded_deg": 54.645425324302636,
+      "mirror_angle_deg": 125.35457467569736,
+      "along_current_fraction": 1.2696625365723368e-19,
+      "query_field_t": 4.0431868576375996,
+      "basis": "estimate",
+      "k_folded_a_per_m": 150264.88105678794,
+      "k_mirror_a_per_m": 142518.26481614486,
+      "k_used_a_per_m": 142518.26481614486
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 50,
+      "width_index": 2,
+      "position_m": [
+        0.0,
+        0.19495,
+        0.011999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          1.919059021123024e-24,
+          7.004128253295372e-06,
+          5.7828942555833365e-06
+        ],
+        [
+          2.9778502051908997e-24,
+          7.004128253295175e-06,
+          5.782894255583459e-06
+        ]
+      ],
+      "field_t": [
+        1.5544378071096496e-18,
+        3.6561549482200815,
+        3.0186708014145656
+      ],
+      "magnitude_t": 4.74129121787589,
+      "angle_raw_deg": 39.544471499230355,
+      "angle_folded_deg": 39.544471499230355,
+      "mirror_angle_deg": 140.45552850076965,
+      "along_current_fraction": 3.2785115608360405e-19,
+      "query_field_t": 4.74129121787589,
+      "basis": "estimate",
+      "k_folded_a_per_m": 120388.32140698652,
+      "k_mirror_a_per_m": 114720.87503864232,
+      "k_used_a_per_m": 114720.87503864232
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 50,
+      "width_index": 3,
+      "position_m": [
+        0.0,
+        0.19495,
+        0.015927922024247858
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -2.6947706177838634e-24,
+          1.0060500228465548e-05,
+          4.9072545541378755e-06
+        ],
+        [
+          7.720352383828259e-26,
+          1.0060500195657863e-05,
+          4.907254550357597e-06
+        ]
+      ],
+      "field_t": [
+        4.030023944358351e-20,
+        5.251581102133405,
+        2.5615868752866655
+      ],
+      "magnitude_t": 5.843015607708541,
+      "angle_raw_deg": 26.00193569972101,
+      "angle_folded_deg": 26.001935699721002,
+      "mirror_angle_deg": 153.998064300279,
+      "along_current_fraction": 6.897164435161945e-21,
+      "query_field_t": 5.843015607708541,
+      "basis": "estimate",
+      "k_folded_a_per_m": 100306.49182500986,
+      "k_mirror_a_per_m": 94514.77408782327,
+      "k_used_a_per_m": 94514.77408782327
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 50,
+      "width_index": 4,
+      "position_m": [
+        0.0,
+        0.19495,
+        0.017999999999999995
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -5.735118913700992e-25,
+          1.2024064883541252e-05,
+          4.324297344520332e-06
+        ],
+        [
+          1.3676052794210057e-24,
+          1.2024064883541242e-05,
+          4.3242973445203314e-06
+        ]
+      ],
+      "field_t": [
+        7.13889955857765e-19,
+        6.276561869208528,
+        2.257283213839613
+      ],
+      "magnitude_t": 6.670124167171444,
+      "angle_raw_deg": 19.780456679568317,
+      "angle_folded_deg": 19.780456679568317,
+      "mirror_angle_deg": 160.21954332043168,
+      "along_current_fraction": 1.0702798598133138e-19,
+      "query_field_t": 6.670124167171444,
+      "basis": "estimate",
+      "k_folded_a_per_m": 90540.39443740556,
+      "k_mirror_a_per_m": 85459.91521882758,
+      "k_used_a_per_m": 85459.91521882758
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 100,
+      "width_index": 0,
+      "position_m": [
+        0.0,
+        0.19995000000000002,
+        0.005999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          6.452008777913616e-25,
+          3.4544272847821005e-06,
+          7.244143752187473e-07
+        ],
+        [
+          7.564107157012686e-25,
+          3.4544272847820962e-06,
+          7.244143752187402e-07
+        ]
+      ],
+      "field_t": [
+        3.9484639359606223e-19,
+        1.8032110426562542,
+        0.37814430386418235
+      ],
+      "magnitude_t": 1.842434036513216,
+      "angle_raw_deg": 11.84364861908261,
+      "angle_folded_deg": 11.843648619082614,
+      "mirror_angle_deg": 168.15635138091739,
+      "along_current_fraction": 2.1430693624359232e-19,
+      "query_field_t": 1.842434036513216,
+      "basis": "estimate",
+      "k_folded_a_per_m": 218370.75720278936,
+      "k_mirror_a_per_m": 211102.66070504388,
+      "k_used_a_per_m": 211102.66070504388
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 100,
+      "width_index": 1,
+      "position_m": [
+        0.0,
+        0.19995000000000002,
+        0.008072077975752134
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -1.375877085546536e-24,
+          4.741292199766059e-06,
+          7.224496123938913e-07
+        ],
+        [
+          6.249809072622876e-25,
+          4.741292199766052e-06,
+          7.224496123938825e-07
+        ]
+      ],
+      "field_t": [
+        3.262400335909141e-19,
+        2.4749545282778795,
+        0.3771186976696067
+      ],
+      "magnitude_t": 2.5035212060566217,
+      "angle_raw_deg": 8.663745595754396,
+      "angle_folded_deg": 8.663745595754392,
+      "mirror_angle_deg": 171.3362544042456,
+      "along_current_fraction": 1.3031247061205664e-19,
+      "query_field_t": 2.5035212060566217,
+      "basis": "estimate",
+      "k_folded_a_per_m": 184160.88995600937,
+      "k_mirror_a_per_m": 178908.68995610066,
+      "k_used_a_per_m": 178908.68995610066
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 100,
+      "width_index": 2,
+      "position_m": [
+        0.0,
+        0.19995000000000002,
+        0.011999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -1.2499618145245751e-24,
+          7.452888202487942e-06,
+          7.166059525944886e-07
+        ],
+        [
+          -1.3437089506139182e-24,
+          7.45288820248767e-06,
+          7.166059525944826e-07
+        ]
+      ],
+      "field_t": [
+        -7.014160722204653e-19,
+        3.890407641698564,
+        0.37406830725431994
+      ],
+      "magnitude_t": 3.9083498713752194,
+      "angle_raw_deg": 5.492188108141044,
+      "angle_folded_deg": 5.49218810814105,
+      "mirror_angle_deg": 174.50781189185895,
+      "along_current_fraction": 1.7946603945507575e-19,
+      "query_field_t": 3.9083498713752194,
+      "basis": "estimate",
+      "k_folded_a_per_m": 136983.60093266092,
+      "k_mirror_a_per_m": 135297.28862633734,
+      "k_used_a_per_m": 135297.28862633734
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 100,
+      "width_index": 3,
+      "position_m": [
+        0.0,
+        0.19995000000000002,
+        0.015927922024247858
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -7.407861930197114e-25,
+          1.070861673531002e-05,
+          7.07723974463582e-07
+        ],
+        [
+          1.0661439006239024e-24,
+          1.0708616707263387e-05,
+          7.077239744241791e-07
+        ]
+      ],
+      "field_t": [
+        5.56527116125677e-19,
+        5.589897921191488,
+        0.3694319146494215
+      ],
+      "magnitude_t": 5.60209235097945,
+      "angle_raw_deg": 3.7811339088968983,
+      "angle_folded_deg": 3.7811339088968907,
+      "mirror_angle_deg": 176.2188660911031,
+      "along_current_fraction": 9.934272433555576e-20,
+      "query_field_t": 5.60209235097945,
+      "basis": "estimate",
+      "k_folded_a_per_m": 104645.33374137517,
+      "k_mirror_a_per_m": 104144.03175707781,
+      "k_used_a_per_m": 104144.03175707781
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 100,
+      "width_index": 4,
+      "position_m": [
+        0.0,
+        0.19995000000000002,
+        0.017999999999999995
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -2.6874179012278364e-24,
+          1.2716268288115919e-05,
+          7.021502444878519e-07
+        ],
+        [
+          1.0661439006239023e-25,
+          1.2716268288115929e-05,
+          7.021502444878475e-07
+        ]
+      ],
+      "field_t": [
+        5.56527116125677e-20,
+        6.637892046396515,
+        0.3665224276226564
+      ],
+      "magnitude_t": 6.648003422800301,
+      "angle_raw_deg": 3.1604739334665126,
+      "angle_folded_deg": 3.1604739334665055,
+      "mirror_angle_deg": 176.8395260665335,
+      "along_current_fraction": 8.371342202035965e-21,
+      "query_field_t": 6.648003422800301,
+      "basis": "estimate",
+      "k_folded_a_per_m": 89933.25267119637,
+      "k_mirror_a_per_m": 90353.37400160525,
+      "k_used_a_per_m": 89933.25267119637
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 150,
+      "width_index": 0,
+      "position_m": [
+        0.0,
+        0.20495,
+        0.005999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          3.874881625026183e-24,
+          3.2813386603612353e-06,
+          -5.039092327033775e-06
+        ],
+        [
+          9.337950026154179e-25,
+          3.28133866036123e-06,
+          -5.039092327033773e-06
+        ]
+      ],
+      "field_t": [
+        4.8744099136524815e-19,
+        1.7128587807085622,
+        -2.6304061947116297
+      ],
+      "magnitude_t": 3.138936436410865,
+      "angle_raw_deg": -56.92876933804616,
+      "angle_folded_deg": 123.07123066195385,
+      "mirror_angle_deg": 56.92876933804615,
+      "along_current_fraction": 1.552885830088996e-19,
+      "query_field_t": 3.138936436410865,
+      "basis": "estimate",
+      "k_folded_a_per_m": 175639.5647933006,
+      "k_mirror_a_per_m": 187426.8386755295,
+      "k_used_a_per_m": 175639.5647933006
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 150,
+      "width_index": 1,
+      "position_m": [
+        0.0,
+        0.20495,
+        0.008072077975752134
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          1.156214678435232e-24,
+          4.492208434393775e-06,
+          -4.868080680240134e-06
+        ],
+        [
+          -1.5357986706401214e-24,
+          4.4922084343937685e-06,
+          -4.8680806802401315e-06
+        ]
+      ],
+      "field_t": [
+        -8.016869060741434e-19,
+        2.344932802753547,
+        -2.5411381150853485
+      ],
+      "magnitude_t": 3.45775834455925,
+      "angle_raw_deg": -47.299536760344765,
+      "angle_folded_deg": 132.70046323965522,
+      "mirror_angle_deg": 47.29953676034478,
+      "along_current_fraction": 2.3185162934696984e-19,
+      "query_field_t": 3.45775834455925,
+      "basis": "estimate",
+      "k_folded_a_per_m": 151241.07858743024,
+      "k_mirror_a_per_m": 159533.30915991156,
+      "k_used_a_per_m": 151241.07858743024
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 150,
+      "width_index": 2,
+      "position_m": [
+        0.0,
+        0.20495,
+        0.011999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -4.209430228325407e-25,
+          7.0222718313128996e-06,
+          -4.344252944721102e-06
+        ],
+        [
+          1.1745964698252992e-24,
+          7.0222718313127e-06,
+          -4.344252944721222e-06
+        ]
+      ],
+      "field_t": [
+        6.131393572488062e-19,
+        3.665625895945229,
+        -2.2677000371444778
+      ],
+      "magnitude_t": 4.310368507156822,
+      "angle_raw_deg": -31.742561315594727,
+      "angle_folded_deg": 148.25743868440526,
+      "mirror_angle_deg": 31.74256131559474,
+      "along_current_fraction": 1.4224754942199625e-19,
+      "query_field_t": 4.310368507156822,
+      "basis": "estimate",
+      "k_folded_a_per_m": 120895.83187944752,
+      "k_mirror_a_per_m": 127221.04282218331,
+      "k_used_a_per_m": 120895.83187944752
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 150,
+      "width_index": 3,
+      "position_m": [
+        0.0,
+        0.20495,
+        0.015927922024247858
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          7.830643132168662e-25,
+          1.0087789238542105e-05,
+          -3.487996086418131e-06
+        ],
+        [
+          7.9041702977289315e-25,
+          1.0087789205924196e-05,
+          -3.487996082704187e-06
+        ]
+      ],
+      "field_t": [
+        4.125976895414502e-19,
+        5.26582596549243,
+        -1.8207339551715855
+      ],
+      "magnitude_t": 5.5717138507257395,
+      "angle_raw_deg": -19.07355190282831,
+      "angle_folded_deg": 160.92644809717171,
+      "mirror_angle_deg": 19.073551902828285,
+      "along_current_fraction": 7.405220379142543e-20,
+      "query_field_t": 5.5717138507257395,
+      "basis": "estimate",
+      "k_folded_a_per_m": 99618.63169377041,
+      "k_mirror_a_per_m": 106016.79495346021,
+      "k_used_a_per_m": 99618.63169377041
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 150,
+      "width_index": 4,
+      "position_m": [
+        0.0,
+        0.20495,
+        0.017999999999999995
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          1.4521615198153152e-24,
+          1.20536310687722e-05,
+          -2.9196055443356196e-06
+        ],
+        [
+          1.9484698873471318e-25,
+          1.2053631068772196e-05,
+          -2.919605544335617e-06
+        ]
+      ],
+      "field_t": [
+        1.0171012811952028e-19,
+        6.291995417899087,
+        -1.524034094143192
+      ],
+      "magnitude_t": 6.473939006429854,
+      "angle_raw_deg": -13.615829545358274,
+      "angle_folded_deg": 166.38417045464172,
+      "mirror_angle_deg": 13.615829545358281,
+      "along_current_fraction": 1.5710702250747616e-20,
+      "query_field_t": 6.473939006429854,
+      "basis": "estimate",
+      "k_folded_a_per_m": 88999.53965055529,
+      "k_mirror_a_per_m": 92052.89263135403,
+      "k_used_a_per_m": 88999.53965055529
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 180,
+      "width_index": 0,
+      "position_m": [
+        0.0,
+        0.20795,
+        0.005999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -2.1267732638307845e-24,
+          3.028739937222409e-06,
+          -8.634910851796288e-06
+        ],
+        [
+          6.4336269865235484e-27,
+          3.0287399372224036e-06,
+          -8.634910851796296e-06
+        ]
+      ],
+      "field_t": [
+        3.3583532869652924e-21,
+        1.5810022472300946,
+        -4.507423464637666
+      ],
+      "magnitude_t": 4.776655147204248,
+      "angle_raw_deg": -70.6714148582672,
+      "angle_folded_deg": 109.32858514173279,
+      "mirror_angle_deg": 70.67141485826721,
+      "along_current_fraction": 7.030763543671181e-22,
+      "query_field_t": 4.776655147204248,
+      "basis": "estimate",
+      "k_folded_a_per_m": 161599.98953265208,
+      "k_mirror_a_per_m": 176149.9171019837,
+      "k_used_a_per_m": 161599.98953265208
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 180,
+      "width_index": 1,
+      "position_m": [
+        0.0,
+        0.20795,
+        0.008072077975752134
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          1.7775192274195063e-24,
+          4.12649029340689e-06,
+          -8.386634127778163e-06
+        ],
+        [
+          -2.9318957267157315e-25,
+          4.126490293406882e-06,
+          -8.386634127778171e-06
+        ]
+      ],
+      "field_t": [
+        -1.5304495693456118e-19,
+        2.1540279331583925,
+        -4.377823014700205
+      ],
+      "magnitude_t": 4.879054281811733,
+      "angle_raw_deg": -63.80134920063624,
+      "angle_folded_deg": 116.19865079936375,
+      "mirror_angle_deg": 63.80134920063625,
+      "along_current_fraction": 3.136775040709963e-20,
+      "query_field_t": 4.879054281811733,
+      "basis": "estimate",
+      "k_folded_a_per_m": 140557.1486248123,
+      "k_mirror_a_per_m": 148856.9292838276,
+      "k_used_a_per_m": 140557.1486248123
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 180,
+      "width_index": 2,
+      "position_m": [
+        0.0,
+        0.20795,
+        0.011999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -8.547532996381287e-25,
+          6.362486380813159e-06,
+          -7.611994157647658e-06
+        ],
+        [
+          5.330719503119512e-26,
+          6.362486380813125e-06,
+          -7.611994157647898e-06
+        ]
+      ],
+      "field_t": [
+        2.782635580628385e-20,
+        3.3212178907844514,
+        -3.973460950292203
+      ],
+      "magnitude_t": 5.178694835724899,
+      "angle_raw_deg": -50.1094311293511,
+      "angle_folded_deg": 129.8905688706489,
+      "mirror_angle_deg": 50.109431129351094,
+      "along_current_fraction": 5.373237213037828e-21,
+      "query_field_t": 5.178694835724899,
+      "basis": "estimate",
+      "k_folded_a_per_m": 114131.83990516473,
+      "k_mirror_a_per_m": 118568.99340817728,
+      "k_used_a_per_m": 114131.83990516473
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 180,
+      "width_index": 3,
+      "position_m": [
+        0.0,
+        0.20795,
+        0.015927922024247858
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          2.8124140826802943e-25,
+          9.001577136346213e-06,
+          -6.208952157304247e-06
+        ],
+        [
+          6.28657265540301e-25,
+          9.001577096215222e-06,
+          -6.208952151963683e-06
+        ]
+      ],
+      "field_t": [
+        3.2815909261203714e-19,
+        4.698823244224346,
+        -3.2410730233250424
+      ],
+      "magnitude_t": 5.708195356063801,
+      "angle_raw_deg": -34.596463704979854,
+      "angle_folded_deg": 145.40353629502016,
+      "mirror_angle_deg": 34.59646370497984,
+      "along_current_fraction": 5.748911383410075e-20,
+      "query_field_t": 5.708195356063801,
+      "basis": "estimate",
+      "k_folded_a_per_m": 97275.58122207054,
+      "k_mirror_a_per_m": 102110.18885806017,
+      "k_used_a_per_m": 97275.58122207054
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 180,
+      "width_index": 4,
+      "position_m": [
+        0.0,
+        0.20795,
+        0.017999999999999995
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          1.2867253973047097e-24,
+          1.082588570386991e-05,
+          -5.102813469123441e-06
+        ],
+        [
+          -3.271958867431976e-25,
+          1.0825885703869929e-05,
+          -5.102813469123445e-06
+        ]
+      ],
+      "field_t": [
+        -1.7079625287994915e-19,
+        5.651112337420103,
+        -2.663668630882438
+      ],
+      "magnitude_t": 6.247415563678217,
+      "angle_raw_deg": -25.236985544367673,
+      "angle_folded_deg": 154.7630144556323,
+      "mirror_angle_deg": 25.236985544367712,
+      "along_current_fraction": 2.7338705283659964e-20,
+      "query_field_t": 6.247415563678217,
+      "basis": "estimate",
+      "k_folded_a_per_m": 89214.47034571631,
+      "k_mirror_a_per_m": 94693.65949946122,
+      "k_used_a_per_m": 89214.47034571631
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 190,
+      "width_index": 0,
+      "position_m": [
+        0.0,
+        0.20895,
+        0.005999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -2.5431208388158085e-24,
+          2.926567305160026e-06,
+          -9.869862573806174e-06
+        ],
+        [
+          4.935510988233065e-25,
+          2.9265673051600214e-06,
+          -9.869862573806191e-06
+        ]
+      ],
+      "field_t": [
+        2.57633673585766e-19,
+        1.5276681332935311,
+        -5.152068263526832
+      ],
+      "magnitude_t": 5.373786125025905,
+      "angle_raw_deg": -73.48409311662238,
+      "angle_folded_deg": 106.51590688337762,
+      "mirror_angle_deg": 73.48409311662238,
+      "along_current_fraction": 4.7942673487870537e-20,
+      "query_field_t": 5.373786125025905,
+      "basis": "estimate",
+      "k_folded_a_per_m": 158853.0810454861,
+      "k_mirror_a_per_m": 174056.8473894668,
+      "k_used_a_per_m": 158853.0810454861
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 190,
+      "width_index": 1,
+      "position_m": [
+        0.0,
+        0.20895,
+        0.008072077975752134
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          2.7205051257299578e-25,
+          3.978423245775559e-06,
+          -9.603609715972626e-06
+        ],
+        [
+          -3.271958867431976e-25,
+          3.978423245775551e-06,
+          -9.603609715972644e-06
+        ]
+      ],
+      "field_t": [
+        -1.7079625287994915e-19,
+        2.076736934294838,
+        -5.01308427173772
+      ],
+      "magnitude_t": 5.426218776441697,
+      "angle_raw_deg": -67.49756664138245,
+      "angle_folded_deg": 112.50243335861757,
+      "mirror_angle_deg": 67.49756664138243,
+      "along_current_fraction": 3.1476108855299544e-20,
+      "query_field_t": 5.426218776441697,
+      "basis": "estimate",
+      "k_folded_a_per_m": 137929.71853571123,
+      "k_mirror_a_per_m": 147396.72296295437,
+      "k_used_a_per_m": 137929.71853571123
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 190,
+      "width_index": 2,
+      "position_m": [
+        0.0,
+        0.20895,
+        0.011999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          1.6745811956351292e-24,
+          6.0899949731930824e-06,
+          -8.772141558270336e-06
+        ],
+        [
+          -7.4997708871474505e-25,
+          6.0899949731931434e-06,
+          -8.77214155827063e-06
+        ]
+      ],
+      "field_t": [
+        -3.9148804030909694e-19,
+        3.178977376006821,
+        -4.579057893417269
+      ],
+      "magnitude_t": 5.574376050145003,
+      "angle_raw_deg": -55.2299688818994,
+      "angle_folded_deg": 124.77003111810063,
+      "mirror_angle_deg": 55.22996888189937,
+      "along_current_fraction": 7.022993009216044e-20,
+      "query_field_t": 5.574376050145003,
+      "basis": "estimate",
+      "k_folded_a_per_m": 112062.24789121115,
+      "k_mirror_a_per_m": 116697.81740928018,
+      "k_used_a_per_m": 112062.24789121115
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 190,
+      "width_index": 3,
+      "position_m": [
+        0.0,
+        0.20895,
+        0.015927922024247858
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -3.075273699558256e-24,
+          8.490501408371054e-06,
+          -7.222601550237752e-06
+        ],
+        [
+          -1.3676052794210057e-24,
+          8.49050136486439e-06,
+          -7.222601544607358e-06
+        ]
+      ],
+      "field_t": [
+        -7.13889955857765e-19,
+        4.4320417124592115,
+        -3.7701980062850406
+      ],
+      "magnitude_t": 5.818710058730721,
+      "angle_raw_deg": -40.386763637172045,
+      "angle_folded_deg": 139.61323636282793,
+      "mirror_angle_deg": 40.386763637172066,
+      "along_current_fraction": 1.2268869709130878e-19,
+      "query_field_t": 5.818710058730721,
+      "basis": "estimate",
+      "k_folded_a_per_m": 97077.93530235709,
+      "k_mirror_a_per_m": 101402.4164493669,
+      "k_used_a_per_m": 97077.93530235709
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 190,
+      "width_index": 4,
+      "position_m": [
+        0.0,
+        0.20895,
+        0.017999999999999995
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -1.0734966171799292e-24,
+          1.016516498709338e-05,
+          -5.83333543934444e-06
+        ],
+        [
+          1.5091450731245239e-24,
+          1.0165164987093403e-05,
+          -5.833335439344449e-06
+        ]
+      ],
+      "field_t": [
+        7.877737281710014e-19,
+        5.3062161232627565,
+        -3.0450010993378025
+      ],
+      "magnitude_t": 6.117839589409162,
+      "angle_raw_deg": -29.84959441516544,
+      "angle_folded_deg": 150.15040558483457,
+      "mirror_angle_deg": 29.849594415165427,
+      "along_current_fraction": 1.2876665310655547e-19,
+      "query_field_t": 6.117839589409162,
+      "basis": "estimate",
+      "k_folded_a_per_m": 90922.13946829554,
+      "k_mirror_a_per_m": 95444.21475051947,
+      "k_used_a_per_m": 90922.13946829554
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 195,
+      "width_index": 0,
+      "position_m": [
+        0.0,
+        0.20945,
+        0.005999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -1.1672437532692725e-24,
+          2.872998916625194e-06,
+          -1.0495042952415029e-05
+        ],
+        [
+          -8.464814935125984e-25,
+          2.872998916625189e-06,
+          -1.0495042952415039e-05
+        ]
+      ],
+      "field_t": [
+        -4.418633396135763e-19,
+        1.4997054344783485,
+        -5.47841242116065
+      ],
+      "magnitude_t": 5.679975268126719,
+      "angle_raw_deg": -74.69045125572181,
+      "angle_folded_deg": 105.30954874427817,
+      "mirror_angle_deg": 74.69045125572183,
+      "along_current_fraction": 7.779318020856538e-20,
+      "query_field_t": 5.679975268126719,
+      "basis": "estimate",
+      "k_folded_a_per_m": 157566.55382458653,
+      "k_mirror_a_per_m": 175551.0110397837,
+      "k_used_a_per_m": 157566.55382458653
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 195,
+      "width_index": 1,
+      "position_m": [
+        0.0,
+        0.20945,
+        0.008072077975752134
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -3.485187647556756e-24,
+          3.900872199576273e-06,
+          -1.0221486846993003e-05
+        ],
+        [
+          4.310530080970777e-25,
+          3.900872199576264e-06,
+          -1.0221486846993012e-05
+        ]
+      ],
+      "field_t": [
+        2.250096702266746e-19,
+        2.03625528817881,
+        -5.335616134130352
+      ],
+      "magnitude_t": 5.710966216799771,
+      "angle_raw_deg": -69.1114193316877,
+      "angle_folded_deg": 110.88858066831233,
+      "mirror_angle_deg": 69.11141933168767,
+      "along_current_fraction": 3.9399579980839435e-20,
+      "query_field_t": 5.710966216799771,
+      "basis": "estimate",
+      "k_folded_a_per_m": 137006.3212669379,
+      "k_mirror_a_per_m": 146613.25689688406,
+      "k_used_a_per_m": 137006.3212669379
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 195,
+      "width_index": 2,
+      "position_m": [
+        0.0,
+        0.20945,
+        0.011999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          1.3657671002819991e-24,
+          5.947061915996424e-06,
+          -9.368216168280291e-06
+        ],
+        [
+          1.0661439006239023e-25,
+          5.947061915996539e-06,
+          -9.368216168280598e-06
+        ]
+      ],
+      "field_t": [
+        5.56527116125677e-20,
+        3.104366320150193,
+        -4.890208839842472
+      ],
+      "magnitude_t": 5.792342595785949,
+      "angle_raw_deg": -57.59210403964884,
+      "angle_folded_deg": 122.4078959603512,
+      "mirror_angle_deg": 57.5921040396488,
+      "along_current_fraction": 9.607979965317697e-21,
+      "query_field_t": 5.792342595785949,
+      "basis": "estimate",
+      "k_folded_a_per_m": 112031.5998352351,
+      "k_mirror_a_per_m": 116405.12479570045,
+      "k_used_a_per_m": 112031.5998352351
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 195,
+      "width_index": 3,
+      "position_m": [
+        0.0,
+        0.20945,
+        0.015927922024247858
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          3.3987932280234405e-24,
+          8.209646011048548e-06,
+          -7.766934404963137e-06
+        ],
+        [
+          2.0587606356875355e-25,
+          8.209645965685883e-06,
+          -7.766934399258747e-06
+        ]
+      ],
+      "field_t": [
+        1.0746730518288936e-19,
+        4.285435194088031,
+        -4.054339756413066
+      ],
+      "magnitude_t": 5.899375023098623,
+      "angle_raw_deg": -43.41273824299624,
+      "angle_folded_deg": 136.58726175700377,
+      "mirror_angle_deg": 43.41273824299623,
+      "along_current_fraction": 1.8216727155352567e-20,
+      "query_field_t": 5.899375023098623,
+      "basis": "estimate",
+      "k_folded_a_per_m": 97685.15913494458,
+      "k_mirror_a_per_m": 101628.1593090993,
+      "k_used_a_per_m": 97685.15913494458
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 195,
+      "width_index": 4,
+      "position_m": [
+        0.0,
+        0.20945,
+        0.017999999999999995
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -1.5606140890167123e-24,
+          9.738838272654483e-06,
+          -6.199210137827831e-06
+        ],
+        [
+          -7.389480138807047e-25,
+          9.738838272654501e-06,
+          -6.199210137827835e-06
+        ]
+      ],
+      "field_t": [
+        -3.8573086324572787e-19,
+        5.08367357832565,
+        -3.23598769194613
+      ],
+      "magnitude_t": 6.026222149356357,
+      "angle_raw_deg": -32.478593460931954,
+      "angle_folded_deg": 147.52140653906804,
+      "mirror_angle_deg": 32.47859346093196,
+      "along_current_fraction": 6.400873610126148e-20,
+      "query_field_t": 6.026222149356357,
+      "basis": "estimate",
+      "k_folded_a_per_m": 92474.44483418639,
+      "k_mirror_a_per_m": 96887.51448379202,
+      "k_used_a_per_m": 92474.44483418639
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 198,
+      "width_index": 0,
+      "position_m": [
+        0.0,
+        0.20975,
+        0.005999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -2.7462396336760517e-24,
+          2.840186890284833e-06,
+          -1.0872698071506172e-05
+        ],
+        [
+          -2.464079135838519e-24,
+          2.840186890284828e-06,
+          -1.0872698071506169e-05
+        ]
+      ],
+      "field_t": [
+        -1.286249308907707e-18,
+        1.4825775567286803,
+        -5.67554839332622
+      ],
+      "magnitude_t": 5.865994014376712,
+      "angle_raw_deg": -75.36022640585615,
+      "angle_folded_deg": 104.63977359414383,
+      "mirror_angle_deg": 75.36022640585617,
+      "along_current_fraction": 2.192721823028278e-19,
+      "query_field_t": 5.865994014376712,
+      "basis": "estimate",
+      "k_folded_a_per_m": 157210.36434974376,
+      "k_mirror_a_per_m": 175665.1556195808,
+      "k_used_a_per_m": 157210.36434974376
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 198,
+      "width_index": 1,
+      "position_m": [
+        0.0,
+        0.20975,
+        0.008072077975752134
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          1.2582336206501054e-24,
+          3.853413989558466e-06,
+          -1.0595312713853106e-05
+        ],
+        [
+          1.9245735585400444e-24,
+          3.853413989558459e-06,
+          -1.0595312713853103e-05
+        ]
+      ],
+      "field_t": [
+        1.0046273975579032e-18,
+        2.0114821025495155,
+        -5.53075323663132
+      ],
+      "magnitude_t": 5.8851755805060595,
+      "angle_raw_deg": -70.01415680588201,
+      "angle_folded_deg": 109.98584319411799,
+      "mirror_angle_deg": 70.01415680588201,
+      "along_current_fraction": 1.7070474513719036e-19,
+      "query_field_t": 5.8851755805060595,
+      "basis": "estimate",
+      "k_folded_a_per_m": 136688.555681513,
+      "k_mirror_a_per_m": 146951.9110438727,
+      "k_used_a_per_m": 136688.555681513
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 198,
+      "width_index": 2,
+      "position_m": [
+        0.0,
+        0.20975,
+        0.011999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -3.172697193925613e-24,
+          5.859698167195845e-06,
+          -9.731194740292206e-06
+        ],
+        [
+          9.834258393685996e-25,
+          5.8596981671959964e-06,
+          -9.731194740292513e-06
+        ]
+      ],
+      "field_t": [
+        5.13348288150409e-19,
+        3.05876244327631,
+        -5.079683654432691
+      ],
+      "magnitude_t": 5.929520529815908,
+      "angle_raw_deg": -58.94549544840575,
+      "angle_folded_deg": 121.05450455159428,
+      "mirror_angle_deg": 58.94549544840572,
+      "along_current_fraction": 8.657500814258025e-20,
+      "query_field_t": 5.929520529815908,
+      "basis": "estimate",
+      "k_folded_a_per_m": 112047.11332073774,
+      "k_mirror_a_per_m": 116119.40666261216,
+      "k_used_a_per_m": 112047.11332073774
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 198,
+      "width_index": 3,
+      "position_m": [
+        0.0,
+        0.20975,
+        0.015927922024247858
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          1.2462854562465616e-24,
+          8.03554322335256e-06,
+          -8.108314665310604e-06
+        ],
+        [
+          4.889556509757897e-25,
+          8.03554317682252e-06,
+          -8.108314659588163e-06
+        ]
+      ],
+      "field_t": [
+        2.552348498093622e-19,
+        4.1945535383013555,
+        -4.232540252305021
+      ],
+      "magnitude_t": 5.958915704476667,
+      "angle_raw_deg": -45.25826977873589,
+      "angle_folded_deg": 134.7417302212641,
+      "mirror_angle_deg": 45.258269778735894,
+      "along_current_fraction": 4.2832431681759763e-20,
+      "query_field_t": 5.958915704476667,
+      "basis": "estimate",
+      "k_folded_a_per_m": 97647.83533242224,
+      "k_mirror_a_per_m": 101633.4467704633,
+      "k_used_a_per_m": 97647.83533242224
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 198,
+      "width_index": 4,
+      "position_m": [
+        0.0,
+        0.20975,
+        0.017999999999999995
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          3.657976486623389e-25,
+          9.42331891288413e-06,
+          -6.418942146880803e-06
+        ],
+        [
+          -2.628596168779621e-25,
+          9.42331891288413e-06,
+          -6.4189421468808e-06
+        ]
+      ],
+      "field_t": [
+        -1.3721272001029623e-19,
+        4.918972472525516,
+        -3.3506878006717775
+      ],
+      "magnitude_t": 5.951755952912927,
+      "angle_raw_deg": -34.26176615763166,
+      "angle_folded_deg": 145.73823384236834,
+      "mirror_angle_deg": 34.261766157631655,
+      "along_current_fraction": 2.305415764622223e-20,
+      "query_field_t": 5.951755952912927,
+      "basis": "estimate",
+      "k_folded_a_per_m": 93812.22487432622,
+      "k_mirror_a_per_m": 98385.92171196897,
+      "k_used_a_per_m": 93812.22487432622
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 199,
+      "width_index": 0,
+      "position_m": [
+        0.0,
+        0.20985,
+        0.005999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -7.463007304367317e-25,
+          2.829148124076532e-06,
+          -1.0999013218344458e-05
+        ],
+        [
+          -1.3694434585600126e-25,
+          2.8291481240765267e-06,
+          -1.0999013218344477e-05
+        ]
+      ],
+      "field_t": [
+        -7.148494853683265e-20,
+        1.4768153207679469,
+        -5.741484899975817
+      ],
+      "magnitude_t": 5.928375186196067,
+      "angle_raw_deg": -75.57516934159173,
+      "angle_folded_deg": 104.42483065840827,
+      "mirror_angle_deg": 75.57516934159173,
+      "along_current_fraction": 1.2058101299540196e-20,
+      "query_field_t": 5.928375186196067,
+      "basis": "estimate",
+      "k_folded_a_per_m": 157024.14396456387,
+      "k_mirror_a_per_m": 175624.39555625556,
+      "k_used_a_per_m": 157024.14396456387
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 199,
+      "width_index": 1,
+      "position_m": [
+        0.0,
+        0.20985,
+        0.008072077975752134
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          9.79749481090586e-25,
+          3.837456801416913e-06,
+          -1.0720444043813059e-05
+        ],
+        [
+          -1.0771729754579427e-24,
+          3.837456801416905e-06,
+          -1.0720444043813078e-05
+        ]
+      ],
+      "field_t": [
+        -5.622842931890461e-19,
+        2.0031524503396243,
+        -5.596071790870426
+      ],
+      "magnitude_t": 5.943789971716479,
+      "angle_raw_deg": -70.30482209350023,
+      "angle_folded_deg": 109.6951779064998,
+      "mirror_angle_deg": 70.3048220935002,
+      "along_current_fraction": 9.460029642108412e-20,
+      "query_field_t": 5.943789971716479,
+      "basis": "estimate",
+      "k_folded_a_per_m": 136463.4984205427,
+      "k_mirror_a_per_m": 147148.93739055164,
+      "k_used_a_per_m": 136463.4984205427
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 199,
+      "width_index": 2,
+      "position_m": [
+        0.0,
+        0.20985,
+        0.011999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          4.2314883779934885e-24,
+          5.830356844217937e-06,
+          -9.85308764674987e-06
+        ],
+        [
+          1.433779728425248e-25,
+          5.830356844218102e-06,
+          -9.853087646750206e-06
+        ]
+      ],
+      "field_t": [
+        7.484330182379794e-20,
+        3.0434462726818494,
+        -5.1433117516036075
+      ],
+      "magnitude_t": 5.976304961168299,
+      "angle_raw_deg": -59.385969978993046,
+      "angle_folded_deg": 120.61403002100695,
+      "mirror_angle_deg": 59.385969978993046,
+      "along_current_fraction": 1.2523340477117644e-20,
+      "query_field_t": 5.976304961168299,
+      "basis": "estimate",
+      "k_folded_a_per_m": 112053.37820177664,
+      "k_mirror_a_per_m": 116014.00573562276,
+      "k_used_a_per_m": 112053.37820177664
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 199,
+      "width_index": 3,
+      "position_m": [
+        0.0,
+        0.20985,
+        0.015927922024247858
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -2.400661955542787e-24,
+          7.976903959418129e-06,
+          -8.224735914762654e-06
+        ],
+        [
+          1.2830490390266963e-24,
+          7.976903912490032e-06,
+          -8.224735909038932e-06
+        ]
+      ],
+      "field_t": [
+        6.697515983719354e-19,
+        4.163943842319797,
+        -4.293312144518323
+      ],
+      "magnitude_t": 5.980882668324256,
+      "angle_raw_deg": -45.876369318925285,
+      "angle_folded_deg": 134.1236306810747,
+      "mirror_angle_deg": 45.8763693189253,
+      "along_current_fraction": 1.1198206611192203e-19,
+      "query_field_t": 5.980882668324256,
+      "basis": "estimate",
+      "k_folded_a_per_m": 97781.29399958375,
+      "k_mirror_a_per_m": 101613.72311964897,
+      "k_used_a_per_m": 97781.29399958375
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 199,
+      "width_index": 4,
+      "position_m": [
+        0.0,
+        0.20985,
+        0.017999999999999995
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          1.1212892747941042e-24,
+          9.299061321378023e-06,
+          -6.492221550247064e-06
+        ],
+        [
+          6.28657265540301e-25,
+          9.299061321378046e-06,
+          -6.492221550247074e-06
+        ]
+      ],
+      "field_t": [
+        3.2815909261203714e-19,
+        4.85411000975934,
+        -3.388939649228973
+      ],
+      "magnitude_t": 5.920075669530079,
+      "angle_raw_deg": -34.92115851171333,
+      "angle_folded_deg": 145.07884148828668,
+      "mirror_angle_deg": 34.921158511713315,
+      "along_current_fraction": 5.543157063025946e-20,
+      "query_field_t": 5.920075669530079,
+      "basis": "estimate",
+      "k_folded_a_per_m": 94270.05791729735,
+      "k_mirror_a_per_m": 98925.33667468428,
+      "k_used_a_per_m": 94270.05791729735
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 200,
+      "width_index": 0,
+      "position_m": [
+        0.0,
+        0.20995,
+        0.005999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -8.676205536111758e-25,
+          2.818061544357674e-06,
+          -1.1125544809029255e-05
+        ],
+        [
+          -1.5808340595457863e-24,
+          2.818061544357668e-06,
+          -1.1125544809029272e-05
+        ]
+      ],
+      "field_t": [
+        -8.251953790829004e-19,
+        1.4710281261547027,
+        -5.80753439031328
+      ],
+      "magnitude_t": 5.990941448771608,
+      "angle_raw_deg": -75.78612974507178,
+      "angle_folded_deg": 104.21387025492822,
+      "mirror_angle_deg": 75.78612974507178,
+      "along_current_fraction": 1.3774051810372806e-19,
+      "query_field_t": 5.990941448771608,
+      "basis": "estimate",
+      "k_folded_a_per_m": 156829.43720783043,
+      "k_mirror_a_per_m": 175570.44206369043,
+      "k_used_a_per_m": 156829.43720783043
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 200,
+      "width_index": 1,
+      "position_m": [
+        0.0,
+        0.20995,
+        0.008072077975752134
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -1.0302994074132711e-24,
+          3.821435409605421e-06,
+          -1.084583815391411e-05
+        ],
+        [
+          -3.1892408061766732e-25,
+          3.821435409605412e-06,
+          -1.084583815391413e-05
+        ]
+      ],
+      "field_t": [
+        -1.6647837008242235e-19,
+        1.994789283814025,
+        -5.661527516343176
+      ],
+      "magnitude_t": 6.002672580203771,
+      "angle_raw_deg": -70.59054026571992,
+      "angle_folded_deg": 109.40945973428006,
+      "mirror_angle_deg": 70.59054026571994,
+      "along_current_fraction": 2.773404143871711e-20,
+      "query_field_t": 6.002672580203771,
+      "basis": "estimate",
+      "k_folded_a_per_m": 136230.82914834472,
+      "k_mirror_a_per_m": 147328.86033232254,
+      "k_used_a_per_m": 136230.82914834472
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 200,
+      "width_index": 2,
+      "position_m": [
+        0.0,
+        0.20995,
+        0.011999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -3.415336840274501e-24,
+          5.800918801082207e-06,
+          -9.975432587178892e-06
+        ],
+        [
+          -9.521767940054853e-25,
+          5.800918801082385e-06,
+          -9.975432587179231e-06
+        ]
+      ],
+      "field_t": [
+        -4.970362864708633e-19,
+        3.0280796141650046,
+        -5.207175810507559
+      ],
+      "magnitude_t": 6.023615697507331,
+      "angle_raw_deg": -59.82112003062436,
+      "angle_folded_deg": 120.17887996937566,
+      "mirror_angle_deg": 59.82112003062434,
+      "along_current_fraction": 8.251460774241372e-20,
+      "query_field_t": 6.023615697507331,
+      "basis": "estimate",
+      "k_folded_a_per_m": 111905.87464815984,
+      "k_mirror_a_per_m": 115976.84774358817,
+      "k_used_a_per_m": 111905.87464815984
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 200,
+      "width_index": 3,
+      "position_m": [
+        0.0,
+        0.20995,
+        0.015927922024247858
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          6.102754741502337e-25,
+          7.91806587740897e-06,
+          -8.342496622312632e-06
+        ],
+        [
+          -2.2058149668080738e-25,
+          7.918065830078367e-06,
+          -8.342496616590049e-06
+        ]
+      ],
+      "field_t": [
+        -1.1514354126738145e-19,
+        4.133230363300908,
+        -4.354783233860005
+      ],
+      "magnitude_t": 6.003976203318994,
+      "angle_raw_deg": -46.495186430726314,
+      "angle_folded_deg": 133.50481356927367,
+      "mirror_angle_deg": 46.495186430726335,
+      "along_current_fraction": 1.9177881018870492e-20,
+      "query_field_t": 6.003976203318994,
+      "basis": "estimate",
+      "k_folded_a_per_m": 97925.07160368944,
+      "k_mirror_a_per_m": 101677.79561449001,
+      "k_used_a_per_m": 97925.07160368944
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 3,
+      "turn_index": 200,
+      "width_index": 4,
+      "position_m": [
+        0.0,
+        0.20995,
+        0.017999999999999995
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          4.117521271375071e-24,
+          9.15448123385057e-06,
+          -6.5655188903872234e-06
+        ],
+        [
+          4.521920681956551e-25,
+          9.154481233850596e-06,
+          -6.565518890387231e-06
+        ]
+      ],
+      "field_t": [
+        2.36044259598132e-19,
+        4.778639204070011,
+        -3.4272008607821345
+      ],
+      "magnitude_t": 5.880569562790723,
+      "angle_raw_deg": -35.64778065550173,
+      "angle_folded_deg": 144.35221934449828,
+      "mirror_angle_deg": 35.64778065550172,
+      "along_current_fraction": 4.013969345617489e-20,
+      "query_field_t": 5.880569562790723,
+      "basis": "estimate",
+      "k_folded_a_per_m": 94924.71633683139,
+      "k_mirror_a_per_m": 99486.25893493515,
+      "k_used_a_per_m": 94924.71633683139
+    },
+    {
+      "station": "arc_apex",
+      "tape_index": 3,
+      "turn_index": 1,
+      "width_index": 0,
+      "position_m": [
+        0.49005,
+        0.0,
+        0.005999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          2.8510427338014175e-06,
+          -4.067890434621889e-24,
+          1.3847966594250002e-05
+        ],
+        [
+          2.851042733801412e-06,
+          4.297203282212979e-24,
+          1.3847966594250017e-05
+        ]
+      ],
+      "field_t": [
+        1.488244307044337,
+        2.243140113315175e-18,
+        7.228638562198509
+      ],
+      "magnitude_t": 7.380249764090183,
+      "angle_raw_deg": 78.36640256599982,
+      "angle_folded_deg": 78.3664025659998,
+      "mirror_angle_deg": 101.6335974340002,
+      "along_current_fraction": 3.039382385443839e-19,
+      "query_field_t": 7.380249764090183,
+      "basis": "estimate",
+      "k_folded_a_per_m": 171417.40908911565,
+      "k_mirror_a_per_m": 147722.5962244792,
+      "k_used_a_per_m": 147722.5962244792
+    },
+    {
+      "station": "arc_apex",
+      "tape_index": 3,
+      "turn_index": 1,
+      "width_index": 1,
+      "position_m": [
+        0.49005,
+        0.0,
+        0.008072077975752134
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          3.865755647729921e-06,
+          2.7756504999001595e-25,
+          1.3542417404297168e-05
+        ],
+        [
+          3.865755647729914e-06,
+          -6.907647431994909e-24,
+          1.3542417404297185e-05
+        ]
+      ],
+      "field_t": [
+        2.017924448115015,
+        -3.605791959501342e-18,
+        7.0691418850431305
+      ],
+      "magnitude_t": 7.35151590280341,
+      "angle_raw_deg": 74.06832069032156,
+      "angle_folded_deg": 74.06832069032157,
+      "mirror_angle_deg": 105.93167930967843,
+      "along_current_fraction": 4.904827803101559e-19,
+      "query_field_t": 7.35151590280341,
+      "basis": "estimate",
+      "k_folded_a_per_m": 140079.42169306174,
+      "k_mirror_a_per_m": 129686.15425079272,
+      "k_used_a_per_m": 129686.15425079272
+    },
+    {
+      "station": "arc_apex",
+      "tape_index": 3,
+      "turn_index": 1,
+      "width_index": 2,
+      "position_m": [
+        0.49005,
+        0.0,
+        0.011999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          5.865880294469728e-06,
+          -3.2494411729791436e-24,
+          1.2599821292245057e-05
+        ],
+        [
+          5.8658802944698e-06,
+          6.3146048872728626e-24,
+          1.2599821292245411e-05
+        ]
+      ],
+      "field_t": [
+        3.0619895137132356,
+        3.2962237511564345e-18,
+        6.577106714552105
+      ],
+      "magnitude_t": 7.254937113214435,
+      "angle_raw_deg": 65.03554238593915,
+      "angle_folded_deg": 65.03554238593915,
+      "mirror_angle_deg": 114.96445761406085,
+      "along_current_fraction": 4.54342153449209e-19,
+      "query_field_t": 7.254937113214435,
+      "basis": "estimate",
+      "k_folded_a_per_m": 108591.25733970388,
+      "k_mirror_a_per_m": 104431.63789733232,
+      "k_used_a_per_m": 104431.63789733232
+    },
+    {
+      "station": "arc_apex",
+      "tape_index": 3,
+      "turn_index": 1,
+      "width_index": 3,
+      "position_m": [
+        0.49005,
+        0.0,
+        0.015927922024247858
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          7.999529608193783e-06,
+          -1.962715775674434e-24,
+          1.0860812101968512e-05
+        ],
+        [
+          7.999529562907817e-06,
+          4.627615982449438e-24,
+          1.0860812095461091e-05
+        ]
+      ],
+      "field_t": [
+        4.1757544318378805,
+        2.4156155428386067e-18,
+        5.66934391383069
+      ],
+      "magnitude_t": 7.041192050235726,
+      "angle_raw_deg": 53.62650223103955,
+      "angle_folded_deg": 53.62650223103955,
+      "mirror_angle_deg": 126.37349776896045,
+      "along_current_fraction": 3.430691175023036e-19,
+      "query_field_t": 7.041192050235726,
+      "basis": "estimate",
+      "k_folded_a_per_m": 93402.83170794466,
+      "k_mirror_a_per_m": 90615.21321528917,
+      "k_used_a_per_m": 90615.21321528917
+    },
+    {
+      "station": "arc_apex",
+      "tape_index": 3,
+      "turn_index": 1,
+      "width_index": 4,
+      "position_m": [
+        0.49005,
+        0.0,
+        0.017999999999999995
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          9.239626325736989e-06,
+          -2.774731410330656e-24,
+          9.012402772675246e-06
+        ],
+        [
+          9.239626325737014e-06,
+          -5.713979853602414e-24,
+          9.012402772675254e-06
+        ]
+      ],
+      "field_t": [
+        4.823084942034722,
+        -2.9826974835804604e-18,
+        4.704474247336483
+      ],
+      "magnitude_t": 6.737523751493144,
+      "angle_raw_deg": 44.286748995619135,
+      "angle_folded_deg": 44.28674899561912,
+      "mirror_angle_deg": 135.71325100438088,
+      "along_current_fraction": 4.426993645728442e-19,
+      "query_field_t": 6.737523751493144,
+      "basis": "estimate",
+      "k_folded_a_per_m": 90730.8112702741,
+      "k_mirror_a_per_m": 87457.5969439478,
+      "k_used_a_per_m": 87457.5969439478
+    },
+    {
+      "station": "arc_apex",
+      "tape_index": 3,
+      "turn_index": 200,
+      "width_index": 0,
+      "position_m": [
+        0.50995,
+        0.0,
+        0.005999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          2.735730598439197e-06,
+          -1.88780997575991e-24,
+          -9.825115536432812e-06
+        ],
+        [
+          2.7357305984391914e-06,
+          3.2438117493659357e-24,
+          -9.825115536432872e-06
+        ]
+      ],
+      "field_t": [
+        1.428051372385258,
+        1.6932697331690184e-18,
+        -5.128710310017959
+      ],
+      "magnitude_t": 5.323814437624204,
+      "angle_raw_deg": -74.44053281226387,
+      "angle_folded_deg": 105.55946718773612,
+      "mirror_angle_deg": 74.44053281226388,
+      "along_current_fraction": 3.180557386077216e-19,
+      "query_field_t": 5.323814437624204,
+      "basis": "estimate",
+      "k_folded_a_per_m": 163868.07219711348,
+      "k_mirror_a_per_m": 182180.66056628025,
+      "k_used_a_per_m": 163868.07219711348
+    },
+    {
+      "station": "arc_apex",
+      "tape_index": 3,
+      "turn_index": 200,
+      "width_index": 1,
+      "position_m": [
+        0.50995,
+        0.0,
+        0.008072077975752134
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          3.711207849197272e-06,
+          -1.4953587295819733e-24,
+          -9.569121063790882e-06
+        ],
+        [
+          3.7112078491972665e-06,
+          1.7597118670103784e-24,
+          -9.569121063790943e-06
+        ]
+      ],
+      "field_t": [
+        1.9372504972809732,
+        9.185695945794176e-19,
+        -4.995081195298872
+      ],
+      "magnitude_t": 5.357590469310228,
+      "angle_raw_deg": -68.80213182946643,
+      "angle_folded_deg": 111.19786817053358,
+      "mirror_angle_deg": 68.80213182946642,
+      "along_current_fraction": 1.7145199877468059e-19,
+      "query_field_t": 5.357590469310228,
+      "basis": "estimate",
+      "k_folded_a_per_m": 143060.26189693713,
+      "k_mirror_a_per_m": 153261.24606665177,
+      "k_used_a_per_m": 143060.26189693713
+    },
+    {
+      "station": "arc_apex",
+      "tape_index": 3,
+      "turn_index": 200,
+      "width_index": 2,
+      "position_m": [
+        0.50995,
+        0.0,
+        0.011999999999999997
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          5.639920721549109e-06,
+          -5.5529094065469496e-24,
+          -8.764942053492781e-06
+        ],
+        [
+          5.63992072155186e-06,
+          4.0580102217497286e-24,
+          -8.764942053492995e-06
+        ]
+      ],
+      "field_t": [
+        2.944038616650071,
+        2.118281335753358e-18,
+        -4.575299751923343
+      ],
+      "magnitude_t": 5.440655401353468,
+      "angle_raw_deg": -57.24019593920879,
+      "angle_folded_deg": 122.75980406079123,
+      "mirror_angle_deg": 57.240195939208775,
+      "along_current_fraction": 3.8934304408001923e-19,
+      "query_field_t": 5.440655401353468,
+      "basis": "estimate",
+      "k_folded_a_per_m": 117595.47394597983,
+      "k_mirror_a_per_m": 122413.59552247598,
+      "k_used_a_per_m": 117595.47394597983
+    },
+    {
+      "station": "arc_apex",
+      "tape_index": 3,
+      "turn_index": 200,
+      "width_index": 3,
+      "position_m": [
+        0.50995,
+        0.0,
+        0.015927922024247858
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          7.712623868730576e-06,
+          -4.274226042975395e-24,
+          -7.229244261210998e-06
+        ],
+        [
+          7.712623772316467e-06,
+          2.700055382808508e-24,
+          -7.229244268313064e-06
+        ]
+      ],
+      "field_t": [
+        4.025989609149196,
+        1.409428909826041e-18,
+        -3.7736655080594192
+      ],
+      "magnitude_t": 5.518074274572122,
+      "angle_raw_deg": -43.147089125071524,
+      "angle_folded_deg": 136.8529108749285,
+      "mirror_angle_deg": 43.14708912507149,
+      "along_current_fraction": 2.554204310588643e-19,
+      "query_field_t": 5.518074274572122,
+      "basis": "estimate",
+      "k_folded_a_per_m": 103344.9319417447,
+      "k_mirror_a_per_m": 107695.85850063457,
+      "k_used_a_per_m": 103344.9319417447
+    },
+    {
+      "station": "arc_apex",
+      "tape_index": 3,
+      "turn_index": 200,
+      "width_index": 4,
+      "position_m": [
+        0.50995,
+        0.0,
+        0.017999999999999995
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          8.93156921044847e-06,
+          -6.906039025248277e-24,
+          -5.5176626136466854e-06
+        ],
+        [
+          8.931569210448501e-06,
+          2.4833800167980897e-24,
+          -5.517662613646714e-06
+        ]
+      ],
+      "field_t": [
+        4.662279127854117,
+        1.2963243687686029e-18,
+        -2.880219884323585
+      ],
+      "magnitude_t": 5.48019281121359,
+      "angle_raw_deg": -31.70656122425552,
+      "angle_folded_deg": 148.29343877574445,
+      "mirror_angle_deg": 31.70656122425555,
+      "along_current_fraction": 2.3654721894384067e-19,
+      "query_field_t": 5.48019281121359,
+      "basis": "estimate",
+      "k_folded_a_per_m": 100181.41620297369,
+      "k_mirror_a_per_m": 105014.96621382415,
+      "k_used_a_per_m": 100181.41620297369
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 2,
+      "turn_index": 100,
+      "width_index": 0,
+      "position_m": [
+        0.0,
+        0.19995000000000002,
+        -0.006
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -6.452008777913616e-25,
+          -3.454427284782104e-06,
+          7.244143752187474e-07
+        ],
+        [
+          -7.564107157012686e-25,
+          -3.454427284782099e-06,
+          7.244143752187402e-07
+        ]
+      ],
+      "field_t": [
+        -3.9484639359606223e-19,
+        -1.8032110426562558,
+        0.37814430386418235
+      ],
+      "magnitude_t": 1.8424340365132175,
+      "angle_raw_deg": 168.15635138091739,
+      "angle_folded_deg": 168.15635138091739,
+      "mirror_angle_deg": 11.843648619082614,
+      "along_current_fraction": 2.1430693624359215e-19,
+      "query_field_t": 1.8424340365132175,
+      "basis": "estimate",
+      "k_folded_a_per_m": 211102.6607050435,
+      "k_mirror_a_per_m": 218370.75720278936,
+      "k_used_a_per_m": 211102.6607050435
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 2,
+      "turn_index": 100,
+      "width_index": 1,
+      "position_m": [
+        0.0,
+        0.19995000000000002,
+        -0.003927922024247863
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          -1.6787170986978946e-24,
+          -2.230333761116107e-06,
+          7.257301872781701e-07
+        ],
+        [
+          -4.273766498190643e-26,
+          -2.2303337611161037e-06,
+          7.257301872781622e-07
+        ]
+      ],
+      "field_t": [
+        -2.2309061120555156e-20,
+        -1.1642342233026062,
+        0.3788311577592007
+      ],
+      "magnitude_t": 1.2243179214559423,
+      "angle_raw_deg": 161.97558632083096,
+      "angle_folded_deg": 161.97558632083098,
+      "mirror_angle_deg": 18.024413679169015,
+      "along_current_fraction": 1.8221624244481795e-20,
+      "query_field_t": 1.2243179214559423,
+      "basis": "estimate",
+      "k_folded_a_per_m": 254035.92152539882,
+      "k_mirror_a_per_m": 265393.7563047962,
+      "k_used_a_per_m": 254035.92152539882
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 2,
+      "turn_index": 100,
+      "width_index": 2,
+      "position_m": [
+        0.0,
+        0.19995000000000002,
+        0.0
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          0.0,
+          0.0,
+          7.266784389212688e-07
+        ],
+        [
+          0.0,
+          0.0,
+          7.266784389212619e-07
+        ]
+      ],
+      "field_t": [
+        0.0,
+        0.0,
+        0.3793261451168987
+      ],
+      "magnitude_t": 0.3793261451168987,
+      "angle_raw_deg": 90.0,
+      "angle_folded_deg": 90.0,
+      "mirror_angle_deg": 90.0,
+      "along_current_fraction": 0.0,
+      "query_field_t": 1.001,
+      "basis": "lower_bound",
+      "k_folded_a_per_m": 376833.2229336141,
+      "k_mirror_a_per_m": 376833.2229336141,
+      "k_used_a_per_m": 376833.2229336141
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 2,
+      "turn_index": 100,
+      "width_index": 3,
+      "position_m": [
+        0.0,
+        0.19995000000000002,
+        0.003927922024247863
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          1.6787170986978946e-24,
+          2.230333761116107e-06,
+          7.257301872781701e-07
+        ],
+        [
+          4.273766498190643e-26,
+          2.2303337611161037e-06,
+          7.257301872781622e-07
+        ]
+      ],
+      "field_t": [
+        2.2309061120555156e-20,
+        1.1642342233026062,
+        0.3788311577592007
+      ],
+      "magnitude_t": 1.2243179214559423,
+      "angle_raw_deg": 18.024413679169054,
+      "angle_folded_deg": 18.024413679169044,
+      "mirror_angle_deg": 161.97558632083096,
+      "along_current_fraction": 1.8221624244481795e-20,
+      "query_field_t": 1.2243179214559423,
+      "basis": "estimate",
+      "k_folded_a_per_m": 265393.7563047962,
+      "k_mirror_a_per_m": 254035.92152539882,
+      "k_used_a_per_m": 254035.92152539882
+    },
+    {
+      "station": "straight_center",
+      "tape_index": 2,
+      "turn_index": 100,
+      "width_index": 4,
+      "position_m": [
+        0.0,
+        0.19995000000000002,
+        0.006
+      ],
+      "unit_fields_t_per_ampere_turn": [
+        [
+          6.452008777913616e-25,
+          3.454427284782104e-06,
+          7.244143752187474e-07
+        ],
+        [
+          7.564107157012686e-25,
+          3.454427284782099e-06,
+          7.244143752187402e-07
+        ]
+      ],
+      "field_t": [
+        3.9484639359606223e-19,
+        1.8032110426562558,
+        0.37814430386418235
+      ],
+      "magnitude_t": 1.8424340365132175,
+      "angle_raw_deg": 11.843648619082598,
+      "angle_folded_deg": 11.843648619082586,
+      "mirror_angle_deg": 168.1563513809174,
+      "along_current_fraction": 2.1430693624359215e-19,
+      "query_field_t": 1.8424340365132175,
+      "basis": "estimate",
+      "k_folded_a_per_m": 218370.75720278936,
+      "k_mirror_a_per_m": 211102.66070504388,
+      "k_used_a_per_m": 211102.66070504388
+    }
+  ],
+  "elapsed_seconds": 42.61662988900207,
+  "limitations": [
+    "Screening reference only: not a production operating-current limit.",
+    "Independent NumPy/pure-Python implementation; reuses only OC-002's field-kernel building blocks (cells/planar_source/projected_parameters), never the Rust interpolator or evaluator. Field evaluation uses this file's own field_graded, not reference_oc002.field directly: near tape centers, a Duffy triangle's transverse coordinate can have a short-to-long extent ratio far below what a plain order-point Gauss-Legendre rule resolves, so that coordinate is refined with a geometrically graded composite rule (panels [0,r],[r,4r],... on [0,1], engaged when r < 0.25) while the dominant coordinate keeps the unchanged plain rule; see the module docstring and docs/OC004.md.",
+    "The point-level 'basis' and 'query_field_t' fields are an aggregate over the two mirror angles per the contract's point-basis rule; k_folded_a_per_m/k_mirror_a_per_m are exact per-angle results (see module docstring).",
+    "No monotonicity audit is performed by this tool; the low-field clamp is applied mechanically per the contract's declared order of operations.",
+    "Applied-field bridge law includes the measurement sample's own self-field response; not an intrinsic local Jc(B) law (inherited from the OC-003 dataset).",
+    "Homogenized racetrack pack, prescribed uniform tangential current; no screening currents, redistribution, or iron (inherited from the OC-002 field model)."
+  ]
+}

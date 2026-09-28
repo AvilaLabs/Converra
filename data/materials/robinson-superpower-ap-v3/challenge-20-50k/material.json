@@ -1,0 +1,68 @@
+{
+  "schema": "optcoil-measured-material/v1",
+  "id": "robinson-superpower-ap-v3-challenge-20-50k",
+  "data_class": "measured",
+  "material": "SuperPower Advanced Pinning REBCO; SCS12050-AP M3-1386-3",
+  "sample_id": "SP066",
+  "source_doi": "10.6084/m9.figshare.4256624.v3",
+  "source_url": "https://figshare.com/articles/dataset/Critical_current_characterisation_of_SuperPower_Advanced_Pinning_2G_HTS_superconducting_wire/4256624/3",
+  "authors": [
+    "Stuart Wimbush",
+    "Nick Strickland",
+    "Andres Pantoja"
+  ],
+  "license": "CC-BY-4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0/",
+  "measurement_dates": "2021-01-29 to 2021-02-03",
+  "source_xlsx_sha256": "f4e40916e5f462316772edc0b3538a1544beda5f887d610daddd9ed7af79ae5e",
+  "csv_sha256": "778369ca0abbe28646e58ae79aecb6aaaa896bf725e5e31f4c5dd721b83cb096",
+  "preparation_source_sha256": "28f9a4e5759e89859b3b0b87f969fdcc4517b51a5fa515f2d4137ea0cdf4d1d4",
+  "source_description_sha256": "7181b69c2b844ee1f963b9967f7a46a0871f1ec53cb16896f4e3cacf7e6c3780",
+  "electric_field_criterion_v_per_m": 0.0001,
+  "voltage_tap_spacing_m": 0.005,
+  "measured_bridge_width_m": 0.001,
+  "original_tape_width_m": 0.012,
+  "field_basis": "applied_field_including_sample_self_field_response",
+  "angle_convention": "oriented_from_tape_normal_in_maximum_lorentz_geometry",
+  "coordinate_policy": "Measured temperature, source Field, and Hall angle; commanded coordinates define connectivity only. Hall angle unwrapped by full turns toward commanded angle.",
+  "normalization": "Published Ic/w (A/cm) multiplied by 100 to A/m; no scaling to a commercial full-width tape capacity.",
+  "measurement_uncertainty_fraction": null,
+  "strain_state": "as_measured_not_quantified",
+  "selection": {
+    "nominal_temperature_k": [
+      20.0,
+      25.0,
+      30.0,
+      35.0,
+      40.0,
+      45.0,
+      50.0
+    ],
+    "nominal_field_t": [
+      1.0,
+      1.5,
+      2.0,
+      3.0,
+      5.0,
+      7.0,
+      8.0
+    ],
+    "nominal_angle_range_deg": [
+      0.0,
+      180.0
+    ]
+  },
+  "max_cell_spans": {
+    "temperature_k": 10.0,
+    "field_ratio": 2.5,
+    "angle_deg": 10.0
+  },
+  "point_count": 2107,
+  "limitations": [
+    "One patterned 1 mm bridge, not a manufacturer lot guarantee or measured 12 mm tape capacity.",
+    "Applied-field transport data includes sample self-field effects; not an intrinsic local Jc(B) law.",
+    "Maximum Lorentz-force geometry only; no arbitrary field azimuth, strain model or quantified measurement uncertainty.",
+    "No angle reflection/folding or out-of-domain extrapolation is assumed.",
+    "Selection is a declared characterization region, not coverage of all fusion magnet operating conditions."
+  ]
+}

@@ -1,0 +1,114 @@
+{
+ "schema": "optcoil-coupled-conductor/v4",
+ "id": "oc-014",
+ "provenance": "OC-014 Phase-2 parity fixture: OC-004 geometry and sampling plan re-pointed at the modelext dataset with limits.self_field_correction=critical_state_strip, so the frozen reference exercises the perpendicular-sector floor bound. Synthetic geometry; not a physical design study.",
+ "geometry_data_class": "synthetic",
+ "pack": {
+  "straight_half_length_m": 0.3,
+  "bend_radius_m": 0.2,
+  "radial_width_m": 0.02,
+  "axial_height_m": 0.036
+ },
+ "winding": {
+  "tape_width_m": 0.012,
+  "tape_normal": "radial",
+  "turns_along_normal": 20,
+  "tapes_along_width": 3
+ },
+ "operating": {
+  "temperature_k": 21.0,
+  "current_candidates_a": [
+   870.0
+  ],
+  "electric_field_criterion_v_per_m": 0.0001
+ },
+ "material": {
+  "dataset_id": "robinson-superpower-ap-v3-modelext",
+  "csv_sha256": "2d8262e4071f995eb239594c5dbc4cd0faffb0426eb2cec66d5ef9240cfe9ede",
+  "method": "measured-coordinate-tetrahedral-log-field-log-ic/v1",
+  "angle_mapping": "period_180_field_reversal",
+  "mirror_policy": "minimum_of_mirror_pair",
+  "field_basis_mapping": "pack_field_as_applied_field_self_field_consistent",
+  "field_magnitude_policy": "total_magnitude_with_transverse_angle",
+  "low_field_policy": "monotone_field_lower_bound",
+  "low_field_clamp_t": 0.0501,
+  "monotonicity_tolerance": 0.002
+ },
+ "sampling": {
+  "stations": [
+   {
+    "id": "straight_center",
+    "kind": "straight",
+    "x_m": 0.0
+   },
+   {
+    "id": "arc_apex",
+    "kind": "arc",
+    "azimuth_deg": 0.0
+   }
+  ],
+  "turn_indices_along_normal": [
+   1,
+   2,
+   5,
+   10,
+   20
+  ],
+  "tape_indices_along_width": [
+   1,
+   3
+  ],
+  "width_quadrature": "gauss_lobatto",
+  "width_points": 5
+ },
+ "limits": {
+  "max_along_current_field_fraction": 0.2,
+  "max_self_field_ratio": 0.1,
+  "interpolation_overprediction_budget": 0.1,
+  "utilization_limit": 0.8,
+  "self_field_correction": "critical_state_strip",
+  "critical_state_layer_thickness_m": 1e-06
+ },
+ "numerics": {
+  "quadrature_orders": [
+   10,
+   14
+  ],
+  "field_scale_t": 1.0,
+  "max_refinement_change_fraction": 0.0025,
+  "max_reference_refinement_fraction": 0.0001,
+  "max_reference_field_error_fraction": 0.001,
+  "max_reference_angle_error_deg": 0.0001,
+  "max_reference_capacity_relative_error": 1e-05,
+  "reference_subset": [
+   {
+    "station": "straight_center",
+    "tape_index": 3,
+    "turn_index": 1
+   },
+   {
+    "station": "straight_center",
+    "tape_index": 3,
+    "turn_index": 10
+   },
+   {
+    "station": "straight_center",
+    "tape_index": 1,
+    "turn_index": 20
+   },
+   {
+    "station": "arc_apex",
+    "tape_index": 3,
+    "turn_index": 5
+   },
+   {
+    "station": "arc_apex",
+    "tape_index": 1,
+    "turn_index": 20
+   }
+  ]
+ },
+ "width_transfer": {
+  "basis": "none"
+ }
+}

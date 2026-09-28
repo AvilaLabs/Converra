@@ -1,0 +1,119 @@
+{
+  "schema": "optcoil-coupled-search/v2",
+  "id": "oc-008",
+  "provenance": "Avila Labs OC-008 bracketing refinement of the OC-007 cost optimum, frozen 2026-09-10 before any refinement ran. Extends OC-007's own frozen case (benchmarks/coupled/oc-007.json) unchanged in every field except schema, id, provenance, baseline and the added refinement block: same fixed_geometry, requirement (0.9 T), operating point, material (robinson-superpower-ap-v3-lowfield, csv_sha256 043cbaab9a32da5de6394b136265835b9c5917e28861d0793544c5e3885f893b, low_field_clamp_t 0.0501, monotonicity_tolerance 0.002), sampling, limits, numerics (quadrature_orders [10, 14], max_refinement_change_fraction 0.0025), pruning, cost (price_usd_per_m 30, scrap_fraction 0.1, assembly_cost_per_pancake_usd 500, joint_cost_usd 200 per pancake interface -- invented placeholders, not supplier data; every dollar figure here is a modeled saving under a screening model, never a production claim), refined_plan (acceptance's own 10-station finer re-sampling, 2% shortfall gate) and execution (max_threads 5). `baseline` is now OC-007's own selected optimum, 120 turns x 4 tapes (index 2 of OC-007's 15 candidates, $41,513.13, utilization 0.7900), replacing OC-007's 200x3 baseline -- OC-008 asks whether a finer turn count at each pancake count beats that discrete-grid optimum, not whether the discrete grid itself was well chosen. `refinement.pancake_counts` [2, 3, 4, 5, 6] extends OC-007's declared {2, 3, 4} tapes_along_width by 5 and 6, never sampled on OC-007's discrete grid. `refinement.turn_resolution` 2 matches OC-007's own smallest declared turn-count spacing order of magnitude. `refinement.turn_bounds` {min: 40, max: 400} is a numerical work bound on the bisection search, not a manufacturing limit. Each declared bracket's `fail_turns`/`pass_turns` must itself be verified (fail_turns FAILs or is INCONCLUSIVE; pass_turns PASSes) before any bisection proceeds for that pancake count -- an unmet expectation is reported as an INVALID bracket, never silently patched. For p = 2 and p = 3, the bracket ends are taken directly from OC-007's own frozen candidate table: p=2 was FAIL at every declared turn count up to and including 240 and PASS at 300 (fail_turns 240, pass_turns 300); p=3 was FAIL at 120 and 160 and PASS from 200 (fail_turns 160, pass_turns 200) -- both already-observed OC-007 grid results, not new guesses. For p = 4, 5 and 6, OC-007's own grid never FAILed at p=4 (even its smallest declared turn count, 120, already PASSed at utilization 0.7900), and p=5/p=6 were never sampled by OC-007 at all, so all three declare the same conservative lower bound fail_turns 40 (well below OC-007's smallest declared choice, expected to drive utilization over the limit) and pass_turns 120 (OC-007's own smallest declared, already-known-PASS turn count for p=4; carried over unverified as a starting guess for p=5/p=6) -- the contract requires this lower bound to be verified failing before any bisection for these three pancake counts proceeds, and the run record reports plainly if it is not. Global optimum = the cheapest n*(p) with a valid, monotone bracket, ties by fewer total turns. Acceptance (search_acceptance.rs, unchanged from OC-007) reruns the global optimum and this declared 120x4 baseline independently: cost/field recomputation, screening rerun and the refined-plan 2% shortfall gate. The optimum is expected to sit at the declared utilization_limit (0.8) and interpolation_overprediction_budget (0.10) by construction -- those are the only margins remaining, and the run record states this rather than implying spare headroom exists. Frozen and hashed before any run; the main session runs it detached, under the memory guard, after this case was written.",
+  "requirement": {
+    "bore_probe_m": [0.0, 0.0, 0.0],
+    "b_target_t": 0.9,
+    "tolerance_fraction": 1e-9
+  },
+  "fixed_geometry": {
+    "straight_half_length_m": 0.3,
+    "bend_radius_m": 0.2,
+    "radial_pitch_m": 0.0001,
+    "tape_width_m": 0.012,
+    "tape_normal": "radial"
+  },
+  "choices": {
+    "turns_along_normal": [120, 160, 200, 240, 300],
+    "tapes_along_width": [2, 3, 4]
+  },
+  "operating": {
+    "temperature_k": 21.0,
+    "electric_field_criterion_v_per_m": 0.0001
+  },
+  "material": {
+    "dataset_id": "robinson-superpower-ap-v3-lowfield",
+    "csv_sha256": "043cbaab9a32da5de6394b136265835b9c5917e28861d0793544c5e3885f893b",
+    "method": "measured-coordinate-tetrahedral-log-field-log-ic/v1",
+    "angle_mapping": "period_180_field_reversal",
+    "mirror_policy": "minimum_of_mirror_pair",
+    "field_basis_mapping": "pack_field_as_applied_field_self_field_consistent",
+    "field_magnitude_policy": "total_magnitude_with_transverse_angle",
+    "low_field_policy": "monotone_field_lower_bound",
+    "low_field_clamp_t": 0.0501,
+    "monotonicity_tolerance": 0.002
+  },
+  "sampling": {
+    "stations": [
+      {"id": "straight_center", "kind": "straight", "x_m": 0.0},
+      {"id": "straight_near_junction", "kind": "straight", "x_m": 0.29},
+      {"id": "arc_apex", "kind": "arc", "azimuth_deg": 0.0},
+      {"id": "arc_mid", "kind": "arc", "azimuth_deg": 45.0}
+    ],
+    "relative_turn_indices": [
+      {"kind": "from_start", "offset": 1},
+      {"kind": "from_start", "offset": 2},
+      {"kind": "from_start", "offset": 3},
+      {"kind": "from_start", "offset": 5},
+      {"kind": "from_start", "offset": 10},
+      {"kind": "from_start", "offset": 20},
+      {"kind": "fraction", "value": 0.25},
+      {"kind": "fraction", "value": 0.5},
+      {"kind": "fraction", "value": 0.75},
+      {"kind": "from_end", "offset": 19},
+      {"kind": "from_end", "offset": 9},
+      {"kind": "from_end", "offset": 4},
+      {"kind": "from_end", "offset": 1},
+      {"kind": "from_end", "offset": 0}
+    ],
+    "width_points": 5
+  },
+  "limits": {
+    "max_along_current_field_fraction": 0.2,
+    "max_self_field_ratio": 0.1,
+    "interpolation_overprediction_budget": 0.1,
+    "utilization_limit": 0.8
+  },
+  "numerics": {
+    "quadrature_orders": [10, 14],
+    "field_scale_t": 1.0,
+    "max_refinement_change_fraction": 0.0025
+  },
+  "pruning": {
+    "coarse_stations": ["arc_apex", "straight_center"],
+    "coarse_turn_fractions": [
+      {"kind": "from_start", "offset": 1},
+      {"kind": "fraction", "value": 0.5},
+      {"kind": "from_end", "offset": 0}
+    ],
+    "coarse_width_indices": [0, 4]
+  },
+  "cost": {
+    "price_usd_per_m": 30.0,
+    "scrap_fraction": 0.1,
+    "assembly_cost_per_pancake_usd": 500.0,
+    "joint_cost_usd": 200.0
+  },
+  "baseline": {
+    "turns_along_normal": 120,
+    "tapes_along_width": 4
+  },
+  "refined_plan": {
+    "additional_stations": [
+      {"id": "arc_15", "kind": "arc", "azimuth_deg": 15.0},
+      {"id": "arc_30", "kind": "arc", "azimuth_deg": 30.0},
+      {"id": "arc_60", "kind": "arc", "azimuth_deg": 60.0},
+      {"id": "arc_75", "kind": "arc", "azimuth_deg": 75.0},
+      {"id": "straight_015", "kind": "straight", "x_m": 0.15},
+      {"id": "straight_025", "kind": "straight", "x_m": 0.25}
+    ],
+    "max_sampling_shortfall_fraction": 0.02
+  },
+  "refinement": {
+    "pancake_counts": [2, 3, 4, 5, 6],
+    "turn_resolution": 2,
+    "turn_bounds": {"min": 40, "max": 400},
+    "brackets": [
+      {"tapes": 2, "fail_turns": 240, "pass_turns": 300},
+      {"tapes": 3, "fail_turns": 160, "pass_turns": 200},
+      {"tapes": 4, "fail_turns": 40, "pass_turns": 120},
+      {"tapes": 5, "fail_turns": 40, "pass_turns": 120},
+      {"tapes": 6, "fail_turns": 40, "pass_turns": 120}
+    ],
+    "monotonicity_check": true
+  },
+  "execution": {
+    "max_threads": 5
+  }
+}

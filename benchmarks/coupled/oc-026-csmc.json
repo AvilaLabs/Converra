@@ -1,0 +1,161 @@
+{
+  "schema": "optcoil-coupled-search/v15",
+  "id": "oc-026-csmc",
+  "provenance": "OC-026: SPARC Central Solenoid Model Coil (CSMC) screening parity from the published record only - CFS press release 2024-11-18 (50 kA, 5.7 T, 20 K, ~4 T/s, tested Aug-Oct 2024 at MIT PSFC); Baldini/Marchevsky ASC 2024 slides (4 nested layers x 10 turns, 1.2 m inner diameter, stored energy 3.728 MJ); Sanabria et al., SUST 37 (2024) 115010 (PIT-VIPER cable: 4 partitioned Cu petals each holding a REBCO tape stack, 23-25 mm cable OD class); IAEA FEC 2025 CFS overview (4-layer, 10-turn, first layer tested to 43.3 kA). Modeled: circular layer-wound solenoid, 4 radial layers x 10 axial cable turns = 40 cable turns at 0.648 m path radius (1.2 m ID + half the 96 mm radial build at 24 mm pitch). NOT PUBLISHED and inferred: tapes per petal stack (swept as strands_parallel over the plausible 100-180 tapes-per-cable range, i.e. 25-45 per petal - the case is a conditional certificate across the uncertain parameter, not a fitted answer); exact cable pitch (24 mm nominal from the 23-25 mm published OD range); axial height (~0.24 m from 10 turns x pitch). The published 5.7 T figure is not labeled bore-center or peak-on-conductor in the public record; the run result resolves the ambiguity - the modeled winding needs 52.4 kA for a declared 2.0 T bore-center target (~5% from the published 50 kA operating current), while the modeled peak sampled field at that operating point is ~4.9 T, consistent with 5.7 T being a peak-on-conductor-class figure within the inferred-geometry band. The requirement is declared at bore center. Material screening uses robinson-superpower-ap-v3-modelext (measured + declared model extension) - the CSMC tape suppliers are not public; the case certifies the winding, not a vendor choice. Operating point declared at 25 K (the built coil runs 20 K). Same declared limits/costs as oc-025; prices are synthetic.",
+  "requirement": {
+    "bore_probe_m": [0.0, 0.0, 0.0],
+    "b_target_t": 2.0,
+    "tolerance_fraction": 1e-9,
+    "good_field_region": {
+      "half_extents_m": [0.02, 0.02, 0.02],
+      "points_per_axis": 3
+    }
+  },
+  "fixed_geometry": {
+    "path": {
+      "segments": [
+        {
+          "kind": "arc",
+          "radius_m": 0.648,
+          "sweep_deg": 360.0
+        }
+      ],
+      "start_position_m": [0.648, 0.0],
+      "start_heading_deg": 90.0
+    },
+    "radial_pitch_m": 0.024,
+    "tape_width_m": 0.024,
+    "tape_normal": "radial"
+  },
+  "operating": {
+    "temperature_k": 25.0,
+    "electric_field_criterion_v_per_m": 0.0001
+  },
+  "material": {
+    "dataset_id": "robinson-superpower-ap-v3-modelext",
+    "csv_sha256": "2d8262e4071f995eb239594c5dbc4cd0faffb0426eb2cec66d5ef9240cfe9ede",
+    "method": "measured-coordinate-tetrahedral-log-field-log-ic/v1",
+    "angle_mapping": "period_180_field_reversal",
+    "mirror_policy": "minimum_of_mirror_pair",
+    "field_basis_mapping": "pack_field_as_applied_field_self_field_consistent",
+    "field_magnitude_policy": "total_magnitude_with_transverse_angle",
+    "low_field_policy": "monotone_field_lower_bound",
+    "low_field_clamp_t": 1.001,
+    "monotonicity_tolerance": 0.001
+  },
+  "choices": {
+    "turns_along_normal": [4],
+    "tapes_along_width": [10],
+    "strands_parallel": [100, 140, 180]
+  },
+  "baseline": {
+    "turns_along_normal": 4,
+    "tapes_along_width": 10,
+    "strands_parallel": 140
+  },
+  "sampling": {
+    "stations": [
+      {
+        "id": "s0",
+        "kind": "path",
+        "s_m": 0.0
+      },
+      {
+        "id": "sq",
+        "kind": "path",
+        "s_m": 1.0178760197630929
+      }
+    ],
+    "relative_turn_indices": [
+      {
+        "kind": "from_start",
+        "offset": 1
+      },
+      {
+        "kind": "from_start",
+        "offset": 2
+      },
+      {
+        "kind": "from_start",
+        "offset": 3
+      },
+      {
+        "kind": "from_end",
+        "offset": 0
+      }
+    ],
+    "width_points": 5
+  },
+  "limits": {
+    "max_along_current_field_fraction": 0.2,
+    "max_self_field_ratio": 1000000.0,
+    "interpolation_overprediction_budget": 0.1,
+    "utilization_limit": 0.8,
+    "along_current_model": "transverse_bound"
+  },
+  "numerics": {
+    "quadrature_orders": [2, 4],
+    "field_scale_t": 1.0,
+    "max_refinement_change_fraction": 0.5
+  },
+  "cost": {
+    "price_usd_per_m": 30.0,
+    "scrap_fraction": 0.1,
+    "assembly_cost_per_pancake_usd": 500.0,
+    "joint_cost_usd": 200.0
+  },
+  "refinement": {
+    "pancake_counts": [10],
+    "turn_resolution": 1,
+    "turn_bounds": {
+      "min": 1,
+      "max": 16
+    },
+    "brackets": [
+      {
+        "tapes": 10,
+        "fail_turns": 1,
+        "pass_turns": 8
+      }
+    ],
+    "monotonicity_check": false
+  },
+  "refined_plan": {
+    "additional_stations": [
+      {
+        "id": "rp0",
+        "kind": "path",
+        "s_m": 0.5089
+      },
+      {
+        "id": "rp1",
+        "kind": "path",
+        "s_m": 1.5268
+      },
+      {
+        "id": "rp2",
+        "kind": "path",
+        "s_m": 2.0357
+      },
+      {
+        "id": "rp3",
+        "kind": "path",
+        "s_m": 3.0535
+      },
+      {
+        "id": "rp4",
+        "kind": "path",
+        "s_m": 3.5624
+      },
+      {
+        "id": "rp5",
+        "kind": "path",
+        "s_m": 4.0713
+      }
+    ],
+    "max_sampling_shortfall_fraction": 0.02
+  },
+  "execution": {
+    "max_threads": 2
+  }
+}

@@ -1,0 +1,223 @@
+{
+  "schema": "optcoil-coupled-search/v15",
+  "id": "oc-025-tfmc",
+  "provenance": "OC-025: SPARC Toroidal Field Model Coil (TFMC) screening parity from the published record only - Hartwig et al., IEEE TASC (2023) 3332613; Vieira et al., IEEE TASC (2024) 3356571; IAEA FEC 2023 synopsis. Published: 16 pancakes x 16 turns (256 total), 270 km REBCO, 40.5 kA terminal, 20.1 T peak on conductor, 20 K supercritical He, WP min turn radius 0.2 m. Derived: ~250 tapes per turn stack (270 km / 256 turns / ~4.2 m mean turn) modeled as strands_parallel sharing the terminal current. Geometry: the stack-in-plate D-shaped pancake is modeled as a closed D path (straight inner leg + two R0.44 m quarter corners + R0.719 m outer arc); pack centered on the path puts the inner pack edge at the published 0.2 m min turn radius, and the ~4.2 m mean path reproduces the published mean turn length (modeled installed conductor 268.8 km vs published 270 km). tape_width_m is the axial pancake pitch (50 mm plate+joint allowance, inferred not published); radial_pitch_m the spiral channel pitch (30 mm stack+wall allowance, inferred). Requirement framing: b_target_t is a declared bore target at the modeled D-center (the real magnet's published metric is peak-on-conductor 20.1 T, which this case does not claim to reproduce); the case tests whether the real turn/stack choice screens clean and what the BOM recovers. Material screening uses robinson-superpower-ap-v3-modelext - the measured SuperPower AP data (Wimbush/Strickland figshare 4256624, CC-BY; 20-40 K x <=8 T measured) extended by a declared model to 20 T, data_class measured_with_model_extension - as the nearest proxy for VIPER-era tape that covers TFMC conductor fields. Operating point declared at 25 K, strictly interior to the dataset span (the built magnet runs 20 K). limits.along_current_model = transverse_bound is declared (schema v6+): corner-azimuth points whose field leans toward along-current are queried at the transverse-plane angle as a bounded estimate - a declared conservative model, not silent extrapolation.",
+  "requirement": {
+    "bore_probe_m": [
+      -0.5795869491760307,
+      0.0,
+      0.0
+    ],
+    "b_target_t": 5.0,
+    "tolerance_fraction": 1e-09,
+    "good_field_region": {
+      "half_extents_m": [
+        0.01,
+        0.01,
+        0.01
+      ],
+      "points_per_axis": 3
+    }
+  },
+  "fixed_geometry": {
+    "path": {
+      "segments": [
+        {
+          "kind": "line",
+          "length_m": 0.5583477967041227
+        },
+        {
+          "kind": "arc",
+          "radius_m": 0.44,
+          "sweep_deg": 90.0
+        },
+        {
+          "kind": "arc",
+          "radius_m": 0.7191738983520614,
+          "sweep_deg": 180.0
+        },
+        {
+          "kind": "arc",
+          "radius_m": 0.44,
+          "sweep_deg": 90.0
+        }
+      ],
+      "start_position_m": [
+        0.0,
+        -0.279
+      ],
+      "start_heading_deg": 90.0
+    },
+    "radial_pitch_m": 0.03,
+    "tape_width_m": 0.05,
+    "tape_normal": "radial"
+  },
+  "choices": {
+    "turns_along_normal": [
+      16
+    ],
+    "tapes_along_width": [
+      16
+    ],
+    "strands_parallel": [
+      250
+    ]
+  },
+  "operating": {
+    "temperature_k": 25.0,
+    "electric_field_criterion_v_per_m": 0.0001
+  },
+  "material": {
+    "dataset_id": "robinson-superpower-ap-v3-modelext",
+    "csv_sha256": "2d8262e4071f995eb239594c5dbc4cd0faffb0426eb2cec66d5ef9240cfe9ede",
+    "method": "measured-coordinate-tetrahedral-log-field-log-ic/v1",
+    "angle_mapping": "period_180_field_reversal",
+    "mirror_policy": "minimum_of_mirror_pair",
+    "field_basis_mapping": "pack_field_as_applied_field_self_field_consistent",
+    "field_magnitude_policy": "total_magnitude_with_transverse_angle",
+    "low_field_policy": "monotone_field_lower_bound",
+    "low_field_clamp_t": 1.001,
+    "monotonicity_tolerance": 0.001
+  },
+  "sampling": {
+    "stations": [
+      {
+        "id": "s0",
+        "kind": "path",
+        "s_m": 0.0
+      },
+      {
+        "id": "sm1",
+        "kind": "path",
+        "s_m": 0.279
+      },
+      {
+        "id": "sa1",
+        "kind": "path",
+        "s_m": 1.042
+      },
+      {
+        "id": "sa2",
+        "kind": "path",
+        "s_m": 1.927
+      },
+      {
+        "id": "sa3",
+        "kind": "path",
+        "s_m": 2.605
+      },
+      {
+        "id": "sa4",
+        "kind": "path",
+        "s_m": 3.283
+      },
+      {
+        "id": "sa5",
+        "kind": "path",
+        "s_m": 3.85
+      }
+    ],
+    "relative_turn_indices": [
+      {
+        "kind": "from_start",
+        "offset": 1
+      },
+      {
+        "kind": "from_start",
+        "offset": 3
+      },
+      {
+        "kind": "from_start",
+        "offset": 8
+      },
+      {
+        "kind": "from_end",
+        "offset": 0
+      }
+    ],
+    "width_points": 5
+  },
+  "limits": {
+    "max_along_current_field_fraction": 0.2,
+    "max_self_field_ratio": 1000000.0,
+    "interpolation_overprediction_budget": 0.1,
+    "utilization_limit": 0.8,
+    "along_current_model": "transverse_bound"
+  },
+  "numerics": {
+    "quadrature_orders": [
+      2,
+      4
+    ],
+    "field_scale_t": 1.0,
+    "max_refinement_change_fraction": 0.5
+  },
+  "pruning": null,
+  "cost": {
+    "price_usd_per_m": 30.0,
+    "scrap_fraction": 0.1,
+    "assembly_cost_per_pancake_usd": 500.0,
+    "joint_cost_usd": 200.0
+  },
+  "baseline": {
+    "turns_along_normal": 16,
+    "tapes_along_width": 16,
+    "strands_parallel": 250
+  },
+  "refinement": {
+    "pancake_counts": [
+      16
+    ],
+    "turn_resolution": 4,
+    "turn_bounds": {
+      "min": 1,
+      "max": 64
+    },
+    "brackets": [
+      {
+        "tapes": 16,
+        "fail_turns": 8,
+        "pass_turns": 24
+      }
+    ],
+    "monotonicity_check": false
+  },
+  "refined_plan": {
+    "additional_stations": [
+      {
+        "id": "rp0",
+        "kind": "path",
+        "s_m": 0.168
+      },
+      {
+        "id": "rp1",
+        "kind": "path",
+        "s_m": 0.447
+      },
+      {
+        "id": "rp2",
+        "kind": "path",
+        "s_m": 1.249
+      },
+      {
+        "id": "rp3",
+        "kind": "path",
+        "s_m": 2.266
+      },
+      {
+        "id": "rp4",
+        "kind": "path",
+        "s_m": 2.944
+      },
+      {
+        "id": "rp5",
+        "kind": "path",
+        "s_m": 3.9
+      }
+    ],
+    "max_sampling_shortfall_fraction": 0.02
+  },
+  "execution": {
+    "max_threads": 2
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "schema": "optcoil-material-benchmark/v2",
+  "id": "oc-006",
+  "description": "Low-field extension of the frozen logarithmic interpolator (measured-coordinate-tetrahedral-log-field-log-ic/v1) onto dataset robinson-superpower-ap-v3-lowfield, which adds nominal field 0.05, 0.07, 0.1, 0.15, 0.2, 0.3, 0.5 and 0.7 T to the original 1-8 T span (0.01-0.03 T excluded: the Hall-angle coordinate is unreliable below 0.05 T; 0 T excluded: not representable in the logarithmic model). Fixed 2026-09-10, before any error was computed. Motivation: OC-004's coupled screening currently falls back to a monotone field lower-bound clamp for any pack region below 1 T; this benchmark tests whether the same interpolator, given the same specimen's low-field measurements, can instead supply interpolated estimates there. Same specimen and workbook as OC-003/OC-005; development validation, not an independent-batch or reserved test. Pre-declared consequence: a failing low-field fold means the extension is NOT adopted for coupling (the dataset stays a characterization artifact and OC-004's clamp remains the only low-field path); the interpolator is not tuned.",
+  "dataset_id": "robinson-superpower-ap-v3-lowfield",
+  "method": "measured-coordinate-tetrahedral-log-field-log-ic/v1",
+  "folds": [
+    {"id": "low_field_planes", "axis": "field", "holdout_values": [0.07, 0.15, 0.3, 0.7]},
+    {"id": "field_planes_full", "axis": "field", "holdout_values": [0.1, 0.2, 0.5, 1.5, 3.0, 7.0]},
+    {"id": "temperature_planes", "axis": "temperature", "holdout_values": [25.0, 35.0]},
+    {"id": "angle_planes", "axis": "angle", "holdout_values": [5.0, 15.0, 25.0, 35.0, 45.0, 55.0, 65.0, 75.0, 81.0, 86.0, 90.0, 94.0, 99.0, 105.0, 115.0, 125.0, 135.0, 145.0, 155.0, 165.0, 175.0]},
+    {
+      "id": "multi_axis_planes",
+      "axis": "multi",
+      "holdout_by_axis": {
+        "temperature": [25.0, 35.0],
+        "field": [0.07, 0.15, 0.3, 0.7, 1.5, 3.0, 7.0],
+        "angle": [5.0, 15.0, 25.0, 35.0, 45.0, 55.0, 65.0, 75.0, 81.0, 86.0, 90.0, 94.0, 99.0, 105.0, 115.0, 125.0, 135.0, 145.0, 155.0, 165.0, 175.0]
+      }
+    }
+  ],
+  "holdout_policy": "Remove every measurement whose nominal temperature, field or angle lies on a withheld plane; train each fold on its own remaining nominal grid under the dataset's declared cell spans. Score every removed point that lies strictly inside the nominal bounds along each axis that is not withheld for that point; record boundary omissions; preserve every eligible point in the coverage denominator. For the multi-axis fold, classify each scored point by the number of its nominal coordinates lying on withheld planes (one, two or three) and report count, coverage, P95, worst and worst positive relative error per stratum as well as for the whole fold. Supporting rows of every prediction must be training rows.",
+  "acceptance": {
+    "minimum_coverage_fraction": 1.0,
+    "max_p95_relative_error": 0.1,
+    "max_relative_error": 0.2,
+    "max_positive_relative_error": 0.2,
+    "max_node_relative_error": 1e-12
+  },
+  "stratum_acceptance": {
+    "three_axis_max_positive_relative_error": 0.1
+  }
+}

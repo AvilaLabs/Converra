@@ -1,0 +1,265 @@
+{
+  "schema": "optcoil-coupled-search/v4",
+  "id": "oc-013",
+  "provenance": "Avila Labs OC-013 priced-search case \u2014 the sourced-price counterpart of OC-007, created 2026-09-11 as a versioned new case (OC-007 stays frozen at $30/m placeholder). Identical requirement, geometry, choices, limits, sampling, pruning and baseline; schema v4 adds only strands_parallel [1] (no cable) and the mechanical Lorentz screen (300 kN/m, published stack-level bound per docs/RESEARCH_ANCHORS.md). Conductor price 62.5 USD/m: midpoint of the sourced $50-75/m band for 12 mm REBCO ($125/kA.m at 400-600 A self-field Ic, Selvamanickam/SuperPower price-performance literature) \u2014 a published-industry estimate, still not a supplier quote; commercial claims must bracket the band, not this midpoint. Assembly/joint costs remain OC-007's invented placeholders (no source exists \u2014 flagged). Schema v4 migration required two additions OC-007 v1 never had: a good_field_region (chosen +-0.10 x +-0.025 x +-0.025 m about the bore probe \u2014 a declared usable volume, strictly stronger than v1's single-probe requirement) and a refinement block (v2+ contract; brackets span the same choice sets). Both are declared here so the comparison to OC-007 is honest: same physics, stronger stated requirement, sourced price.",
+  "requirement": {
+    "bore_probe_m": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "b_target_t": 0.9,
+    "tolerance_fraction": 1e-09,
+    "good_field_region": {
+      "half_extents_m": [
+        0.1,
+        0.025,
+        0.025
+      ],
+      "points_per_axis": 3
+    }
+  },
+  "fixed_geometry": {
+    "straight_half_length_m": 0.3,
+    "bend_radius_m": 0.2,
+    "radial_pitch_m": 0.0001,
+    "tape_width_m": 0.012,
+    "tape_normal": "radial"
+  },
+  "choices": {
+    "turns_along_normal": [
+      120,
+      160,
+      200,
+      240,
+      300
+    ],
+    "tapes_along_width": [
+      2,
+      3,
+      4
+    ],
+    "strands_parallel": [
+      1
+    ]
+  },
+  "operating": {
+    "temperature_k": 21.0,
+    "electric_field_criterion_v_per_m": 0.0001
+  },
+  "material": {
+    "dataset_id": "robinson-superpower-ap-v3-lowfield",
+    "csv_sha256": "043cbaab9a32da5de6394b136265835b9c5917e28861d0793544c5e3885f893b",
+    "method": "measured-coordinate-tetrahedral-log-field-log-ic/v1",
+    "angle_mapping": "period_180_field_reversal",
+    "mirror_policy": "minimum_of_mirror_pair",
+    "field_basis_mapping": "pack_field_as_applied_field_self_field_consistent",
+    "field_magnitude_policy": "total_magnitude_with_transverse_angle",
+    "low_field_policy": "monotone_field_lower_bound",
+    "low_field_clamp_t": 0.0501,
+    "monotonicity_tolerance": 0.002
+  },
+  "sampling": {
+    "stations": [
+      {
+        "id": "straight_center",
+        "kind": "straight",
+        "x_m": 0.0
+      },
+      {
+        "id": "straight_near_junction",
+        "kind": "straight",
+        "x_m": 0.29
+      },
+      {
+        "id": "arc_apex",
+        "kind": "arc",
+        "azimuth_deg": 0.0
+      },
+      {
+        "id": "arc_mid",
+        "kind": "arc",
+        "azimuth_deg": 45.0
+      }
+    ],
+    "relative_turn_indices": [
+      {
+        "kind": "from_start",
+        "offset": 1
+      },
+      {
+        "kind": "from_start",
+        "offset": 2
+      },
+      {
+        "kind": "from_start",
+        "offset": 3
+      },
+      {
+        "kind": "from_start",
+        "offset": 5
+      },
+      {
+        "kind": "from_start",
+        "offset": 10
+      },
+      {
+        "kind": "from_start",
+        "offset": 20
+      },
+      {
+        "kind": "fraction",
+        "value": 0.25
+      },
+      {
+        "kind": "fraction",
+        "value": 0.5
+      },
+      {
+        "kind": "fraction",
+        "value": 0.75
+      },
+      {
+        "kind": "from_end",
+        "offset": 19
+      },
+      {
+        "kind": "from_end",
+        "offset": 9
+      },
+      {
+        "kind": "from_end",
+        "offset": 4
+      },
+      {
+        "kind": "from_end",
+        "offset": 1
+      },
+      {
+        "kind": "from_end",
+        "offset": 0
+      }
+    ],
+    "width_points": 5
+  },
+  "limits": {
+    "max_along_current_field_fraction": 0.2,
+    "max_self_field_ratio": 0.1,
+    "interpolation_overprediction_budget": 0.1,
+    "utilization_limit": 0.8
+  },
+  "numerics": {
+    "quadrature_orders": [
+      10,
+      14
+    ],
+    "field_scale_t": 1.0,
+    "max_refinement_change_fraction": 0.0025
+  },
+  "pruning": {
+    "coarse_stations": [
+      "arc_apex",
+      "straight_center"
+    ],
+    "coarse_turn_fractions": [
+      {
+        "kind": "from_start",
+        "offset": 1
+      },
+      {
+        "kind": "fraction",
+        "value": 0.5
+      },
+      {
+        "kind": "from_end",
+        "offset": 0
+      }
+    ],
+    "coarse_width_indices": [
+      0,
+      4
+    ]
+  },
+  "cost": {
+    "price_usd_per_m": 62.5,
+    "scrap_fraction": 0.1,
+    "assembly_cost_per_pancake_usd": 500.0,
+    "joint_cost_usd": 200.0
+  },
+  "baseline": {
+    "turns_along_normal": 200,
+    "tapes_along_width": 3,
+    "strands_parallel": 1
+  },
+  "refined_plan": {
+    "additional_stations": [
+      {
+        "id": "arc_15",
+        "kind": "arc",
+        "azimuth_deg": 15.0
+      },
+      {
+        "id": "arc_30",
+        "kind": "arc",
+        "azimuth_deg": 30.0
+      },
+      {
+        "id": "arc_60",
+        "kind": "arc",
+        "azimuth_deg": 60.0
+      },
+      {
+        "id": "arc_75",
+        "kind": "arc",
+        "azimuth_deg": 75.0
+      },
+      {
+        "id": "straight_015",
+        "kind": "straight",
+        "x_m": 0.15
+      },
+      {
+        "id": "straight_025",
+        "kind": "straight",
+        "x_m": 0.25
+      }
+    ],
+    "max_sampling_shortfall_fraction": 0.02
+  },
+  "execution": {
+    "max_threads": 5
+  },
+  "mechanical": {
+    "max_lorentz_load_n_per_m": 300000.0
+  },
+  "refinement": {
+    "pancake_counts": [
+      2,
+      3,
+      4
+    ],
+    "turn_resolution": 5,
+    "turn_bounds": {
+      "min": 1,
+      "max": 400
+    },
+    "brackets": [
+      {
+        "tapes": 2,
+        "fail_turns": 40,
+        "pass_turns": 300
+      },
+      {
+        "tapes": 3,
+        "fail_turns": 40,
+        "pass_turns": 240
+      },
+      {
+        "tapes": 4,
+        "fail_turns": 40,
+        "pass_turns": 200
+      }
+    ],
+    "monotonicity_check": true
+  }
+}

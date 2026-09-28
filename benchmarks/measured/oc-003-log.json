@@ -1,0 +1,20 @@
+{
+  "schema": "optcoil-material-benchmark/v1",
+  "id": "oc-003-log",
+  "description": "Development comparison using logarithmic field and current after the linear baseline missed its frozen field-plane gate. This reuses the original development folds; separate OC-003 challenge data is reserved before assessing this model.",
+  "dataset_id": "robinson-superpower-ap-v3",
+  "method": "measured-coordinate-tetrahedral-log-field-log-ic/v1",
+  "folds": [
+    {"id": "angle_planes", "axis": "angle", "holdout_values": [5.0, 15.0, 25.0, 35.0, 45.0, 55.0, 65.0, 75.0, 81.0, 86.0, 90.0, 94.0, 99.0, 105.0, 115.0, 125.0, 135.0, 145.0, 155.0, 165.0, 175.0]},
+    {"id": "temperature_planes", "axis": "temperature", "holdout_values": [25.0, 35.0]},
+    {"id": "field_planes", "axis": "field", "holdout_values": [1.5, 3.0, 7.0]}
+  ],
+  "holdout_policy": "Remove complete nominal coordinate planes from training. Score every removed point that lies strictly inside the other two nominal axis bounds; preserve every eligible point in the coverage denominator.",
+  "acceptance": {
+    "minimum_coverage_fraction": 1.0,
+    "max_p95_relative_error": 0.1,
+    "max_relative_error": 0.2,
+    "max_positive_relative_error": 0.2,
+    "max_node_relative_error": 1e-12
+  }
+}

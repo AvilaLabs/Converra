@@ -1,0 +1,83 @@
+{
+  "schema": "optcoil-measured-material/v2",
+  "id": "robinson-superpower-ap-v3-modelext",
+  "data_class": "measured_with_model_extension",
+  "material": "SuperPower Advanced Pinning REBCO; SCS12050-AP M3-1386-3",
+  "sample_id": "SP066",
+  "source_doi": "10.6084/m9.figshare.4256624.v3",
+  "source_url": "https://figshare.com/articles/dataset/Critical_current_characterisation_of_SuperPower_Advanced_Pinning_2G_HTS_superconducting_wire/4256624/3",
+  "authors": [
+    "Stuart Wimbush",
+    "Nick Strickland",
+    "Andres Pantoja"
+  ],
+  "license": "CC-BY-4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0/",
+  "measurement_dates": "2021-01-29 to 2021-02-03",
+  "source_xlsx_sha256": "f4e40916e5f462316772edc0b3538a1544beda5f887d610daddd9ed7af79ae5e",
+  "csv_sha256": "2d8262e4071f995eb239594c5dbc4cd0faffb0426eb2cec66d5ef9240cfe9ede",
+  "preparation_source_sha256": "09af3dcc9ca25b2dbd17af5594efe274ebaaf804bfa4d07584a5b9a60c70c45f",
+  "source_description_sha256": "7181b69c2b844ee1f963b9967f7a46a0871f1ec53cb16896f4e3cacf7e6c3780",
+  "electric_field_criterion_v_per_m": 0.0001,
+  "voltage_tap_spacing_m": 0.005,
+  "measured_bridge_width_m": 0.001,
+  "original_tape_width_m": 0.012,
+  "field_basis": "applied_field_including_sample_self_field_response",
+  "angle_convention": "oriented_from_tape_normal_in_maximum_lorentz_geometry",
+  "coordinate_policy": "Measured temperature, source Field, and Hall angle; commanded coordinates define connectivity only. Hall angle unwrapped by full turns toward commanded angle.",
+  "normalization": "Published Ic/w (A/cm) multiplied by 100 to A/m; no scaling to a commercial full-width tape capacity.",
+  "measurement_uncertainty_fraction": null,
+  "strain_state": "as_measured_not_quantified",
+  "selection": {
+    "nominal_temperature_k": [
+      20.0,
+      25.0,
+      30.0,
+      35.0,
+      40.0
+    ],
+    "nominal_field_t": [
+      0.05,
+      0.07,
+      0.1,
+      0.15,
+      0.2,
+      0.3,
+      0.5,
+      0.7,
+      1.0,
+      1.5,
+      2.0,
+      3.0,
+      5.0,
+      7.0,
+      8.0,
+      10.0,
+      12.5,
+      16.0,
+      20.0
+    ],
+    "nominal_angle_range_deg": [
+      0.0,
+      180.0
+    ]
+  },
+  "max_cell_spans": {
+    "temperature_k": 10.0,
+    "field_ratio": 2.5,
+    "angle_deg": 10.0
+  },
+  "point_count": 4085,
+  "limitations": [
+    "One patterned 1 mm bridge, not a manufacturer lot guarantee or measured 12 mm tape capacity.",
+    "Applied-field transport data includes sample self-field effects; not an intrinsic local Jc(B) law.",
+    "Maximum Lorentz-force geometry only; no arbitrary field azimuth, strain model or quantified measurement uncertainty.",
+    "No angle reflection/folding or out-of-domain extrapolation is assumed.",
+    "Selection is a declared characterization region, not coverage of all fusion magnet operating conditions.",
+    "0-0.03 T rows excluded: the Hall-angle coordinate is unreliable below 0.05 T (unwrapped Hall-angle-minus-set-angle deviation grows to a maximum of 9.03 deg at 0.01 T; see preparation-audit.json for the full per-field table).",
+    "Zero applied field is excluded: it is not representable in the logarithmic (ln B) interpolation model, and the Hall angle is meaningless there.",
+    "MODEL EXTENSION: nodes at nominal field 10/12.5/16/20 T are not measurements. They are anchored power-law continuations (alpha = max(3-8 T tail fit, 7-8 T local slope, 0.1); uniform conservative margin 0.259) emitted by tools/prepare_oc016.py; modeled rows carry source_row >= 900000.",
+    "No verdict produced with this dataset is measured-data-verified above 8 T; it is a sensitivity map for the coverage-blocked candidate population, pending real high-field data (docs/RESEARCH_ANCHORS.md).",
+    "Edge validation: the same continuation fitted on data ending at 5-7 T over-predicts the measured 7/8 T nodes by at most 20.9% across all curves; the applied margin exceeds that bound."
+  ]
+}

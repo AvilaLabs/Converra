@@ -1,0 +1,76 @@
+{
+  "schema": "optcoil-product-registry/v1",
+  "registry_issuer": "avila-labs",
+  "issued_at_unix_ms": 1791000000000,
+  "products": [
+    {
+      "product_id": "superpower-scs-class-12mm",
+      "vendor": "SuperPower (Furukawa)",
+      "product_name": "SCS-class 12 mm",
+      "dataset_id": "robinson-superpower-ap-v3",
+      "dataset_variants": [
+        "robinson-superpower-ap-v3-lowfield",
+        "robinson-superpower-ap-v3-modelext"
+      ],
+      "tape_width_m": 0.012,
+      "price_usd_per_m": 38.0,
+      "price_source": "estimated",
+      "notes": "Estimated price placeholder — substitute a vendor quote before relying on totals. Evidence: Robinson-group measurement of a 1 mm patterned bridge cut from 12 mm AP tape (measured, 1-8 T, 20-40 K). Variants: 'lowfield' adds measured 0.05-0.7 T; 'modelext' extends to 20 T by model extension, honestly labeled measured_with_model_extension."
+    },
+    {
+      "product_id": "theva-proline-class-6mm",
+      "vendor": "THEVA",
+      "product_name": "Pro-Line-class 6 mm",
+      "dataset_id": "robinson-theva-ap-v2",
+      "dataset_variants": [],
+      "tape_width_m": 0.006,
+      "price_usd_per_m": 38.0,
+      "price_source": "estimated",
+      "notes": "Estimated price placeholder — substitute a vendor quote before relying on totals. Evidence: Robinson-group measurement of a 0.5 mm patterned bridge cut from 6 mm tape (measured, 1-8 T, 20-40 K). The 0/180 fold knife-edge resolves only under a declared seam-stitched angle mapping."
+    },
+    {
+      "product_id": "shanghai-hflt-4mm",
+      "vendor": "Shanghai Superconductor",
+      "product_name": "SHS112-class 4 mm",
+      "dataset_id": "robinson-shanghai-hflt-v3",
+      "dataset_variants": [],
+      "tape_width_m": 0.004,
+      "price_usd_per_m": 34.0,
+      "price_source": "estimated",
+      "notes": "Estimated price placeholder — substitute a vendor quote before relying on totals. Evidence: Robinson-group measurement of a 0.5 mm patterned bridge cut from a 4 mm HFLT tape (measured, 1-8 T, 20-40 K)."
+    },
+    {
+      "product_id": "fujikura-rebco-4mm",
+      "vendor": "Fujikura",
+      "product_name": "FYSC-class 4 mm",
+      "dataset_id": "robinson-ffj-ybco-v1",
+      "dataset_variants": [],
+      "tape_width_m": 0.004,
+      "price_usd_per_m": 34.0,
+      "price_source": "estimated",
+      "notes": "Estimated price placeholder — substitute a vendor quote before relying on totals. Evidence: Robinson-group measurement of a 0.5 mm patterned bridge cut from 4 mm tape (measured, 1-8 T, 20-40 K)."
+    },
+    {
+      "product_id": "superpower-m31477-class-4mm",
+      "vendor": "SuperPower (Furukawa)",
+      "product_name": "M31477-class 4 mm (memfit)",
+      "dataset_id": "babouche-superpower-m31477-memfit-v1",
+      "dataset_variants": [],
+      "tape_width_m": 0.004,
+      "price_usd_per_m": 34.0,
+      "price_source": "estimated",
+      "notes": "Estimated price placeholder — substitute a vendor quote before relying on totals. Evidence: published model fit over the M31477 4 mm specimen (published_model_fit, to 16 T, 10-35 K) — wider field coverage than the Robinson measured sets, weaker evidence class; a model fit, not a measurement campaign."
+    },
+    {
+      "product_id": "sst-yp506-class-4mm",
+      "vendor": "Shanghai STI",
+      "product_name": "YP506-class 4 mm (memfit)",
+      "dataset_id": "babouche-sst-yp506-memfit-v1",
+      "dataset_variants": [],
+      "tape_width_m": 0.004,
+      "price_usd_per_m": 34.0,
+      "price_source": "estimated",
+      "notes": "Estimated price placeholder — substitute a vendor quote before relying on totals. Evidence: published model fit over the YP506 4 mm specimen (published_model_fit, to 16 T, 10-35 K) — wider field coverage than the Robinson measured sets, weaker evidence class; a model fit, not a measurement campaign."
+    }
+  ]
+}

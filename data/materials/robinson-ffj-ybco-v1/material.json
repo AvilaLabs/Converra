@@ -1,0 +1,81 @@
+{
+  "schema": "optcoil-measured-material/v1",
+  "id": "robinson-ffj-ybco-v1",
+  "data_class": "measured",
+  "material": "Faraday Factory Japan YBCO 2G HTS; manufacturer designation #1043-N1",
+  "sample_id": "FDY003",
+  "source_doi": "10.6084/m9.figshare.23536374.v4",
+  "source_url": "https://figshare.com/articles/dataset/Critical_current_characterisation_of_Faraday_Factory_Japan_YBCO_Low_Temperature_2G_HTS_superconducting_wire/23536374",
+  "authors": [
+    "Andres Pantoja",
+    "Stuart Wimbush",
+    "Nick Strickland"
+  ],
+  "license": "CC-BY-4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0/",
+  "measurement_dates": "2022-09-23 to 2022-10-04",
+  "source_xlsx_sha256": "32a1544b44c99734995a1fbea1ba152ab5e71360b828309b2c086bb4d4653d58",
+  "csv_sha256": "895194c7c225a69145265f7de4466acc2dde3a3f81632c819029ba2567460aba",
+  "preparation_source_sha256": "6bc87721465ef57bf684fa75b8508fa2f1d1e34346dcdaf96bfea04956e5ac8d",
+  "source_description_sha256": "33be1e1b6fdb0c49fadca41593a1ad5db239207aad7633e1c361af910b354c55",
+  "electric_field_criterion_v_per_m": 0.0001,
+  "voltage_tap_spacing_m": 0.005,
+  "measured_bridge_width_m": 0.0005,
+  "original_tape_width_m": 0.004,
+  "field_basis": "applied_field_including_sample_self_field_response",
+  "angle_convention": "oriented_from_tape_normal_in_maximum_lorentz_geometry",
+  "coordinate_policy": "Measured temperature, source Field, and Hall angle; commanded coordinates define connectivity only. Hall angle unwrapped by full turns toward commanded angle.",
+  "normalization": "Published Ic/w (A/cm) multiplied by 100 to A/m; no scaling to a commercial full-width tape capacity.",
+  "measurement_uncertainty_fraction": null,
+  "strain_state": "as_measured_not_quantified",
+  "selection": {
+    "nominal_temperature_k": [
+      20.0,
+      25.0,
+      30.0,
+      35.0,
+      40.0
+    ],
+    "nominal_field_t": [
+      0.01,
+      0.015,
+      0.02,
+      0.03,
+      0.05,
+      0.07,
+      0.1,
+      0.15,
+      0.2,
+      0.3,
+      0.5,
+      0.7,
+      1.0,
+      1.5,
+      2.0,
+      3.0,
+      5.0,
+      7.0,
+      8.0
+    ],
+    "nominal_angle_range_deg": [
+      0.0,
+      180.0
+    ]
+  },
+  "max_cell_spans": {
+    "temperature_k": 10.0,
+    "field_ratio": 2.5,
+    "angle_deg": 10.0
+  },
+  "point_count": 4845,
+  "limitations": [
+    "One patterned 0.5 mm bridge from a 4 mm tape, not a manufacturer lot guarantee or measured full-width tape capacity.",
+    "Applied-field transport data includes sample self-field effects; not an intrinsic local Jc(B) law.",
+    "Maximum Lorentz-force geometry only; no arbitrary field azimuth, strain model or quantified measurement uncertainty.",
+    "No angle reflection/folding or out-of-domain extrapolation is assumed.",
+    "Selection is a declared characterization region, not coverage of all fusion magnet operating conditions.",
+    "Measured on a 4 mm tape; per-width capacity does not account for width-dependent slitting or substrate differences in other widths.",
+    "Fields span 0.01-8 T including a dense 0.01-0.7 T decade the peer datasets do not cover; the 0 T self-field rows are excluded (no positive applied field to interpolate against).",
+    "Angle mesh is denser near the ab-plane peak (1-2 deg source setpoints at 75-105 deg) than elsewhere (5 deg); the declared 0-180 deg window matches the other Robinson datasets."
+  ]
+}

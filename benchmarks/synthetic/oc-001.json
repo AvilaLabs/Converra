@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "id": "oc-001",
+  "description": "Three separately wound, series-connected modules; fixed geometry and prescribed fields. Allocation benchmark only.",
+  "data_class": "synthetic",
+  "provenance": "Avila Labs invented fixture. Prices, material properties and operating points are not supplier data.",
+  "circuit_current_a": 1000.0,
+  "utilization_limit": 0.8,
+  "scrap_fraction": 0.1,
+  "assembly_cost_per_module_usd": 30.0,
+  "grades": [
+    {
+      "id": "standard",
+      "price_usd_per_m": 2.0,
+      "ic_at_zero_field_a": 400.0,
+      "field_derating_per_t": 0.05,
+      "domain": {"min_temperature_k": 20.0, "max_temperature_k": 20.0, "max_field_t": 12.0, "min_angle_deg": 0.0, "max_angle_deg": 0.0},
+      "provenance": "Synthetic lower-bound current envelope; linear field dependence; equal current sharing assumed."
+    },
+    {
+      "id": "premium",
+      "price_usd_per_m": 4.0,
+      "ic_at_zero_field_a": 650.0,
+      "field_derating_per_t": 0.025,
+      "domain": {"min_temperature_k": 20.0, "max_temperature_k": 20.0, "max_field_t": 12.0, "min_angle_deg": 0.0, "max_angle_deg": 0.0},
+      "provenance": "Synthetic lower-bound current envelope; linear field dependence; equal current sharing assumed."
+    }
+  ],
+  "modules": [
+    {"id": "low-field", "turns": 10, "mean_turn_length_m": 2.0, "max_tapes": 8, "allowed_grade_ids": ["standard", "premium"], "operating_point": {"temperature_k": 20.0, "field_t": 2.0, "field_angle_deg": 0.0}},
+    {"id": "mid-field", "turns": 10, "mean_turn_length_m": 2.0, "max_tapes": 8, "allowed_grade_ids": ["standard", "premium"], "operating_point": {"temperature_k": 20.0, "field_t": 6.0, "field_angle_deg": 0.0}},
+    {"id": "high-field", "turns": 10, "mean_turn_length_m": 2.0, "max_tapes": 8, "allowed_grade_ids": ["standard", "premium"], "operating_point": {"temperature_k": 20.0, "field_t": 10.0, "field_angle_deg": 0.0}}
+  ],
+  "interfaces": [
+    {"left_module_id": "low-field", "right_module_id": "mid-field", "allow_allocation_change": true, "fixed_cost_usd": 25.0, "change_cost_usd": 12.0},
+    {"left_module_id": "mid-field", "right_module_id": "high-field", "allow_allocation_change": true, "fixed_cost_usd": 25.0, "change_cost_usd": 12.0}
+  ],
+  "baseline": {
+    "allocations": [
+      {"module_id": "low-field", "grade_id": "premium", "tapes": 3},
+      {"module_id": "mid-field", "grade_id": "premium", "tapes": 3},
+      {"module_id": "high-field", "grade_id": "premium", "tapes": 3}
+    ]
+  }
+}

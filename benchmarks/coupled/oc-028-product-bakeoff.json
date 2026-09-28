@@ -1,0 +1,25 @@
+{
+  "schema": "optcoil-bakeoff/v2",
+  "provenance": "oc-028: procurement-shape bake-off over oc-027-tfmc-pieces — two products at their real tape widths (SuperPower model-extended 50 mm vs THEVA 12 mm class), declared prices labeled by provenance; the THEVA row also exercises a narrower winding topology against the same requirement. Prices are illustrative declarations, not supplier quotes.",
+  "products": [
+    {
+      "product_id": "superpower-ap-50mm-modelext",
+      "dataset_id": "robinson-superpower-ap-v3-modelext",
+      "tape_width_m": 0.05,
+      "price_usd_per_m": 28.0,
+      "price_source": "estimated",
+      "piece_offerings": [
+        { "length_m": 70.0, "price_usd_per_m": 32.0 },
+        { "length_m": 300.0, "price_usd_per_m": 30.0 },
+        { "length_m": 600.0, "price_usd_per_m": 28.0 }
+      ]
+    },
+    {
+      "product_id": "theva-12mm",
+      "dataset_id": "robinson-theva-ap-v2",
+      "tape_width_m": 0.012,
+      "price_usd_per_m": 45.0,
+      "price_source": "synthetic"
+    }
+  ]
+}

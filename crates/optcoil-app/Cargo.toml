@@ -1,0 +1,32 @@
+[package]
+name = "optcoil-app"
+description = "OptCoil egui engineering workbench"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "optcoil-app"
+path = "src/main.rs"
+
+[dependencies]
+eframe.workspace = true
+egui_extras.workspace = true
+egui_plot.workspace = true
+image.workspace = true
+rfd.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+optcoil-model.workspace = true
+optcoil-physics.workspace = true
+optcoil-search.workspace = true
+optcoil-adapters.workspace = true
+
+[lints]
+workspace = true
+
+[build-dependencies]
+embed-resource = "3"

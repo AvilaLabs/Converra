@@ -1,0 +1,85 @@
+{
+  "schema": "optcoil-coupled-conductor/v1",
+  "id": "oc-004",
+  "provenance": "Avila Labs coupled screening benchmark, frozen 2026-09-09 before any conductor margin was computed. Invented racetrack pack (OC-002 family; the 36 mm axial height is the conductor-filled height of three 12 mm pancakes, no spacer gaps modeled). Conductor law: measured SuperPower AP v3 bridge data (CC BY 4.0, Robinson Research Institute) via the OC-003 logarithmic interpolator. Operating-current candidates were chosen from prescribed-current field magnitudes alone so the sampled peak field stays inside the dataset's 1-8 T span; no critical current, self-field ratio or margin was inspected before freezing.",
+  "geometry_data_class": "synthetic",
+  "pack": {
+    "straight_half_length_m": 0.3,
+    "bend_radius_m": 0.2,
+    "radial_width_m": 0.02,
+    "axial_height_m": 0.036
+  },
+  "winding": {
+    "tape_width_m": 0.012,
+    "tape_normal": "radial",
+    "turns_along_normal": 200,
+    "tapes_along_width": 3
+  },
+  "operating": {
+    "temperature_k": 21.0,
+    "current_candidates_a": [520.0, 700.0, 870.0],
+    "electric_field_criterion_v_per_m": 0.0001
+  },
+  "material": {
+    "dataset_id": "robinson-superpower-ap-v3",
+    "csv_sha256": "889cc2cf8b91b822cbc6cceb7388e5d8afcb8a8911bb20ab175e50c7e6dc0354",
+    "method": "measured-coordinate-tetrahedral-log-field-log-ic/v1",
+    "angle_mapping": "period_180_field_reversal",
+    "mirror_policy": "minimum_of_mirror_pair",
+    "field_basis_mapping": "pack_field_as_applied_field_self_field_consistent",
+    "field_magnitude_policy": "total_magnitude_with_transverse_angle",
+    "low_field_policy": "monotone_field_lower_bound",
+    "low_field_clamp_t": 1.001,
+    "monotonicity_tolerance": 0.001
+  },
+  "sampling": {
+    "stations": [
+      {"id": "straight_center", "kind": "straight", "x_m": 0.0},
+      {"id": "straight_near_junction", "kind": "straight", "x_m": 0.29},
+      {"id": "arc_apex", "kind": "arc", "azimuth_deg": 0.0},
+      {"id": "arc_mid", "kind": "arc", "azimuth_deg": 45.0}
+    ],
+    "turn_indices_along_normal": [1, 2, 3, 5, 10, 20, 50, 100, 150, 180, 190, 195, 198, 199, 200],
+    "tape_indices_along_width": [1, 2, 3],
+    "width_quadrature": "gauss_lobatto",
+    "width_points": 5
+  },
+  "limits": {
+    "max_along_current_field_fraction": 0.2,
+    "max_self_field_ratio": 0.1,
+    "interpolation_overprediction_budget": 0.1,
+    "utilization_limit": 0.8
+  },
+  "numerics": {
+    "quadrature_orders": [10, 14],
+    "field_scale_t": 1.0,
+    "max_refinement_change_fraction": 0.0025,
+    "max_reference_refinement_fraction": 0.0001,
+    "max_reference_field_error_fraction": 0.001,
+    "max_reference_angle_error_deg": 0.0001,
+    "max_reference_capacity_relative_error": 0.00001,
+    "reference_subset": [
+      {"station": "straight_center", "tape_index": 3, "turn_index": 1},
+      {"station": "straight_center", "tape_index": 3, "turn_index": 2},
+      {"station": "straight_center", "tape_index": 3, "turn_index": 3},
+      {"station": "straight_center", "tape_index": 3, "turn_index": 5},
+      {"station": "straight_center", "tape_index": 3, "turn_index": 10},
+      {"station": "straight_center", "tape_index": 3, "turn_index": 20},
+      {"station": "straight_center", "tape_index": 3, "turn_index": 50},
+      {"station": "straight_center", "tape_index": 3, "turn_index": 100},
+      {"station": "straight_center", "tape_index": 3, "turn_index": 150},
+      {"station": "straight_center", "tape_index": 3, "turn_index": 180},
+      {"station": "straight_center", "tape_index": 3, "turn_index": 190},
+      {"station": "straight_center", "tape_index": 3, "turn_index": 195},
+      {"station": "straight_center", "tape_index": 3, "turn_index": 198},
+      {"station": "straight_center", "tape_index": 3, "turn_index": 199},
+      {"station": "straight_center", "tape_index": 3, "turn_index": 200},
+      {"station": "arc_apex", "tape_index": 3, "turn_index": 1},
+      {"station": "arc_apex", "tape_index": 3, "turn_index": 200},
+      {"station": "straight_center", "tape_index": 2, "turn_index": 100}
+    ]
+  },
+  "width_transfer": {
+    "basis": "none"
+  }
+}

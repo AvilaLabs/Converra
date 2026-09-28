@@ -1,0 +1,62 @@
+{
+  "schema": "optcoil-dataset-registry/v1",
+  "registry_issuer": "avila-labs",
+  "registry_key_id": "avila-2026-a",
+  "registry_public_key": "ed25519:5a4d13d7826e9db9af65a1068b9dc1afbfbb452abe51e510a8616b6f34da641d",
+  "issued_at_unix_ms": 1789496075177,
+  "keys": [
+    {
+      "issuer": "avila-labs",
+      "key_id": "avila-2026-a",
+      "public_key": "ed25519:5a4d13d7826e9db9af65a1068b9dc1afbfbb452abe51e510a8616b6f34da641d",
+      "status": "current"
+    }
+  ],
+  "entries": [
+    {
+      "dataset_id": "robinson-shanghai-hflt-v3",
+      "bundle_sha256": "18d2d6c1aa6ed6062656d2175480bb8c2e61638ea2cd5a19303b73d3b6bbab62",
+      "attestation_sha256": "3ef4b06d830ec895a08dc82a954fc11ca0f8bc9b174a63d53fe29074e8b38e73",
+      "status": "current",
+      "note": "Second measured Robinson dataset: Shanghai SC HFLT (SHS112, 4 mm tape, 0.5 mm bridge), identical 20-40K x 1-8T x 0-180deg window",
+      "countersigned_message": "optcoil-registry-entry/v1|avila-labs|robinson-shanghai-hflt-v3|18d2d6c1aa6ed6062656d2175480bb8c2e61638ea2cd5a19303b73d3b6bbab62|3ef4b06d830ec895a08dc82a954fc11ca0f8bc9b174a63d53fe29074e8b38e73|current",
+      "countersignature": "ed25519:ca69d47cedda5e8bf06756857a8ce39a8ace17140fa5e953918276701c34ac29c457e33232072a2c16840138ccb3519be704a7ebe20dfa99b237bd8392e9740e"
+    },
+    {
+      "dataset_id": "robinson-superpower-ap-v3",
+      "bundle_sha256": "27c6fd19970eaa234b9b4257dca0c6819c1dac6b4c56ff9d4dec065a45941fd3",
+      "attestation_sha256": "159e7e5352a7335e23645bee2a592172a2643b260bba671601e59719ce5f430a",
+      "status": "current",
+      "note": "Reference attested bundle — published Robinson SuperPower AP dataset",
+      "countersigned_message": "optcoil-registry-entry/v1|avila-labs|robinson-superpower-ap-v3|27c6fd19970eaa234b9b4257dca0c6819c1dac6b4c56ff9d4dec065a45941fd3|159e7e5352a7335e23645bee2a592172a2643b260bba671601e59719ce5f430a|current",
+      "countersignature": "ed25519:b72c3acd9feae7e1a184c4c8fadfe035d8d9d57779cc3ddc7c873b53a033088b76a4786e97cb5bcf30ba42c400b9b76345bc889507ed4e975e86b3be03aaec0e"
+    },
+    {
+      "dataset_id": "robinson-superpower-ap-v3-lowfield",
+      "bundle_sha256": "f6724ae2da25e0f9271c6d871bfddae0b96c1f0e71527413c78c6fc4dab2c993",
+      "attestation_sha256": "b18478bceefd8680b21fa8a96c61bb7e573e07600436e47a5c0149c6629357e7",
+      "status": "current",
+      "note": "Embedded dataset issued as attested bundle",
+      "countersigned_message": "optcoil-registry-entry/v1|avila-labs|robinson-superpower-ap-v3-lowfield|f6724ae2da25e0f9271c6d871bfddae0b96c1f0e71527413c78c6fc4dab2c993|b18478bceefd8680b21fa8a96c61bb7e573e07600436e47a5c0149c6629357e7|current",
+      "countersignature": "ed25519:e54d729757a6ebcc8a6347f41b96bf5fc74c41af2d4f9b643a0f9b22d740f21d594e939c7696bc1c8535cb009427c56adf36c3cda69864d921eef5d699e75c05"
+    },
+    {
+      "dataset_id": "robinson-superpower-ap-v3-modelext",
+      "bundle_sha256": "a103aad3b6a40aee6bb63e8b5fbbcf31b006bca5dc815acf15cf6c1ee32d119b",
+      "attestation_sha256": "d7a27f89f744c01c0ad2e657fff86c7ec48eb58220a6c038bc9e39383a6649ff",
+      "status": "current",
+      "note": "Embedded dataset issued as attested bundle",
+      "countersigned_message": "optcoil-registry-entry/v1|avila-labs|robinson-superpower-ap-v3-modelext|a103aad3b6a40aee6bb63e8b5fbbcf31b006bca5dc815acf15cf6c1ee32d119b|d7a27f89f744c01c0ad2e657fff86c7ec48eb58220a6c038bc9e39383a6649ff|current",
+      "countersignature": "ed25519:3608373ddf2560f4a15e08fdd472f8f9f69c5f4f55216297f208470b1e96ce2846e58944e06a4f6f2dd8ef4ac0d05fef930bf1e29aa62f04ceaf10d1a4bf8603"
+    },
+    {
+      "dataset_id": "robinson-theva-ap-v2",
+      "bundle_sha256": "9e9f36ee7decdacd45a785a8052bf5e55a8c29e96f9ff3fb4bc35968c684023d",
+      "attestation_sha256": "c6b1713c85e2ad897597099c9165a25c32358e6b58e3cb62bc66cb5295c0ffe5",
+      "status": "current",
+      "note": "Third measured Robinson dataset: THEVA Pro-Line AP (THV202, 6 mm tape, 0.5 mm bridge), identical window, denser measured 105-135deg wedge",
+      "countersigned_message": "optcoil-registry-entry/v1|avila-labs|robinson-theva-ap-v2|9e9f36ee7decdacd45a785a8052bf5e55a8c29e96f9ff3fb4bc35968c684023d|c6b1713c85e2ad897597099c9165a25c32358e6b58e3cb62bc66cb5295c0ffe5|current",
+      "countersignature": "ed25519:5546f9f190991cacb57d3c6fd6549ad31d8f871869106a489d8888324e7e5961a2a3be930864e6e866967420771a83d8d4a3afe84e6ae875c9ae19d9e5c92e03"
+    }
+  ]
+}
