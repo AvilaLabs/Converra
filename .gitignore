@@ -9,3 +9,5 @@ __pycache__/
 .env.*
 *.rs.bk
 .DS_Store
+deploy/web/public/
+deploy/web/.wrangler/
