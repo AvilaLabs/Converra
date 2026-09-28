@@ -36,7 +36,7 @@ const ALLOWLIST: &[(&str, &str)] = &[
         "legacy closed-form reprice — v24 records are refused before it is reached",
     ),
     (
-        "optcoil-app/src/views.rs",
+        "optcoil-app/src/views/metrics.rs",
         "legacy $/m slider repricing — gated by piece_plan checks added after oc-027",
     ),
     (

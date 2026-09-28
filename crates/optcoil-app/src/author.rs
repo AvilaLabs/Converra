@@ -22,18 +22,23 @@ use optcoil_model::{
     coupled_search::{
         AcLossScreen, Baseline, Bracket, Choices, Cost, CoupledSearchCase, Execution,
         FixedGeometry, GoodFieldRegion, Grading, GradingRegion, HeatLoadTerm, Manufacturing,
-        Mechanical, Opex, PieceBoundary, PieceOffering, PiecePolicy, PieceUnit, PriceSource,
-        QuenchHotspotScreen, QuenchTransientScreen, RefinedPlan, RefinementPlan, RegionHarmonics,
-        RelativeTurnIndex, Requirement, ScreeningCurrentScreen, SearchFieldMap, SearchNumerics,
-        SearchOperating, SearchSampling, TapeSpec, ThermalMarginScreen, TransitionScreen,
-        TurnBounds,
+        Mechanical, Opex, PieceBoundary, PiecePolicy, PieceUnit, QuenchHotspotScreen,
+        QuenchTransientScreen, RefinedPlan, RefinementPlan, RegionHarmonics, Requirement,
+        ScreeningCurrentScreen, SearchFieldMap, SearchNumerics, SearchOperating, SearchSampling,
+        TapeSpec, ThermalMarginScreen, TransitionScreen, TurnBounds,
     },
     material::MaterialDataset,
     product::{ProductRegistry, RegistryProduct},
 };
 use sha2::{Digest, Sha256};
 
+mod parse;
+
 use crate::brand;
+use parse::{
+    parse_f64_list, parse_f64_pairs, parse_offerings, parse_turn_indices, parse_u32_list,
+    price_source,
+};
 
 /// One editable station row.
 struct StationRow {
@@ -62,56 +67,10 @@ impl StationRow {
     }
 }
 
-/// Parse a comma-separated u32 list ("120, 200, 240").
-fn parse_u32_list(text: &str, name: &str) -> Result<Vec<u32>, String> {
-    text.split(',')
-        .map(|t| t.trim())
-        .filter(|t| !t.is_empty())
-        .map(|t| {
-            t.parse::<u32>()
-                .map_err(|_| format!("{name}: '{t}' is not a positive integer"))
-        })
-        .collect()
-}
-
-/// Parse a comma-separated f64 list ("0.09, 0.12, 0.15").
-fn parse_f64_list(text: &str, name: &str) -> Result<Vec<f64>, String> {
-    text.split(',')
-        .map(|t| t.trim())
-        .filter(|t| !t.is_empty())
-        .map(|t| {
-            t.parse::<f64>()
-                .map_err(|_| format!("{name}: '{t}' is not a number"))
-        })
-        .collect()
-}
-
 /// One editable opex heat-load term row.
 struct HeatLoadRow {
     id: String,
     power_w: f64,
-}
-
-/// Parse a comma-separated table of `T:value` pairs ("300:0.2, 350:0.5")
-/// — the declared property tables the quench screens carry.
-fn parse_f64_pairs(text: &str, name: &str) -> Result<Vec<[f64; 2]>, String> {
-    text.split(',')
-        .map(|t| t.trim())
-        .filter(|t| !t.is_empty())
-        .map(|t| {
-            let (a, b) = t
-                .split_once(':')
-                .ok_or_else(|| format!("{name}: '{t}' — expected 'T:value'"))?;
-            Ok([
-                a.trim()
-                    .parse::<f64>()
-                    .map_err(|_| format!("{name}: '{a}' is not a number"))?,
-                b.trim()
-                    .parse::<f64>()
-                    .map_err(|_| format!("{name}: '{b}' is not a number"))?,
-            ])
-        })
-        .collect()
 }
 
 /// One editable tape-spec row: the dataset + price that distinguish a
@@ -141,49 +100,6 @@ struct GradingRow {
     /// Comma-separated spec ids this region may take (`base` = the
     /// case-level conductor).
     specs_text: String,
-}
-
-/// Parse the relative-turn-index shorthand:
-/// `start:1,2,3,5  frac:0.25,0.5,0.75  end:19,9,4,1,0` — any subset of the
-/// three groups, in any order.
-fn parse_turn_indices(text: &str) -> Result<Vec<RelativeTurnIndex>, String> {
-    let mut out = Vec::new();
-    for group in text.split_whitespace() {
-        let Some((kind, list)) = group.split_once(':') else {
-            return Err(format!(
-                "turn indices: '{group}' — expected kind:list (start:/frac:/end:)"
-            ));
-        };
-        for item in list.split(',').filter(|t| !t.trim().is_empty()) {
-            let item = item.trim();
-            out.push(match kind {
-                "start" => RelativeTurnIndex::FromStart {
-                    offset: item
-                        .parse::<u32>()
-                        .map_err(|_| format!("turn indices: '{item}' is not an integer"))?,
-                },
-                "end" => RelativeTurnIndex::FromEnd {
-                    offset: item
-                        .parse::<u32>()
-                        .map_err(|_| format!("turn indices: '{item}' is not an integer"))?,
-                },
-                "frac" => RelativeTurnIndex::Fraction {
-                    value: item
-                        .parse::<f64>()
-                        .map_err(|_| format!("turn indices: '{item}' is not a fraction"))?,
-                },
-                other => {
-                    return Err(format!(
-                        "turn indices: unknown group '{other}' (start:/frac:/end:)"
-                    ));
-                }
-            });
-        }
-    }
-    if out.is_empty() {
-        return Err("turn indices: at least one index is required".into());
-    }
-    Ok(out)
 }
 
 pub struct CaseDraft {
@@ -2635,33 +2551,6 @@ fn grid3(ui: &mut egui::Ui, label: &str, values: &mut [f64; 3]) {
     });
 }
 
-/// Parse `length_m : $/m` comma pairs into a piece-offering catalogue
-/// (`None` when empty). Used for both the case-level catalogue and each
-/// tape spec's own offerings.
-fn parse_offerings(text: &str) -> Result<Option<Vec<PieceOffering>>, String> {
-    let mut out = Vec::new();
-    for part in text.split(',') {
-        let part = part.trim();
-        if part.is_empty() {
-            continue;
-        }
-        let (len, price) = part
-            .split_once(':')
-            .ok_or_else(|| format!("piece offering '{part}' — expected length_m : $/m"))?;
-        out.push(PieceOffering {
-            length_m: len
-                .trim()
-                .parse()
-                .map_err(|_| format!("piece offering '{part}' — bad length"))?,
-            price_usd_per_m: price
-                .trim()
-                .parse()
-                .map_err(|_| format!("piece offering '{part}' — bad price"))?,
-        });
-    }
-    Ok((!out.is_empty()).then_some(out))
-}
-
 /// The shared price-provenance combo — same labels as `price_source`.
 fn price_source_combo(ui: &mut egui::Ui, salt: &str, idx: &mut usize) {
     const SOURCES: [&str; 5] = [
@@ -2678,17 +2567,6 @@ fn price_source_combo(ui: &mut egui::Ui, salt: &str, idx: &mut usize) {
                 ui.selectable_value(idx, i, *s);
             }
         });
-}
-
-/// The price-source combo index → schema class (0 = undeclared).
-fn price_source(i: usize) -> Option<PriceSource> {
-    match i {
-        1 => Some(PriceSource::Synthetic),
-        2 => Some(PriceSource::Estimated),
-        3 => Some(PriceSource::Published),
-        4 => Some(PriceSource::Quoted),
-        _ => None,
-    }
 }
 
 /// Wrap a wide table in a horizontal scroll area so a narrow window
@@ -2737,6 +2615,7 @@ fn station_table(ui: &mut egui::Ui, id: &str, stations: &mut Vec<StationRow>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use optcoil_model::coupled_search::{PriceSource, RelativeTurnIndex};
 
     /// The shipped defaults must produce a case the runner accepts —
     /// catches schema drift between the form and `from_json`'s gates.

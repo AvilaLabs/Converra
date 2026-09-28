@@ -13,9 +13,11 @@ forward are welcome, and the architecture docs explain where each lands.
   bundle can be signed, verified and shipped. The blocker is sourcing
   measured data, not code.
 - **More geometry families.** TF/D-shaped coils, solenoids and
-  non-planar windings. The `CoilPath`/`CoilPath3D` machinery exists;
-  certifying a new family means a kernel, a sampling plan and frozen
-  cross-checks, not a rewrite.
+  non-planar windings. The `CoilPath`/`CoilPath3D` machinery exists —
+  OC-031 exercises a helical layer end-to-end under a declared
+  Cartesian field map; certifying a new family means a kernel (or a
+  declared map), a sampling plan and frozen cross-checks, not a
+  rewrite.
 - **Critical-state model.** Transport ratios above 1 currently return
   INCONCLUSIVE — a real physics gap that needs the strip model.
 - **Deeper mechanical/thermal screens.** Today's Lorentz/hoop checks
@@ -25,9 +27,16 @@ forward are welcome, and the architecture docs explain where each lands.
 
 ## Optimization
 
-- **Continuous/structured optimization.** The search is an exhaustive
-  grid over discrete choices — deliberately simple and fully recorded.
-  A gradient-free or surrogate layer on top is a natural next step.
+- **Continuous/structured optimization.** Profiling (2025-12):
+  the largest shipped benchmark enumerates 36 candidates; wall time is
+  dominated by per-candidate field quadrature, not candidate count, so
+  a structured optimizer would not pay for itself on the current case
+  shape — and the one continuous axis (bend/straight geometry) is
+  enumerable at finer grids cheaper than a local search converges.
+  Deferred until a case ships with a candidate space (~10³+) or a
+  continuous axis where grid resolution demonstrably binds the answer.
+  What would genuinely help sooner: cheaper field evaluation — pruning
+  and adaptive quadrature are already partially implemented.
 
 ## Platform
 

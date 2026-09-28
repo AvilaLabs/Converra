@@ -7,8 +7,16 @@ use optcoil_model::{
     Check, CostBreakdown, Status, coupled::Station, coupled_search::CoupledSearchCase,
 };
 use optcoil_physics::tape_capacity_a;
-use optcoil_search::coupled_search::{CoupledSearchRunRecord, SearchCostLedger};
+use optcoil_search::coupled_search::CoupledSearchRunRecord;
 use optcoil_search::verify;
+
+mod metrics;
+
+pub(crate) use metrics::repriced_total_usd;
+use metrics::{
+    best_index_at_price, cost_values, lifecycle_at_price, search_cost_components, strands_suffix,
+    usd, usd_k,
+};
 
 const COST_LABELS: [&str; 4] = ["Conductor", "Scrap", "Assembly", "Joints"];
 
@@ -3345,79 +3353,6 @@ fn check_card(ui: &mut egui::Ui, check: &Check) {
     );
 }
 
-/// `" × 2 strands"` for multi-strand candidates, `""` for single-strand.
-fn strands_suffix(strands: u32) -> String {
-    if strands > 1 {
-        format!(" × {strands} strands")
-    } else {
-        String::new()
-    }
-}
-
-/// Exact closed-form repricing of one cost ledger — mirrors
-/// `optcoil-search::reprice`: conductor and scrap scale with $/m, assembly
-/// and joints are price-independent. Verdicts never move; only dollars do.
-/// v24 piece-policy ledgers price per-spec catalogues, not a scalar $/m —
-/// the slider cannot reprice them; the record's own `total_usd` stands.
-pub(crate) fn repriced_total_usd(
-    ledger: &SearchCostLedger,
-    price_usd_per_m: f64,
-    scrap_fraction: f64,
-) -> f64 {
-    if ledger.piece_plan.is_some() {
-        return ledger.total_usd;
-    }
-    ledger.installed_length_m * price_usd_per_m * (1.0 + scrap_fraction)
-        + ledger.assembly_usd
-        + ledger.joints_usd
-}
-
-/// Lifecycle at a hypothetical conductor price: repriced capex + the
-/// opex term (declared heat loads are price-independent — they pass
-/// through untouched).
-fn lifecycle_at_price(ledger: &SearchCostLedger, price_usd_per_m: f64, scrap_fraction: f64) -> f64 {
-    repriced_total_usd(ledger, price_usd_per_m, scrap_fraction) + ledger.opex_usd.unwrap_or(0.0)
-}
-
-/// Cheapest PASS candidate at `price` — the record's own `best_index` when
-/// the price equals the declared case price.
-fn best_index_at_price(
-    record: &CoupledSearchRunRecord,
-    price_usd_per_m: f64,
-    scrap_fraction: f64,
-) -> Option<usize> {
-    if (price_usd_per_m - record.case.cost.price_usd_per_m).abs() <= f64::EPSILON {
-        return record.best_index;
-    }
-    record
-        .candidates
-        .iter()
-        .enumerate()
-        .filter(|(_, c)| c.status == Status::Pass)
-        .min_by(|(_, a), (_, b)| {
-            repriced_total_usd(&a.cost, price_usd_per_m, scrap_fraction)
-                .total_cmp(&repriced_total_usd(
-                    &b.cost,
-                    price_usd_per_m,
-                    scrap_fraction,
-                ))
-                .then(a.geometry.total_turns.cmp(&b.geometry.total_turns))
-                .then(a.index.cmp(&b.index))
-        })
-        .map(|(i, _)| i)
-}
-
-/// Compact USD for map cells: `$201k` / `$8.7k` / `$640`.
-fn usd_k(value: f64) -> String {
-    if value.abs() >= 100_000.0 {
-        format!("${:.0}k", value / 1000.0)
-    } else if value.abs() >= 1_000.0 {
-        format!("${:.1}k", value / 1000.0)
-    } else {
-        format!("${:.0}", value)
-    }
-}
-
 /// Headroom bar color: blue with margin to spare, amber near the limit,
 /// red at/over it.
 fn headroom_color(usage: f64) -> Color32 {
@@ -3599,36 +3534,6 @@ fn limiting_anatomy(
     ));
 }
 
-/// Thousands-grouped USD, e.g. `$377,426.18`.
-fn usd(value: f64) -> String {
-    let sign = if value < 0.0 { "-" } else { "" };
-    let absolute = value.abs();
-    let mut whole = absolute.trunc() as u64;
-    let mut frac = ((absolute - whole as f64) * 100.0).round() as u64;
-    if frac == 100 {
-        whole += 1;
-        frac = 0;
-    }
-    let digits = whole.to_string();
-    let mut grouped = String::new();
-    for (i, c) in digits.chars().enumerate() {
-        if i > 0 && (digits.len() - i).is_multiple_of(3) {
-            grouped.push(',');
-        }
-        grouped.push(c);
-    }
-    format!("{sign}${grouped}.{frac:02}")
-}
-
-fn cost_values(cost: &CostBreakdown) -> [f64; 4] {
-    [
-        cost.installed_conductor_usd,
-        cost.scrap_usd,
-        cost.assembly_usd,
-        cost.joints_usd,
-    ]
-}
-
 fn cost_bars(
     name: &str,
     cost: &CostBreakdown,
@@ -3694,37 +3599,6 @@ fn metric(ui: &mut egui::Ui, label: &str, value: String, caption: &str, reveal: 
 
 /// A tinted status pill — the four-verdict vocabulary rendered as a label,
 /// matching the chips on the public page.
-/// Search-ledger cost components at the shown conductor price —
-/// conductor and scrap scale with price; assembly, joints and declared
-/// opex are price-independent and pass through.
-fn search_cost_components(
-    ledger: &SearchCostLedger,
-    price_usd_per_m: f64,
-    scrap_fraction: f64,
-) -> [(&'static str, f64); 5] {
-    if ledger.piece_plan.is_some() {
-        // v24: conductor/scrap are already priced per spec by the piece
-        // plan — report the ledger's own columns, not a re-scaling.
-        return [
-            ("Conductor", ledger.conductor_usd),
-            ("Scrap", ledger.scrap_usd),
-            ("Assembly", ledger.assembly_usd),
-            ("Joints", ledger.joints_usd),
-            ("Opex", ledger.opex_usd.unwrap_or(0.0)),
-        ];
-    }
-    [
-        ("Conductor", ledger.installed_length_m * price_usd_per_m),
-        (
-            "Scrap",
-            ledger.installed_length_m * price_usd_per_m * scrap_fraction,
-        ),
-        ("Assembly", ledger.assembly_usd),
-        ("Joints", ledger.joints_usd),
-        ("Opex", ledger.opex_usd.unwrap_or(0.0)),
-    ]
-}
-
 fn search_cost_bars(
     name: &str,
     components: &[(&'static str, f64)],
