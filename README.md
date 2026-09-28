@@ -2,7 +2,7 @@
 
 **Avila Labs' open-source coil cost optimization workbench, built in Rust and egui.** The engine and CLI crates are named `optcoil-*`; the desktop workbench is Converra.
 
-**Expert-level magnet optimization in minutes — with proof.** Converra searches for lower-cost, manufacturable HTS magnet designs while holding engineering requirements fixed, and produces an auditable evidence trail (independent acceptance, external kernel cross-checks, verdict semantics that distinguish PASS/FAIL/INCONCLUSIVE/NOT_EVALUATED) alongside the design. Validated to within ~3% of a physically built CERN HTS dipole's conductor mass (OC-010), with magnetostatics independently confirmed against Bluemira (OC-011). The repository ships the full engine, the benchmark suite it was developed against, and the evidence docs recording what each milestone actually proved.
+**Expert-level magnet optimization in minutes.** Converra searches for lower-cost, manufacturable HTS magnet designs while holding engineering requirements fixed, and produces an auditable evidence trail (independent acceptance, external kernel cross-checks, verdict semantics that distinguish PASS/FAIL/INCONCLUSIVE/NOT_EVALUATED) alongside the design. Validated to within ~3% of a physically built CERN HTS dipole's conductor mass (OC-010), with magnetostatics independently confirmed against Bluemira (OC-011). The repository ships the full engine, the benchmark suite it was developed against, and the evidence docs recording what each milestone actually proved.
 
 ## Start here
 
