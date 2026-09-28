@@ -6,13 +6,13 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Rust 1.95](https://img.shields.io/badge/Rust-1.95-orange.svg)](rust-toolchain.toml)
 
-[Converra.avilalabs.org](converra.avilalabs.org)
+[converra.avilalabs.org](https://converra.avilalabs.org) — run the workbench in your browser, no install
 
 Converra helps magnet engineers and researchers compare coil designs against a fixed specification. It searches winding-pack geometry and REBCO conductor choices, screens candidates against declared requirements, and produces a design record with modeled costs, material provenance, constraint checks, and unresolved engineering limits.
 
 Use the desktop workbench to explore designs, the CLI to run reproducible studies, or the Python bindings to integrate the engine into your own workflow. All calculations run locally through the same Rust engine.
 
-[Download](https://github.com/AvilaLabs/Converra/releases/latest) · [Quick start](#quick-start) · [Documentation](#documentation) · [Contributing](CONTRIBUTING.md)
+[Download](https://github.com/AvilaLabs/Converra/releases/latest) · [Try in your browser](https://converra.avilalabs.org) · [Quick start](#quick-start) · [Documentation](#documentation) · [Contributing](CONTRIBUTING.md)
 
 ![Converra desktop workbench comparing the costs and conductor allocations of a baseline and candidate design.](docs/images/design-comparison.png)
 
@@ -61,7 +61,7 @@ cd crates/optcoil-app && trunk serve
 
 The engine crates retain the `optcoil-*` names. Cargo defaults to the CLI, so headless commands build without the desktop graphics dependencies.
 
-The browser workbench (`trunk serve` in `crates/optcoil-app`) opens and inspects cases and records, authors cases, and downloads every export. Searches, folder-based features (library, bake-off directory, watch mode, run queue) and persistence need the desktop build — the browser is single-threaded, and a search would freeze the tab; the UI says so at each entry point.
+The browser workbench — hosted at [converra.avilalabs.org](https://converra.avilalabs.org), or `trunk serve` in `crates/optcoil-app` for a local build — opens and inspects cases and records, authors cases, and downloads every export. Searches, folder-based features (library, bake-off directory, watch mode, run queue) and persistence need the desktop build — the browser is single-threaded, and a search would freeze the tab; the UI says so at each entry point.
 
 ### Run a study from the CLI
 
