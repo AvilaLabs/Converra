@@ -1,0 +1,155 @@
+name: release
+
+# Tag a release: `git tag v0.2.0 && git push origin v0.2.0`. Builds the
+# workbench and CLI on every supported platform, packages them (.app on
+# macOS, .zip elsewhere), and attaches everything to a GitHub Release.
+#
+# Signing is optional and secret-gated: with no secrets configured the
+# workflow produces unsigned-but-working artifacts. Add the secrets listed
+# in packaging/README.md and the same workflow signs and notarizes.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  # Secrets are only visible to `if:` through an env mapping.
+  MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+  WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact: converra-macos-arm64
+          - os: macos-13
+            target: x86_64-apple-darwin
+            artifact: converra-macos-x64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: converra-windows-x64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: converra-linux-x64
+    runs-on: ${{ matrix.os }}
+    env:
+      MACOS_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+      MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - run: rustup target add ${{ matrix.target }}
+
+      - name: Build release binaries
+        run: cargo build --release --target ${{ matrix.target }} -p optcoil-app -p optcoil-cli
+
+      # ---------- macOS: bundle → (sign) → (notarize) → zip ----------
+      - name: Bundle Converra.app
+        if: runner.os == 'macOS'
+        run: packaging/make-app.sh "target/${{ matrix.target }}/release/optcoil-app" "${GITHUB_REF_NAME#v}"
+
+      - name: Import signing certificate
+        if: runner.os == 'macOS' && env.MACOS_CERTIFICATE != ''
+        run: |
+          echo "$MACOS_CERTIFICATE" | base64 --decode > signing.p12
+          security create-keychain -p ci ci.keychain
+          security default-keychain -s ci.keychain
+          security unlock-keychain -p ci ci.keychain
+          security import signing.p12 -k ci.keychain \
+            -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: \
+            -s -k ci ci.keychain
+
+      - name: Sign the app
+        if: runner.os == 'macOS' && env.MACOS_CERTIFICATE != ''
+        run: |
+          codesign --force --options runtime --timestamp \
+            --sign "$MACOS_CODESIGN_IDENTITY" Converra.app
+          codesign --verify --verbose=2 Converra.app
+
+      - name: Package for release
+        if: runner.os == 'macOS'
+        run: |
+          ditto -c -k --keepParent Converra.app "${{ matrix.artifact }}.zip"
+          # The CLI ships beside the app for headless/HPC users.
+          tar -czf "${{ matrix.artifact }}-cli.tar.gz" \
+            -C "target/${{ matrix.target }}/release" optcoil
+
+      - name: Notarize the app
+        if: runner.os == 'macOS' && env.APPLE_ID != ''
+        run: |
+          xcrun notarytool submit "${{ matrix.artifact }}.zip" \
+            --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" --wait
+          xcrun stapler staple Converra.app
+          ditto -c -k --keepParent Converra.app "${{ matrix.artifact }}.zip"
+
+      # ---------- Windows: (sign) → zip ----------
+      - name: Import signing certificate
+        if: runner.os == 'Windows' && env.WINDOWS_CERTIFICATE != ''
+        run: |
+          [IO.File]::WriteAllBytes("signing.pfx",
+            [Convert]::FromBase64String("$env:WINDOWS_CERTIFICATE"))
+
+      - name: Sign the binaries
+        if: runner.os == 'Windows' && env.WINDOWS_CERTIFICATE != ''
+        run: |
+          $pfx = Resolve-Path signing.pfx
+          foreach ($exe in "optcoil-app.exe", "optcoil.exe") {
+            $bin = "target/${{ matrix.target }}/release/$exe"
+            & signtool sign /fd sha256 /td sha256 /tr http://timestamp.digicert.com `
+              /f $pfx /p "$env:WINDOWS_CERTIFICATE_PASSWORD" $bin
+          }
+
+      - name: Package for release
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $stage = "stage"; New-Item -ItemType Directory $stage
+          Copy-Item "target/${{ matrix.target }}/release/optcoil-app.exe" "$stage/Converra.exe"
+          Copy-Item "target/${{ matrix.target }}/release/optcoil.exe" "$stage/optcoil.exe"
+          Compress-Archive "$stage/*" "${{ matrix.artifact }}.zip"
+
+      # ---------- Linux: tar.gz ----------
+      - name: Package for release
+        if: runner.os == 'Linux'
+        run: |
+          mkdir stage
+          cp "target/${{ matrix.target }}/release/optcoil-app" stage/Converra
+          cp "target/${{ matrix.target }}/release/optcoil" stage/
+          tar -czf "${{ matrix.artifact }}.tar.gz" -C stage .
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            ${{ matrix.artifact }}.zip
+            ${{ matrix.artifact }}.tar.gz
+            ${{ matrix.artifact }}-cli.tar.gz
+          if-no-files-found: ignore
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            converra-*.zip
+            converra-*.tar.gz
+          generate_release_notes: true
