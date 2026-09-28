@@ -3,6 +3,12 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::ExitCode,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    thread,
+    time::Duration,
 };
 
 use clap::{Args, Parser, Subcommand};
@@ -23,8 +29,8 @@ use optcoil_search::{
     coupled::{CoupledOptions, CoupledRunRecord, run_coupled_case, run_oc004},
     coupled_refine::{CoupledRefineOptions, CoupledRefineRunRecord, run_oc008},
     coupled_search::{
-        CoupledSearchOptions, CoupledSearchRunRecord, run_coupled_search_case,
-        run_coupled_search_case_with_dataset, run_oc007,
+        CoupledSearchOptions, CoupledSearchRunRecord, SearchProgress,
+        run_coupled_search_case_with_dataset_progress, run_oc007,
     },
     field::{FieldOptions, FieldRunRecord, run_field_case, run_oc002},
     kernel_crosscheck::run_kernel_crosscheck,
@@ -713,15 +719,49 @@ fn execute(cli: Cli) -> Result<(), Box<dyn Error>> {
         }
         Command::CoupledSearch { case, args } => {
             let json = fs::read_to_string(case)?;
-            let record = match args.dataset()? {
-                Some(dataset) => run_coupled_search_case_with_dataset(
-                    &json,
-                    &args.options(),
-                    Some(dataset),
-                    &std::sync::atomic::AtomicBool::new(false),
-                )?,
-                None => run_coupled_search_case(&json, &args.options())?,
+            let dataset = args.dataset()?;
+            // Long grids print a progress line every 2 s on stderr —
+            // silent until enumeration lands, and quiet for fast cases.
+            // Progress is a view concern only; verdicts/ledger unchanged.
+            let progress = Arc::new(SearchProgress::new());
+            let done_flag = Arc::new(AtomicBool::new(false));
+            let reporter = {
+                let progress = Arc::clone(&progress);
+                let done_flag = Arc::clone(&done_flag);
+                thread::spawn(move || {
+                    while !done_flag.load(Ordering::Relaxed) {
+                        thread::sleep(Duration::from_secs(2));
+                        if done_flag.load(Ordering::Relaxed) {
+                            break;
+                        }
+                        let (fraction, done, planned) = progress.fraction();
+                        let n_done = progress.candidates_done.load(Ordering::Relaxed);
+                        let n_total = progress.candidates_total.load(Ordering::Relaxed);
+                        if n_total == 0 {
+                            continue;
+                        }
+                        if planned > 0 {
+                            eprintln!(
+                                "{n_done}/{n_total} candidates · {done}/{planned} field evals ({:.0}%) · {}",
+                                fraction * 100.0,
+                                progress.phase_label(),
+                            );
+                        } else {
+                            eprintln!("{n_done}/{n_total} candidates · {}", progress.phase_label(),);
+                        }
+                    }
+                })
             };
+            let record = run_coupled_search_case_with_dataset_progress(
+                &json,
+                &args.options(),
+                dataset,
+                &AtomicBool::new(false),
+                Some(progress.as_ref()),
+            );
+            done_flag.store(true, Ordering::Relaxed);
+            let _ = reporter.join();
+            let record = record?;
             finish_coupled_search(&record, &args)?;
         }
         Command::Sensitivity { case, spec, args } => {

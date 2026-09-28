@@ -1729,7 +1729,7 @@ impl CaseDraft {
             );
             ui.add_space(8.0);
 
-            section(ui, "Identity", |ui| {
+            form_section(ui, "Identity", |ui| {
                 field(ui, "Case id", |ui| ui.text_edit_singleline(&mut self.id));
                 field(ui, "Provenance", |ui| {
                     ui.text_edit_multiline(&mut self.provenance)
@@ -1740,7 +1740,7 @@ impl CaseDraft {
                 );
             });
 
-            section(ui, "Requirement", |ui| {
+            form_section(ui, "Requirement", |ui| {
                 grid3(ui, "Bore probe (m)", &mut self.bore_probe);
                 field(ui, "B target (T)", |ui| {
                     ui.add(egui::DragValue::new(&mut self.b_target_t).speed(0.1))
@@ -1838,7 +1838,7 @@ impl CaseDraft {
                 }
             });
 
-            section(ui, "Field map (schema v14)", |ui| {
+            form_section(ui, "Field map (schema v14)", |ui| {
                 if let Some(map) = &self.field_map {
                     let (grid, hull) = match map {
                         FieldMap::CartesianBxByBz {
@@ -1916,7 +1916,7 @@ impl CaseDraft {
                 }
             });
 
-            section(ui, "Fixed geometry", |ui| {
+            form_section(ui, "Fixed geometry", |ui| {
                 egui::ComboBox::from_label("Centerline")
                     .selected_text(if self.use_path {
                         "custom path — lines + arcs (schema v9)"
@@ -1983,7 +1983,7 @@ impl CaseDraft {
                     });
             });
 
-            section(ui, "Search choices", |ui| {
+            form_section(ui, "Search choices", |ui| {
                 field(ui, "Turns along normal", |ui| {
                     ui.text_edit_singleline(&mut self.turns_text)
                 });
@@ -1999,7 +1999,7 @@ impl CaseDraft {
                 );
             });
 
-            section(ui, "Operating point", |ui| {
+            form_section(ui, "Operating point", |ui| {
                 field(ui, "Temperature (K)", |ui| {
                     ui.add(egui::DragValue::new(&mut self.temperature_k).speed(0.5))
                 });
@@ -2008,7 +2008,7 @@ impl CaseDraft {
                 });
             });
 
-            section(ui, "Material dataset", |ui| {
+            form_section(ui, "Material dataset", |ui| {
                 self.dataset_picker(ui);
                 field(ui, "Low-field clamp (T)", |ui| {
                     ui.add(egui::DragValue::new(&mut self.low_field_clamp_t).speed(0.001))
@@ -2018,7 +2018,7 @@ impl CaseDraft {
                 });
             });
 
-            section(ui, "Conductor specs & grading (schema v10)", |ui| {
+            form_section(ui, "Conductor specs & grading (schema v10)", |ui| {
                 ui.colored_label(
                     brand::MUTED,
                     "Purchasable conductor variants beyond the base dataset — each a dataset + price. Grading regions assign which specs may wind which turn ranges; uncovered turns take the base conductor.",
@@ -2145,7 +2145,7 @@ impl CaseDraft {
                 }
             });
 
-            section(ui, "Sampling plan", |ui| {
+            form_section(ui, "Sampling plan", |ui| {
                 wide_table(ui, "stations-h", |ui| {
                     station_table(ui, "sampling-stations", &mut self.stations, self.use_path)
                 });
@@ -2158,7 +2158,7 @@ impl CaseDraft {
                 );
             });
 
-            section(ui, "Screening limits & models", |ui| {
+            form_section(ui, "Screening limits & models", |ui| {
                 field(ui, "Utilization limit", |ui| {
                     ui.add(
                         egui::DragValue::new(&mut self.utilization_limit)
@@ -2201,7 +2201,7 @@ impl CaseDraft {
                     });
             });
 
-            section(ui, "Numerics", |ui| {
+            form_section(ui, "Numerics", |ui| {
                 field(ui, "Quadrature orders (coarse, final)", |ui| {
                     ui.horizontal(|ui| {
                         ui.add(egui::DragValue::new(&mut self.quadrature_lo).range(2..=24));
@@ -2219,7 +2219,7 @@ impl CaseDraft {
                 });
             });
 
-            section(ui, "Cost basis", |ui| {
+            form_section(ui, "Cost basis", |ui| {
                 field(ui, "Price ($/m)", |ui| {
                     ui.add(egui::DragValue::new(&mut self.price_usd_per_m).speed(1.0))
                 });
@@ -2237,7 +2237,7 @@ impl CaseDraft {
                 });
             });
 
-            section(ui, "Piece procurement (schema v24)", |ui| {
+            form_section(ui, "Piece procurement (schema v24)", |ui| {
                 ui.checkbox(
                     &mut self.use_piece_policy,
                     "Buy conductor in discrete pieces",
@@ -2290,7 +2290,7 @@ impl CaseDraft {
                 }
             });
 
-            section(ui, "Opex — lifecycle economics (schema v20)", |ui| {
+            form_section(ui, "Opex — lifecycle economics (schema v20)", |ui| {
                 ui.checkbox(&mut self.use_opex, "Declare refrigeration economics");
                 if self.use_opex {
                     ui.indent("opex", |ui| {
@@ -2345,7 +2345,7 @@ impl CaseDraft {
                 }
             });
 
-            section(ui, "Baseline", |ui| {
+            form_section(ui, "Baseline", |ui| {
                 field(ui, "Turns along normal", |ui| {
                     ui.add(egui::DragValue::new(&mut self.baseline_turns).speed(10))
                 });
@@ -2361,7 +2361,7 @@ impl CaseDraft {
                 });
             });
 
-            section(ui, "Refined acceptance plan", |ui| {
+            form_section(ui, "Refined acceptance plan", |ui| {
                 wide_table(ui, "refined-h", |ui| {
                     station_table(
                         ui,
@@ -2375,7 +2375,7 @@ impl CaseDraft {
                 });
             });
 
-            section(ui, "Refinement plan (bracketing bisection)", |ui| {
+            form_section(ui, "Refinement plan (bracketing bisection)", |ui| {
                 field(ui, "Pancake counts", |ui| {
                     ui.text_edit_singleline(&mut self.pancake_counts_text)
                 });
@@ -2424,7 +2424,7 @@ impl CaseDraft {
                 );
             });
 
-            section(ui, "Manufacturing & mechanical screens", |ui| {
+            form_section(ui, "Manufacturing & mechanical screens", |ui| {
                 ui.checkbox(
                     &mut self.use_manufacturing,
                     "Manufacturing limits (schema v3+)",
@@ -2468,7 +2468,7 @@ impl CaseDraft {
                 }
             });
 
-            section(ui, "Declared screens (schemas v15–v18)", |ui| {
+            form_section(ui, "Declared screens (schemas v15–v18)", |ui| {
                 ui.colored_label(
                     brand::MUTED,
                     "Customer-declared bounds — each declares a physical limit the screening records and gates against; INCONCLUSIVE where the declared tables don't reach the answer.",
@@ -2601,7 +2601,7 @@ impl CaseDraft {
                 }
             });
 
-            section(ui, "Execution", |ui| {
+            form_section(ui, "Execution", |ui| {
                 field(ui, "Max threads", |ui| {
                     ui.add(egui::DragValue::new(&mut self.max_threads).range(1..=64))
                 });
@@ -2611,7 +2611,12 @@ impl CaseDraft {
             if let Some(error) = &self.error
                 && *error != "__closed__"
             {
-                ui.colored_label(status_red(), error.to_string());
+                // Point at the owning section — a bare "contract §9.4"
+                // citation leaves a newcomer hunting a 20-section form.
+                let hint = section_hint(error)
+                    .map(|s| format!("{s}: "))
+                    .unwrap_or_default();
+                ui.colored_label(status_red(), format!("{hint}{error}"));
                 ui.add_space(6.0);
             }
             ui.horizontal(|ui| {
@@ -2688,7 +2693,7 @@ impl CaseDraft {
     fn path_editor(&mut self, ui: &mut egui::Ui) {
         ui.colored_label(
             brand::MUTED,
-            "Ordered centerline segments; the loop must close in position and tangent. Stations on a path case address the centerline by arc length (s, m).",
+            "Ordered centerline segments; the loop must close in position and tangent. Switching from racetrack seeds the equivalent segment list — edit from there. Stations on a path case address the centerline by arc length (s, m).",
         );
         let mut remove = None;
         egui::Grid::new("path-segments")
@@ -2826,10 +2831,83 @@ fn status_red() -> egui::Color32 {
     egui::Color32::from_rgb(0xc0, 0x39, 0x2b)
 }
 
+/// Map a build/schema error to the form section owning the field, so
+/// the save banner reads "Refined acceptance plan: <error>" instead of
+/// a bare contract citation. Most-specific needles first — the error
+/// text is the schema's own (e.g. `refined_plan.additional_stations…`).
+fn section_hint(error: &str) -> Option<&'static str> {
+    const MAP: &[(&str, &str)] = &[
+        ("refined_plan", "Refined acceptance plan"),
+        ("refinement", "Refinement plan (bracketing bisection)"),
+        ("pruning", "Numerics"),
+        ("numerics", "Numerics"),
+        ("mechanical", "Manufacturing & mechanical screens"),
+        ("manufacturing", "Manufacturing & mechanical screens"),
+        ("thermal_margin", "Declared screens (schemas v15–v18)"),
+        ("ac_loss", "Declared screens (schemas v15–v18)"),
+        ("quench", "Declared screens (schemas v15–v18)"),
+        ("screening_current", "Declared screens (schemas v15–v18)"),
+        ("transition", "Declared screens (schemas v15–v18)"),
+        ("tape_spec", "Conductor specs & grading (schema v10)"),
+        ("grading", "Conductor specs & grading (schema v10)"),
+        ("field_map", "Field map (schema v14)"),
+        ("piece_policy", "Piece procurement (schema v24)"),
+        ("opex", "Opex — lifecycle economics (schema v20)"),
+        ("sampling", "Sampling plan"),
+        ("station", "Sampling plan"),
+        ("choices", "Search choices"),
+        ("baseline", "Baseline"),
+        ("path", "Fixed geometry"),
+        ("fixed_geometry", "Fixed geometry"),
+        ("bend_radius", "Fixed geometry"),
+        ("straight_half", "Fixed geometry"),
+        ("material", "Material dataset"),
+        ("dataset", "Material dataset"),
+        ("operating", "Operating point"),
+        ("temperature", "Operating point"),
+        ("cost", "Cost basis"),
+        ("requirement", "Requirement"),
+        ("good_field", "Requirement"),
+        ("bore", "Requirement"),
+        ("execution", "Execution"),
+        ("threads", "Execution"),
+    ];
+    MAP.iter()
+        .find(|(needle, _)| error.contains(needle))
+        .map(|(_, section)| *section)
+}
+
 fn section(ui: &mut egui::Ui, name: &str, add: impl FnOnce(&mut egui::Ui)) {
     ui.add_space(6.0);
     ui.label(RichText::new(name).strong().color(brand::BLUE));
     add(ui);
+}
+
+/// The full case form is twenty sections deep — collapsible headers
+/// keep the wall readable. Core blocks (the path a new case walks:
+/// identity → requirement → geometry → material → cost → baseline →
+/// run) stay open; advanced blocks arrive collapsed. egui remembers
+/// the open state per name, so a user's arrangement persists.
+fn form_section(ui: &mut egui::Ui, name: &str, add: impl FnOnce(&mut egui::Ui)) {
+    const CORE: &[&str] = &[
+        "Identity",
+        "Requirement",
+        "Fixed geometry",
+        "Search choices",
+        "Operating point",
+        "Material dataset",
+        "Cost basis",
+        "Baseline",
+        "Execution",
+    ];
+    egui::CollapsingHeader::new(RichText::new(name).strong().color(brand::BLUE))
+        .id_salt(name)
+        .default_open(CORE.contains(&name))
+        .show(ui, |ui| {
+            ui.add_space(2.0);
+            add(ui);
+            ui.add_space(10.0);
+        });
 }
 
 fn field<R>(ui: &mut egui::Ui, label: &str, add: impl FnOnce(&mut egui::Ui) -> R) {
@@ -2878,15 +2956,24 @@ fn wide_table(ui: &mut egui::Ui, salt: &str, add: impl FnOnce(&mut egui::Ui)) {
 }
 
 fn station_table(ui: &mut egui::Ui, id: &str, stations: &mut Vec<StationRow>, path_case: bool) {
+    // A row's addressing must match the declared geometry: a path case
+    // rejects straight/arc stations and vice versa — flag mismatches
+    // rather than letting save-time validation surprise the author.
+    let mismatched = |kind: StationKind| (kind == StationKind::Path) != path_case;
     let mut remove = None;
     egui::Grid::new(id).num_columns(4).show(ui, |ui| {
         for (i, s) in stations.iter_mut().enumerate() {
             ui.add(egui::TextEdit::singleline(&mut s.id).desired_width(140.0));
+            let label = match s.kind {
+                StationKind::Arc => "arc",
+                StationKind::Path => "path (s)",
+                StationKind::Straight => "straight",
+            };
             egui::ComboBox::from_id_salt((id, i))
-                .selected_text(match s.kind {
-                    StationKind::Arc => "arc",
-                    StationKind::Path => "path (s)",
-                    StationKind::Straight => "straight",
+                .selected_text(if mismatched(s.kind) {
+                    RichText::new(format!("{label} ⚠")).color(status_red())
+                } else {
+                    RichText::new(label)
                 })
                 .show_ui(ui, |ui| {
                     // Straight/arc stations address racetrack geometry;
@@ -2923,6 +3010,21 @@ fn station_table(ui: &mut egui::Ui, id: &str, stations: &mut Vec<StationRow>, pa
             },
             param: 0.0,
         });
+    }
+    let stale = stations.iter().filter(|s| mismatched(s.kind)).count();
+    if stale > 0 {
+        ui.colored_label(
+            status_red(),
+            if path_case {
+                format!(
+                    "{stale} station(s) still address racetrack geometry — a path case needs path (s) stations"
+                )
+            } else {
+                format!(
+                    "{stale} path (s) station(s) on a racetrack case — switch them to straight or arc"
+                )
+            },
+        );
     }
 }
 
