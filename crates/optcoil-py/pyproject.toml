@@ -1,0 +1,22 @@
+[build-system]
+requires = ["maturin>=1.5"]
+build-backend = "maturin"
+
+[project]
+name = "converra"
+description = "HTS coil cost optimization and screening engine — the same core the optcoil CLI and workbench run"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "Avila Labs" }]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+
+[tool.maturin]
+# The extension module is `converra`; the Rust lib produces it directly.
+module-name = "converra"
+manifest-path = "Cargo.toml"

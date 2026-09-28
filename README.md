@@ -66,6 +66,28 @@ The desktop uses ACTINV's light Avila Labs theme and logo. Open projects with a 
 
 Native desktop previews: [design comparison](docs/images/design-comparison.png) and [material envelope](docs/images/material-envelope.png). These show the actual synthetic benchmark run.
 
+### Python
+
+The engine is also a Python module — JSON in, JSON out, byte-identical
+records to the CLI:
+
+```bash
+pip install maturin
+maturin develop --manifest-path crates/optcoil-py/Cargo.toml
+```
+
+```python
+import converra
+record_json = converra.run_search(open("case.json").read())
+converra.verify_record(record_json)   # independent ledger checks
+converra.render_report(record_json)   # standalone HTML evidence digest
+converra.list_datasets()              # embedded material datasets
+```
+
+See [crates/optcoil-py/README.md](crates/optcoil-py/README.md) for the
+full surface. Wheels are not on PyPI yet — that is on the
+[roadmap](ROADMAP.md).
+
 **Desktop project input is OptCoil case JSON.** The CLI also imports measured-material CSV files with explicit SI columns and provenance metadata; see [OC-003 commands](docs/OC003.md). STEP CAD import, general Excel import, GUI column mapping and native solver connections are planned. JSON remains the internal case format, not a claimed industry-standard coil interchange format. The workbench's "New search case" builder authors and schema-validates coupled-search cases (`optcoil-coupled-search/v9`) before saving; path-geometry (`fixed_geometry.path`) cases are still authored as JSON externally, though the workbench renders their outlines; other case kinds are still edited externally.
 
 On Linux the desktop needs a graphical session and graphics drivers. Headless users can run every calculation through the CLI. `cargo run --release -p optcoil-app` builds an optimized desktop binary. Cargo's default workspace member is the CLI, so ordinary headless commands do not compile graphics dependencies.
@@ -105,7 +127,7 @@ The allocation model still uses prescribed fields and ideal current sharing. OC-
 
 Allsolve, COMSOL and Ansys have explicit adapter contracts and capability placeholders. **No commercial solver connector is implemented.** FEM, CAD import, continuous optimization and production engineering acceptance remain future work. The first measured material entry is research characterization, not a qualified library of supplier lots.
 
-Permitted manufacturing changes, width transfer and the remaining engineering checks are the next work. See [architecture](docs/ARCHITECTURE.md), [allocation benchmark](docs/BENCHMARK.md), [field benchmark](docs/OC002.md), [material benchmark](docs/OC003.md) and [coupled screening benchmark](docs/OC004.md).
+Permitted manufacturing changes, width transfer and the remaining engineering checks are the next work. See [the roadmap](ROADMAP.md), [architecture](docs/ARCHITECTURE.md), [allocation benchmark](docs/BENCHMARK.md), [field benchmark](docs/OC002.md), [material benchmark](docs/OC003.md) and [coupled screening benchmark](docs/OC004.md).
 
 ## Development
 

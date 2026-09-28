@@ -639,6 +639,19 @@ impl MaterialDataset {
     /// Factory Japan YBCO over the same 20-40 K temperature window but a
     /// denser field grid (0.01-8 T), including a 0.01-0.7 T decade the
     /// other embedded datasets do not cover.
+    /// Every id `embedded_by_id` accepts, in declaration order. Kept next
+    /// to the match so adding a dataset updates both at once.
+    pub const EMBEDDED_IDS: &[&str] = &[
+        SUPERPOWER_ID,
+        SUPERPOWER_LOWFIELD_ID,
+        SUPERPOWER_MODELEXT_ID,
+        SHANGHAI_HFLT_ID,
+        THEVA_AP_ID,
+        FFJ_YBCO_ID,
+        BABOUCHE_SP_ID,
+        BABOUCHE_SST_ID,
+    ];
+
     /// An unrecognized id is rejected explicitly rather than silently
     /// falling back to any embedded dataset.
     pub fn embedded_by_id(id: &str) -> Result<Self, ModelError> {
@@ -1040,6 +1053,22 @@ mod tests {
 
         assert!(MaterialDataset::embedded_by_id("robinson-superpower-ap-v3-nonexistent").is_err());
         assert!(MaterialDataset::embedded_by_id("").is_err());
+    }
+
+    /// `EMBEDDED_IDS` is the public enumeration clients use to discover
+    /// datasets — every entry must resolve and report its own id, so a
+    /// dataset added to `embedded_by_id` but not the list fails loudly
+    /// here instead of becoming invisible.
+    #[test]
+    fn embedded_ids_enumerate_every_loadable_dataset() {
+        for id in MaterialDataset::EMBEDDED_IDS {
+            let ds = MaterialDataset::embedded_by_id(id)
+                .unwrap_or_else(|_| panic!("EMBEDDED_IDS entry {id} does not load"));
+            assert_eq!(&ds.metadata.id, id);
+        }
+        // And the reverse direction: the constant ids are exactly the
+        // declared metadata ids — no alias resolves silently.
+        assert_eq!(MaterialDataset::EMBEDDED_IDS.len(), 8);
     }
 
     /// The bundle is the customer-data path: one file carrying the same

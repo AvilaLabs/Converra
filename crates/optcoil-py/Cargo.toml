@@ -1,0 +1,24 @@
+[package]
+name = "optcoil-py"
+description = "Python bindings (pyo3) for the Converra headless engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+# cdylib only: this crate exists to be dlopen'd as a Python extension,
+# not linked into other Rust code.
+crate-type = ["cdylib"]
+
+[dependencies]
+optcoil-model.workspace = true
+optcoil-search.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+pyo3 = { workspace = true }
+
+# pyo3 generates unsafe code; this crate opts out of the workspace lint.
+[lints]

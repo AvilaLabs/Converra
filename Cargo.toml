@@ -6,6 +6,7 @@ members = [
     "crates/optcoil-adapters",
     "crates/optcoil-cli",
     "crates/optcoil-app",
+    "crates/optcoil-py",
 ]
 default-members = ["crates/optcoil-cli"]
 resolver = "3"
@@ -26,6 +27,7 @@ eframe = { version = "0.36.1", features = ["glow"] }
 egui_extras = { version = "0.36.1", default-features = false }
 egui_plot = "0.37.0"
 image = { version = "0.25", default-features = false, features = ["png"] }
+pyo3 = { version = "0.27", features = ["extension-module"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
 rfd = "0.16.0"
 serde = { version = "1", features = ["derive"] }
