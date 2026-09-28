@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Rust 1.95](https://img.shields.io/badge/Rust-1.95-orange.svg)](rust-toolchain.toml)
 
-Converra.avilalabs.org
+[Converra.avilalabs.org](converra.avilalabs.org)
 
 Converra helps magnet engineers and researchers compare coil designs against a fixed specification. It searches winding-pack geometry and REBCO conductor choices, screens candidates against declared requirements, and produces a design record with modeled costs, material provenance, constraint checks, and unresolved engineering limits.
 
