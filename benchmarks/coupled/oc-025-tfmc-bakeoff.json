@@ -8,6 +8,8 @@
     { "dataset_id": "robinson-ffj-ybco-v1" },
     { "dataset_id": "robinson-theva-ap-v2" },
     { "dataset_id": "babouche-superpower-m31477-memfit-v1" },
-    { "dataset_id": "babouche-sst-yp506-memfit-v1" }
+    { "dataset_id": "babouche-sst-yp506-memfit-v1" },
+    { "dataset_id": "babouche-superpower-m31477-memfit-v2" },
+    { "dataset_id": "babouche-sst-yp506-memfit-v2" }
   ]
 }
