@@ -6,13 +6,11 @@
 //! what the runner will parse — never a hand-built JSON string that
 //! only looks right.
 //!
-//! Authored surface: the racetrack pair or a general line+arc `path`
-//! (v9), `tape_specs`/`grading` (v10+), declared field maps (v13+),
-//! v21 geometry search axes, and the declared-screen blocks (thermal
-//! margin, AC loss, quench hotspot/transient, screening current,
-//! transition — v15–v18). Not yet authored: `path3d` helixes (v19)
-//! and angular-sweep segments; those still start from a hand-written
-//! or derived JSON case.
+//! Authored surface: the racetrack pair, a general line+arc `path`,
+//! or a helical `path3d` (all v9), `tape_specs`/`grading` (v10+),
+//! declared field maps (v13+), v21 geometry search axes, and the
+//! declared-screen blocks (thermal margin, AC loss, quench
+//! hotspot/transient, screening current, transition — v15–v18).
 
 use eframe::egui::{self, RichText};
 use optcoil_model::{
@@ -31,6 +29,7 @@ use optcoil_model::{
     },
     material::MaterialDataset,
     path::{CoilPath, PathSegment},
+    path3d::{CoilPath3D, PathSegment3D},
     product::{ProductRegistry, RegistryProduct},
 };
 use sha2::{Digest, Sha256};
@@ -43,9 +42,19 @@ use parse::{
     price_source,
 };
 
+/// Centerline family: the racetrack pair, a planar `path` (schema v9),
+/// or a non-planar helix `path3d` (schema v9 — requires a declared
+/// field map and a radial tape normal).
+#[derive(Clone, Copy, PartialEq)]
+enum CenterlineKind {
+    Racetrack,
+    Path,
+    Path3D,
+}
+
 /// Station addressing: racetrack cases sample straights by x and arcs
-/// by azimuth; `path` cases (schema v9) address the centerline by arc
-/// length `s_m`.
+/// by azimuth; `path`/`path3d` cases (schema v9) address the centerline
+/// by arc length `s_m`.
 #[derive(Clone, Copy, PartialEq)]
 enum StationKind {
     Straight,
@@ -124,6 +133,42 @@ impl PathSegmentRow {
     }
 }
 
+/// One editable `path3d` helix segment — the CCT/CORC element.
+struct HelixSegmentRow {
+    axis_origin_m: [f64; 3],
+    axis_dir: [f64; 3],
+    radius_m: f64,
+    start_azimuth_deg: f64,
+    turns: f64,
+    rise_per_turn_m: f64,
+}
+
+impl HelixSegmentRow {
+    /// A solenoid-layer winding like the OC-031 benchmark — the seed
+    /// when switching the centerline to helix mode.
+    fn solenoid() -> Self {
+        Self {
+            axis_origin_m: [0.0; 3],
+            axis_dir: [0.0, 0.0, 1.0],
+            radius_m: 0.025,
+            start_azimuth_deg: 0.0,
+            turns: 50.0,
+            rise_per_turn_m: 0.004,
+        }
+    }
+
+    fn segment(&self) -> PathSegment3D {
+        PathSegment3D::Helix {
+            axis_origin_m: self.axis_origin_m,
+            axis_dir: self.axis_dir,
+            radius_m: self.radius_m,
+            start_azimuth_deg: self.start_azimuth_deg,
+            turns: self.turns,
+            rise_per_turn_m: self.rise_per_turn_m,
+        }
+    }
+}
+
 /// One editable opex heat-load term row.
 struct HeatLoadRow {
     id: String,
@@ -182,13 +227,17 @@ pub struct CaseDraft {
     harmonic_skew_bound: f64,
     straight_half_length_m: f64,
     bend_radius_m: f64,
-    /// Schema v9: author a general line+arc `path` instead of the
-    /// racetrack pair — the dims and their search axes are suppressed.
-    use_path: bool,
+    /// Centerline family — a `path`/`path3d` suppresses the racetrack
+    /// dims and their search axes.
+    centerline: CenterlineKind,
     path_segments: Vec<PathSegmentRow>,
     path_start_x_m: f64,
     path_start_y_m: f64,
     path_start_heading_deg: f64,
+    /// Schema v9 helix segments — a `path3d` winding (CCT/CORC class).
+    /// Open by default: a helical layer's ends are its leads.
+    path3d_segments: Vec<HelixSegmentRow>,
+    path3d_closed: bool,
     /// Schema v21: racetrack dims as declared search axes — when set,
     /// the fixed field is absent and the axis list + baseline apply.
     search_bend_radius: bool,
@@ -394,11 +443,13 @@ impl Default for CaseDraft {
             harmonic_skew_bound: 0.001,
             straight_half_length_m: 0.15,
             bend_radius_m: 0.09,
-            use_path: false,
+            centerline: CenterlineKind::Racetrack,
             path_segments: Vec::new(),
             path_start_x_m: 0.0,
             path_start_y_m: 0.0,
             path_start_heading_deg: 0.0,
+            path3d_segments: Vec::new(),
+            path3d_closed: false,
             search_bend_radius: false,
             bend_radius_text: "0.09, 0.12, 0.15".into(),
             baseline_bend_radius: 0.09,
@@ -576,15 +627,49 @@ impl CaseDraft {
         })
     }
 
+    /// Assemble the declared `path3d` centerline — unvalidated, like
+    /// `coil_path`, so the preview can draw mid-edit. `build()` runs
+    /// `CoilPath3D::validate` (continuity +, when declared, closure).
+    fn coil_path3d(&self) -> Result<CoilPath3D, String> {
+        if self.path3d_segments.is_empty() {
+            return Err("a helix path needs at least one segment".into());
+        }
+        Ok(CoilPath3D {
+            segments: self
+                .path3d_segments
+                .iter()
+                .map(HelixSegmentRow::segment)
+                .collect(),
+            closed: self.path3d_closed,
+        })
+    }
+
     /// Build the typed case; the caller still round-trips it through
     /// `CoupledSearchCase::from_json` before writing, so the saved file is
     /// a document the runner accepts verbatim.
     pub(crate) fn build(&self) -> Result<CoupledSearchCase, String> {
-        let path = if self.use_path {
+        let path = if self.centerline == CenterlineKind::Path {
             let path = self.coil_path()?;
             path.validate()
                 .map_err(|e| format!("fixed_geometry.path: {e}"))?;
             Some(path)
+        } else {
+            None
+        };
+        let path3d = if self.centerline == CenterlineKind::Path3D {
+            let path3d = self.coil_path3d()?;
+            path3d
+                .validate()
+                .map_err(|e| format!("fixed_geometry.path3d: {e}"))?;
+            // The schema requires it too; name the missing input with
+            // its section instead of surfacing a bare contract error.
+            if self.field_map.is_none() {
+                return Err(
+                    "path3d windings cannot use the built-in field evaluator — load a field map (schema v9: sampling.field_map) in the Field map section"
+                        .into(),
+                );
+            }
+            Some(path3d)
         } else {
             None
         };
@@ -662,17 +747,20 @@ impl CaseDraft {
                 // A declared v21 search axis owns its dimension — the
                 // fixed field is absent, never shadowed (schema enforces
                 // one declaration site per dimension).
-                straight_half_length_m: (!self.use_path
+                straight_half_length_m: (self.centerline == CenterlineKind::Racetrack
                     && (!self.search_straight_half || self.field_map.is_some()))
                 .then_some(self.straight_half_length_m),
-                bend_radius_m: (!self.use_path
+                bend_radius_m: (self.centerline == CenterlineKind::Racetrack
                     && (!self.search_bend_radius || self.field_map.is_some()))
                 .then_some(self.bend_radius_m),
                 path,
-                path3d: None,
+                path3d,
                 radial_pitch_m: self.radial_pitch_m,
                 tape_width_m: self.tape_width_mm / 1000.0,
-                tape_normal: if self.tape_normal_radial {
+                // A non-planar pack is defined on the cylinder frame —
+                // the schema only admits a radial tape normal there.
+                tape_normal: if self.tape_normal_radial || self.centerline == CenterlineKind::Path3D
+                {
                     TapeNormal::Radial
                 } else {
                     TapeNormal::Axial
@@ -688,12 +776,12 @@ impl CaseDraft {
                 strands_parallel: Some(strands),
                 bend_radius_m: (self.search_bend_radius
                     && self.field_map.is_none()
-                    && !self.use_path)
+                    && self.centerline == CenterlineKind::Racetrack)
                     .then(|| parse_f64_list(&self.bend_radius_text, "choices.bend_radius_m"))
                     .transpose()?,
                 straight_half_length_m: (self.search_straight_half
                     && self.field_map.is_none()
-                    && !self.use_path)
+                    && self.centerline == CenterlineKind::Racetrack)
                     .then(|| {
                         parse_f64_list(&self.straight_half_text, "choices.straight_half_length_m")
                     })
@@ -799,11 +887,11 @@ impl CaseDraft {
                 },
                 bend_radius_m: (self.search_bend_radius
                     && self.field_map.is_none()
-                    && !self.use_path)
+                    && self.centerline == CenterlineKind::Racetrack)
                     .then_some(self.baseline_bend_radius),
                 straight_half_length_m: (self.search_straight_half
                     && self.field_map.is_none()
-                    && !self.use_path)
+                    && self.centerline == CenterlineKind::Racetrack)
                     .then_some(self.baseline_straight_half),
             },
             refinement: Some(RefinementPlan {
@@ -1779,7 +1867,7 @@ impl CaseDraft {
         {
             ui.colored_label(
                 brand::MUTED,
-                "Emits optcoil-coupled-search/v24 — the current schema. Fields map one-to-one onto the case JSON; the saved file is validated exactly as the runner will parse it. path3d helixes are not yet authored here — author those as JSON.",
+                "Emits optcoil-coupled-search/v24 — the current schema. Fields map one-to-one onto the case JSON; the saved file is validated exactly as the runner will parse it.",
             );
             ui.add_space(8.0);
 
@@ -1972,18 +2060,32 @@ impl CaseDraft {
 
             form_section(ui, "Fixed geometry", |ui| {
                 egui::ComboBox::from_label("Centerline")
-                    .selected_text(if self.use_path {
-                        "custom path — lines + arcs (schema v9)"
-                    } else {
-                        "racetrack"
+                    .selected_text(match self.centerline {
+                        CenterlineKind::Racetrack => "racetrack",
+                        CenterlineKind::Path => "custom path — lines + arcs (schema v9)",
+                        CenterlineKind::Path3D => "helix path — path3d (schema v9)",
                     })
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.use_path, false, "racetrack");
-                        ui.selectable_value(&mut self.use_path, true, "custom path (v9)");
+                        ui.selectable_value(
+                            &mut self.centerline,
+                            CenterlineKind::Racetrack,
+                            "racetrack",
+                        );
+                        ui.selectable_value(
+                            &mut self.centerline,
+                            CenterlineKind::Path,
+                            "custom path (v9)",
+                        );
+                        ui.selectable_value(
+                            &mut self.centerline,
+                            CenterlineKind::Path3D,
+                            "helix path — path3d (v9, needs a field map)",
+                        );
                         // Switching to path mode seeds the current
                         // racetrack as equivalent segments — the
                         // preview then opens on a valid loop.
-                        if self.use_path && self.path_segments.is_empty() {
+                        if self.centerline == CenterlineKind::Path && self.path_segments.is_empty()
+                        {
                             let seeded = CoilPath::racetrack(
                                 self.straight_half_length_m,
                                 self.bend_radius_m,
@@ -2013,11 +2115,18 @@ impl CaseDraft {
                             self.path_start_y_m = seeded.start_position_m[1];
                             self.path_start_heading_deg = seeded.start_heading_deg;
                         }
+                        // Helix mode seeds a solenoid-layer winding —
+                        // OC-031's shape — edit from there.
+                        if self.centerline == CenterlineKind::Path3D
+                            && self.path3d_segments.is_empty()
+                        {
+                            self.path3d_segments.push(HelixSegmentRow::solenoid());
+                        }
                     });
-                if self.use_path {
-                    self.path_editor(ui);
-                } else {
-                    self.racetrack_fields(ui);
+                match self.centerline {
+                    CenterlineKind::Racetrack => self.racetrack_fields(ui),
+                    CenterlineKind::Path => self.path_editor(ui),
+                    CenterlineKind::Path3D => self.path3d_editor(ui),
                 }
                 field(ui, "Radial pitch (m)", |ui| {
                     ui.add(egui::DragValue::new(&mut self.radial_pitch_m).speed(1e-5))
@@ -2025,16 +2134,27 @@ impl CaseDraft {
                 field(ui, "Tape width (mm)", |ui| {
                     ui.add(egui::DragValue::new(&mut self.tape_width_mm).speed(0.5))
                 });
-                egui::ComboBox::from_label("Tape normal")
-                    .selected_text(if self.tape_normal_radial {
-                        "radial"
-                    } else {
-                        "axial"
-                    })
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.tape_normal_radial, true, "radial");
-                        ui.selectable_value(&mut self.tape_normal_radial, false, "axial");
-                    });
+                ui.add_enabled_ui(self.centerline != CenterlineKind::Path3D, |ui| {
+                    egui::ComboBox::from_label("Tape normal")
+                        .selected_text(
+                            if self.centerline == CenterlineKind::Path3D || self.tape_normal_radial
+                            {
+                                "radial"
+                            } else {
+                                "axial"
+                            },
+                        )
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut self.tape_normal_radial, true, "radial");
+                            ui.selectable_value(&mut self.tape_normal_radial, false, "axial");
+                        });
+                });
+                if self.centerline == CenterlineKind::Path3D {
+                    ui.colored_label(
+                        brand::MUTED,
+                        "path3d windings ride the cylinder frame — tape normal is radial.",
+                    );
+                }
             });
 
             form_section(ui, "Search choices", |ui| {
@@ -2201,7 +2321,12 @@ impl CaseDraft {
 
             form_section(ui, "Sampling plan", |ui| {
                 wide_table(ui, "stations-h", |ui| {
-                    station_table(ui, "sampling-stations", &mut self.stations, self.use_path)
+                    station_table(
+                        ui,
+                        "sampling-stations",
+                        &mut self.stations,
+                        self.centerline != CenterlineKind::Racetrack,
+                    )
                 });
                 field(ui, "Turn indices", |ui| {
                     ui.text_edit_singleline(&mut self.turn_indices_text)
@@ -2421,7 +2546,7 @@ impl CaseDraft {
                         ui,
                         "refined-stations",
                         &mut self.refined_stations,
-                        self.use_path,
+                        self.centerline != CenterlineKind::Racetrack,
                     )
                 });
                 field(ui, "Max sampling shortfall", |ui| {
@@ -2826,6 +2951,151 @@ impl CaseDraft {
             }
         }
     }
+
+    /// The `path3d` helix editor: segment table (each row is one
+    /// helical conductor element on a declared axis), the open/closed
+    /// declaration, and an isometric preview drawn by walking
+    /// `pose_at`. A declared field map is required — non-planar packs
+    /// cannot use the built-in evaluator (schema rule).
+    fn path3d_editor(&mut self, ui: &mut egui::Ui) {
+        ui.colored_label(
+            brand::MUTED,
+            "Helix segments join position- and tangent-continuously on their declared axes. A field map is required — the built-in evaluator is planar-only (load one in the Field map section). Stations address the centerline by arc length (s, m).",
+        );
+        let mut remove = None;
+        egui::Grid::new("path3d-segments")
+            .num_columns(3)
+            .show(ui, |ui| {
+                for (i, seg) in self.path3d_segments.iter_mut().enumerate() {
+                    ui.push_id(i, |ui| {
+                        ui.vertical(|ui| {
+                            ui.label(format!("helix {}", i + 1));
+                            ui.horizontal(|ui| {
+                                ui.label("origin");
+                                for axis in &mut seg.axis_origin_m {
+                                    ui.add(egui::DragValue::new(axis).speed(0.005).max_decimals(4));
+                                }
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("axis dir");
+                                for axis in &mut seg.axis_dir {
+                                    ui.add(egui::DragValue::new(axis).speed(0.1).max_decimals(3));
+                                }
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("radius (m)");
+                                ui.add(
+                                    egui::DragValue::new(&mut seg.radius_m)
+                                        .speed(0.001)
+                                        .range(0.001..=10.0)
+                                        .max_decimals(4),
+                                );
+                                ui.label("turns");
+                                ui.add(
+                                    egui::DragValue::new(&mut seg.turns)
+                                        .speed(0.5)
+                                        .max_decimals(3),
+                                );
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("rise/turn (m)");
+                                ui.add(
+                                    egui::DragValue::new(&mut seg.rise_per_turn_m)
+                                        .speed(0.0005)
+                                        .max_decimals(4),
+                                );
+                                ui.label("start azimuth (°)");
+                                ui.add(egui::DragValue::new(&mut seg.start_azimuth_deg).speed(1.0));
+                            });
+                        });
+                        if ui.button("×").clicked() {
+                            remove = Some(i);
+                        }
+                    });
+                    ui.end_row();
+                }
+            });
+        if let Some(i) = remove {
+            self.path3d_segments.remove(i);
+        }
+        ui.horizontal(|ui| {
+            if ui.button("+ helix segment").clicked() {
+                // Continue the winding from the last segment's end.
+                self.path3d_segments.push(
+                    self.path3d_segments
+                        .last()
+                        .map(|prev| HelixSegmentRow {
+                            start_azimuth_deg: (prev.start_azimuth_deg + prev.turns * 360.0)
+                                .rem_euclid(360.0),
+                            axis_origin_m: [
+                                prev.axis_origin_m[0],
+                                prev.axis_origin_m[1],
+                                prev.axis_origin_m[2] + prev.rise_per_turn_m * prev.turns,
+                            ],
+                            ..*prev
+                        })
+                        .unwrap_or_else(HelixSegmentRow::solenoid),
+                );
+            }
+            ui.checkbox(
+                &mut self.path3d_closed,
+                "closed loop (rare — ends return to the start pose)",
+            );
+        });
+        match self.coil_path3d() {
+            Ok(path3d) => match path3d.validate() {
+                Ok(()) => {
+                    draw_path3d_preview(ui, &path3d);
+                    ui.colored_label(
+                        brand::BLUE,
+                        format!("{:.3} m centerline", path3d.length_m()),
+                    );
+                }
+                Err(e) => {
+                    ui.colored_label(status_red(), format!("path3d: {e}"));
+                }
+            },
+            Err(e) => {
+                ui.colored_label(status_red(), e);
+            }
+        }
+    }
+}
+
+/// Isometric projection of the 3D centerline — 30°/150° cabinet
+/// projection drawn with `pose_at` samples, the same evaluation the
+/// kernel walks.
+fn draw_path3d_preview(ui: &mut egui::Ui, path3d: &CoilPath3D) {
+    const SAMPLES: usize = 400;
+    let total = path3d.length_m();
+    if !(total.is_finite() && total > 0.0) {
+        return;
+    }
+    let mut pts = Vec::with_capacity(SAMPLES + 1);
+    for i in 0..=SAMPLES {
+        if let Ok(pose) = path3d.pose_at(total * i as f64 / SAMPLES as f64) {
+            let [x, y, z] = pose.position_m;
+            // Cabinet-ish: depth axis (y) at half scale, 30° off-axis.
+            let u = x + 0.5 * y * std::f64::consts::FRAC_1_SQRT_2;
+            let v = z + 0.5 * y * std::f64::consts::FRAC_1_SQRT_2;
+            pts.push([u, v]);
+        }
+    }
+    if pts.len() < 2 {
+        return;
+    }
+    egui_plot::Plot::new("path3d-preview")
+        .height(180.0)
+        .data_aspect(1.0)
+        .show_axes([false, false])
+        .allow_drag(false)
+        .allow_zoom(false)
+        .show(ui, |plot_ui| {
+            plot_ui.line(
+                egui_plot::Line::new("centerline", egui_plot::PlotPoints::from(pts))
+                    .color(brand::BLUE),
+            );
+        });
 }
 
 /// A scale-to-fit xy outline of the path drawn with `pose_at` samples —
@@ -3131,7 +3401,7 @@ mod tests {
     fn path_geometry_builds_a_valid_case() {
         let seeded = CoilPath::racetrack(0.15, 0.09);
         let draft = CaseDraft {
-            use_path: true,
+            centerline: CenterlineKind::Path,
             path_segments: seeded
                 .segments
                 .iter()
@@ -3193,7 +3463,7 @@ mod tests {
     #[test]
     fn open_path_is_rejected() {
         let draft = CaseDraft {
-            use_path: true,
+            centerline: CenterlineKind::Path,
             path_segments: vec![PathSegmentRow {
                 kind: 0,
                 length_m: 0.5,
@@ -3204,6 +3474,123 @@ mod tests {
         };
         let err = draft.build().expect_err("open path must not build");
         assert!(err.contains("path"), "unexpected error: {err}");
+    }
+
+    /// A complete 2×2×2 cartesian map — the smallest grid the schema's
+    /// product-grid check accepts. Field values are a uniform 1 T Bz.
+    fn fixture_field_map() -> FieldMap {
+        let mut entries = Vec::new();
+        for x_index in 0..2 {
+            for y_index in 0..2 {
+                for z_index in 0..2 {
+                    entries.push(optcoil_model::coupled::FieldMapCartesianEntry {
+                        x_index,
+                        y_index,
+                        z_index,
+                        bx_t: 0.0,
+                        by_t: 0.0,
+                        bz_t: 1.0,
+                    });
+                }
+            }
+        }
+        FieldMap::CartesianBxByBz {
+            source_sha256: "0".repeat(64),
+            reference_ampere_turns_a: 1.0,
+            // Levels sized to contain a solenoid-layer sweep (r≈0.03,
+            // z∈[0,0.2]) — the hull extends a half-spacing past each level.
+            x_levels_m: vec![-0.05, 0.05],
+            y_levels_m: vec![-0.05, 0.05],
+            z_levels_m: vec![0.05, 0.20],
+            entries,
+        }
+    }
+
+    /// A helix winding emits `fixed_geometry.path3d` (racetrack dims and
+    /// `path` absent), forces a radial tape normal even when the form
+    /// still says axial, and round-trips as v24.
+    #[test]
+    fn path3d_geometry_builds_a_valid_case() {
+        let draft = CaseDraft {
+            centerline: CenterlineKind::Path3D,
+            tape_normal_radial: false,
+            path3d_segments: vec![HelixSegmentRow::solenoid()],
+            // Under a declared map the pack extents must equal the
+            // baseline's swept dimensions — OC-031's invariants.
+            turns_text: "4, 8".into(),
+            tapes_text: "1, 2".into(),
+            baseline_turns: 8,
+            baseline_tapes: 1,
+            radial_pitch_m: 0.0005,
+            tape_width_mm: 8.0,
+            pack_radial_width_m: 0.004,
+            pack_axial_height_m: 0.008,
+            field_map: Some(fixture_field_map()),
+            field_map_label: "map.json".into(),
+            stations: vec![
+                StationRow {
+                    id: "s0".into(),
+                    kind: StationKind::Path,
+                    param: 0.0,
+                },
+                StationRow {
+                    id: "s1".into(),
+                    kind: StationKind::Path,
+                    param: 0.5,
+                },
+            ],
+            refined_stations: (1..=6)
+                .map(|i| StationRow {
+                    id: format!("refined_s{i}"),
+                    kind: StationKind::Path,
+                    param: i as f64 * 0.15,
+                })
+                .collect(),
+            ..Default::default()
+        };
+        let case = draft.build().expect("helix draft must build");
+        let path3d = case.fixed_geometry.path3d.as_ref().expect("path3d emitted");
+        assert_eq!(path3d.segments.len(), 1);
+        assert_eq!(case.fixed_geometry.tape_normal, TapeNormal::Radial);
+        assert!(case.fixed_geometry.path.is_none());
+        assert!(case.fixed_geometry.straight_half_length_m.is_none());
+        let json = serde_json::to_string_pretty(&case).unwrap();
+        CoupledSearchCase::from_json(&json).expect("path3d case must validate as v24");
+    }
+
+    /// Non-planar packs cannot use the built-in evaluator — build must
+    /// name the missing field map instead of surfacing a schema error.
+    #[test]
+    fn path3d_without_field_map_is_rejected() {
+        let draft = CaseDraft {
+            centerline: CenterlineKind::Path3D,
+            path3d_segments: vec![HelixSegmentRow::solenoid()],
+            ..Default::default()
+        };
+        let err = draft
+            .build()
+            .expect_err("helix without a field map must not build");
+        assert!(err.contains("field map"), "unexpected error: {err}");
+    }
+
+    /// Two helix segments whose start doesn't continue the previous
+    /// end must fail `CoilPath3D::validate` inside `build`.
+    #[test]
+    fn discontinuous_path3d_is_rejected() {
+        let mut second = HelixSegmentRow::solenoid();
+        // Jump the axis origin — the segment's start no longer lands on
+        // the previous segment's end pose.
+        second.axis_origin_m[2] = 1.0;
+        let draft = CaseDraft {
+            centerline: CenterlineKind::Path3D,
+            path3d_segments: vec![HelixSegmentRow::solenoid(), second],
+            field_map: Some(fixture_field_map()),
+            ..Default::default()
+        };
+        let err = draft
+            .build()
+            .expect_err("discontinuous helix path must not build");
+        assert!(err.contains("path3d"), "unexpected error: {err}");
     }
 
     /// A product pick must land on the draft's actual fields — dataset
