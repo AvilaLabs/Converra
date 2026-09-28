@@ -52,9 +52,14 @@ cd Converra
 
 # Launch the desktop workbench.
 cargo run -p optcoil-app
+
+# Or build the browser workbench (Trunk + wasm):
+cd crates/optcoil-app && trunk serve
 ```
 
 The engine crates retain the `optcoil-*` names. Cargo defaults to the CLI, so headless commands build without the desktop graphics dependencies.
+
+The browser workbench (`trunk serve` in `crates/optcoil-app`) opens and inspects cases and records, authors cases, and downloads every export. Searches, folder-based features (library, bake-off directory, watch mode, run queue) and persistence need the desktop build — the browser is single-threaded, and a search would freeze the tab; the UI says so at each entry point.
 
 ### Run a study from the CLI
 

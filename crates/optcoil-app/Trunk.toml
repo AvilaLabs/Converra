@@ -1,0 +1,9 @@
+# Web build for the Converra workbench — `trunk build` / `trunk serve`
+# from this directory produces the browser bundle.
+[build]
+target = "index.html"
+release = true
+
+[serve]
+port = 8080
+open = false

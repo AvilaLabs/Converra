@@ -1,4 +1,5 @@
 /target/
+/crates/optcoil-app/dist/
 /runs/
 /workspaces/
 /customer-data/

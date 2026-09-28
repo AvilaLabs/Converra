@@ -278,6 +278,10 @@ pub struct CaseDraft {
     /// customer's artifact; only its identity is editable here.
     field_map: Option<FieldMap>,
     field_map_label: String,
+    /// Browser field-map pick resolves asynchronously — the parsed map
+    /// (or its error) lands here and is applied at the top of `show`.
+    #[cfg(target_arch = "wasm32")]
+    field_map_pending: Option<std::sync::mpsc::Receiver<(String, Result<FieldMap, String>)>>,
     field_map_bore_field_t: f64,
     /// Pack extents — emitted only under a declared map, which
     /// validates candidates against them.
@@ -469,6 +473,8 @@ impl Default for CaseDraft {
             baseline_specs_text: "base".into(),
             field_map: None,
             field_map_label: String::new(),
+            #[cfg(target_arch = "wasm32")]
+            field_map_pending: None,
             field_map_bore_field_t: 1.0,
             pack_radial_width_m: 0.048,
             pack_axial_height_m: 0.012,
@@ -960,6 +966,15 @@ impl CaseDraft {
     /// The modal window. Returns `Some((case, json))` when the user asked
     /// to save — the caller writes `json` to disk and opens it.
     pub fn show(&mut self, ctx: &egui::Context) -> Option<(CoupledSearchCase, String)> {
+        // Browser field-map pick — the async dialog resolves between
+        // frames; apply whatever landed.
+        #[cfg(target_arch = "wasm32")]
+        if let Some(receiver) = &self.field_map_pending
+            && let Ok((name, result)) = receiver.try_recv()
+        {
+            self.field_map_pending = None;
+            self.apply_field_map(result, name);
+        }
         let mut open = true;
         let mut save: Option<(CoupledSearchCase, String)> = None;
         let title = if self.guided_step.is_some() {
@@ -1012,6 +1027,7 @@ impl CaseDraft {
     /// a lab-frame solver export of `x y z Bx By Bz` rows (CSV, TSV or
     /// whitespace). The export's bytes are hashed into `source_sha256`
     /// — the provenance binding between case and customer artifact.
+    #[cfg(not(target_arch = "wasm32"))]
     fn load_field_map_dialog(&mut self) {
         let Some(path) = rfd::FileDialog::new()
             .set_title("Load customer field map")
@@ -1036,9 +1052,47 @@ impl CaseDraft {
                     optcoil_adapters::field_map::cartesian_csv_to_field_map(&text, sha, 1.0)
                 })
         };
+        self.apply_field_map(result, path.display().to_string());
+    }
+
+    /// Browser counterpart: the async file picker resolves to bytes on
+    /// the event loop, then the same `apply_field_map` handles them.
+    #[cfg(target_arch = "wasm32")]
+    fn load_field_map_dialog(&mut self) {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        wasm_bindgen_futures::spawn_local(async move {
+            let Some(handle) = rfd::AsyncFileDialog::new()
+                .add_filter("Field map", &["json", "csv", "txt", "dat", "tsv"])
+                .pick_file()
+                .await
+            else {
+                return;
+            };
+            let name = handle.file_name().to_owned();
+            let bytes = handle.read().await;
+            let result = if name.ends_with(".json") {
+                String::from_utf8(bytes)
+                    .map_err(|e| e.to_string())
+                    .and_then(|text| {
+                        serde_json::from_str::<FieldMap>(&text).map_err(|e| e.to_string())
+                    })
+            } else {
+                let sha = format!("{:x}", Sha256::digest(&bytes));
+                String::from_utf8(bytes)
+                    .map_err(|e| e.to_string())
+                    .and_then(|text| {
+                        optcoil_adapters::field_map::cartesian_csv_to_field_map(&text, sha, 1.0)
+                    })
+            };
+            let _ = sender.send((name, result));
+        });
+        self.field_map_pending = Some(receiver);
+    }
+
+    fn apply_field_map(&mut self, result: Result<FieldMap, String>, label: String) {
         match result {
             Ok(map @ FieldMap::CartesianBxByBz { .. }) => {
-                self.field_map_label = path.display().to_string();
+                self.field_map_label = label;
                 self.field_map = Some(map);
             }
             Ok(FieldMap::CylindricalBrBz { .. }) => {
