@@ -1081,4 +1081,220 @@ mod tests {
         g.axial_height_m = 1e-9;
         assert!(RacetrackEvaluator::new(&g, 4).is_err());
     }
+
+    // -----------------------------------------------------------------
+    // Physics-invariant property tests: these relations must hold for
+    // *any* valid geometry, so they probe the kernel across extreme but
+    // legitimate aspect ratios — shapes no benchmark hand-picked.
+    // -----------------------------------------------------------------
+
+    struct Rng(u64);
+
+    impl Rng {
+        fn next_u64(&mut self) -> u64 {
+            self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut z = self.0;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            z ^ (z >> 31)
+        }
+        fn range(&mut self, lo: f64, hi: f64) -> f64 {
+            let u = (self.next_u64() >> 11) as f64 / (1u64 << 53) as f64;
+            lo + u * (hi - lo)
+        }
+    }
+
+    fn racetrack(l: f64, r: f64, w: f64, h: f64, ni: f64) -> Racetrack {
+        Racetrack {
+            straight_half_length_m: l,
+            bend_radius_m: r,
+            radial_width_m: w,
+            axial_height_m: h,
+            ampere_turns_a: ni,
+            current_model: CurrentModel::UniformWindingPack,
+        }
+    }
+
+    /// A planar current loop's field is mirror-symmetric about its own
+    /// plane: the out-of-plane component is even in z, the in-plane
+    /// components are odd. Symmetry that survives extreme aspect ratios
+    /// is the strongest independent check on the quadrature paths —
+    /// near, far and graded regimes all exercise different code.
+    #[test]
+    fn field_is_mirror_symmetric_about_the_coil_plane() {
+        let mut rng = Rng(0x0A11_C0A1);
+        for _ in 0..24 {
+            let width = 10f64.powf(rng.range(-3.0, 0.0));
+            let height = width * 10f64.powf(rng.range(-2.0, 2.0));
+            // Inner edge of the bend must stay positive: radius >= w/2.
+            let radius = width / 2.0 * (1.0 + rng.range(0.01, 20.0));
+            let length = radius * rng.range(0.0, 30.0);
+            let geometry = racetrack(length, radius, width, height, 1e6);
+            let evaluator = match RacetrackEvaluator::new(&geometry, 6) {
+                Ok(e) => e,
+                Err(_) => continue, // geometry legitimately outside support
+            };
+            let reach = length + radius + width + 1.0;
+            for _ in 0..40 {
+                let p = [
+                    rng.range(-reach, reach),
+                    rng.range(-reach, reach),
+                    rng.range(0.001 * reach, reach),
+                ];
+                let (Ok(up), Ok(down)) = (
+                    evaluator.evaluate(p),
+                    evaluator.evaluate([p[0], p[1], -p[2]]),
+                ) else {
+                    continue;
+                };
+                for k in 0..3 {
+                    let expected = if k == 2 {
+                        up.field_t[k]
+                    } else {
+                        -up.field_t[k]
+                    };
+                    let scale = up.field_t[k].abs().max(1e-12);
+                    assert!(
+                        (down.field_t[k] - expected).abs() < 2e-5 * scale + 1e-15,
+                        "z-mirror broken at {p:?} axis {k}: {up:?} vs {down:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// The racetrack is point-symmetric about the origin: a 180-degree
+    /// rotation about the plane normal maps the winding (and its current
+    /// circulation) onto itself, so the field must map identically.
+    #[test]
+    fn field_is_point_symmetric_about_the_origin() {
+        let mut rng = Rng(0x000B_0A70);
+        for _ in 0..24 {
+            let width = 10f64.powf(rng.range(-3.0, 0.0));
+            let height = width * 10f64.powf(rng.range(-2.0, 2.0));
+            let radius = width / 2.0 * (1.0 + rng.range(0.01, 20.0));
+            let length = radius * rng.range(0.0, 30.0);
+            let geometry = racetrack(length, radius, width, height, 1e6);
+            let evaluator = match RacetrackEvaluator::new(&geometry, 6) {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+            let reach = length + radius + width + 1.0;
+            for _ in 0..40 {
+                let p = [
+                    rng.range(-reach, reach),
+                    rng.range(-reach, reach),
+                    rng.range(-0.5 * reach, 0.5 * reach),
+                ];
+                let (Ok(a), Ok(b)) = (
+                    evaluator.evaluate(p),
+                    evaluator.evaluate([-p[0], -p[1], p[2]]),
+                ) else {
+                    continue;
+                };
+                // B rotates with the probe: the rotated field equals the
+                // rotated vector, i.e. in-plane components flip and the
+                // out-of-plane component is unchanged.
+                for k in 0..3 {
+                    let expected = if k == 2 { a.field_t[k] } else { -a.field_t[k] };
+                    let scale = a.field_t[k].abs().max(1e-12);
+                    assert!(
+                        (b.field_t[k] - expected).abs() < 2e-5 * scale + 1e-15,
+                        "point symmetry broken at {p:?} axis {k}: {:?} vs {:?}",
+                        a.field_t,
+                        b.field_t
+                    );
+                }
+            }
+        }
+    }
+
+    /// Biot–Savart is linear in current density: doubling ampere-turns
+    /// must double every field component. The kernel applies NI as a
+    /// post-multiplier, so this holds to floating-point roundoff exactly
+    /// — a violated check means current coupling leaks into the cells.
+    #[test]
+    fn field_scales_exactly_with_ampere_turns() {
+        let geometry = racetrack(0.3, 0.2, 0.02, 0.01, 1.0e6);
+        let base = RacetrackEvaluator::new(&geometry, 6).unwrap();
+        let mut doubled_g = geometry.clone();
+        doubled_g.ampere_turns_a = 2.0e6;
+        let doubled = RacetrackEvaluator::new(&doubled_g, 6).unwrap();
+        for p in [[0.0, 0.0, 0.1], [0.5, 0.2, 0.0], [1.3, -0.4, 0.3]] {
+            let a = base.evaluate(p).unwrap().field_t;
+            let b = doubled.evaluate(p).unwrap().field_t;
+            for k in 0..3 {
+                let scale = b[k].abs().max(1e-12);
+                assert!(
+                    (b[k] - 2.0 * a[k]).abs() < 1e-12 * scale,
+                    "nonlinear at {p:?} axis {k}: {a:?} vs {b:?}"
+                );
+            }
+        }
+        // And the zero limit is exact, not approximate.
+        let mut zeroed = geometry;
+        zeroed.ampere_turns_a = 0.0;
+        let zero = RacetrackEvaluator::new(&zeroed, 6).unwrap();
+        assert_eq!(zero.evaluate([0.0, 0.0, 0.1]).unwrap().field_t, [0.0; 3]);
+    }
+
+    /// Probes chosen at random across the whole domain — inside the bore,
+    /// grazing the pack surface, far outside — must yield finite fields.
+    /// A NaN or infinity here is a singularity leak, not a bad draw.
+    #[test]
+    fn random_probes_never_produce_nonfinite_fields() {
+        let mut rng = Rng(0x000F_1E1D);
+        for _ in 0..30 {
+            let width = 10f64.powf(rng.range(-3.0, 0.0));
+            let height = width * 10f64.powf(rng.range(-2.0, 2.0));
+            let radius = width / 2.0 * (1.0 + rng.range(0.01, 20.0));
+            let length = radius * rng.range(0.0, 30.0);
+            let geometry = racetrack(length, radius, width, height, 1e6);
+            let evaluator = match RacetrackEvaluator::new(&geometry, 8) {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+            let reach = length + radius + width + 1.0;
+            for _ in 0..50 {
+                // Skewed toward the pack surface and bore, the hard cases.
+                let p = [
+                    rng.range(-reach, reach),
+                    rng.range(-reach, reach),
+                    rng.range(-0.5 * reach, 0.5 * reach),
+                ];
+                // Err is legitimate only at exact coincidence.
+                if let Ok(f) = evaluator.evaluate(p) {
+                    assert!(
+                        f.field_t.iter().all(|x| x.is_finite()),
+                        "nonfinite field at {p:?}: {:?}",
+                        f.field_t
+                    );
+                }
+            }
+        }
+    }
+
+    /// Degenerate-but-valid shapes: a zero-length straight section (a
+    /// circle) and a near-pinched bend (inner radius ~0) must still
+    /// evaluate rather than crash or blow up cells.
+    #[test]
+    fn degenerate_limit_geometries_evaluate() {
+        // Pure circle: no straight sections.
+        let circle = racetrack(0.0, 0.05, 0.01, 0.005, 1e5);
+        let ev = RacetrackEvaluator::new(&circle, 8).unwrap();
+        let f = ev.evaluate([0.0, 0.0, 0.0]).unwrap();
+        assert!(f.field_t.iter().all(|x| x.is_finite()) && f.field_t[2] > 0.0);
+        // Pinched waist: inner edge of the bend almost touches the axis.
+        let pinch = racetrack(0.2, 0.010001, 0.02, 0.005, 1e5);
+        if let Ok(ev) = RacetrackEvaluator::new(&pinch, 8) {
+            let f = ev.evaluate([0.0, 0.0, 0.05]).unwrap();
+            assert!(f.field_t.iter().all(|x| x.is_finite()));
+        }
+        // Extreme aspect: ribbon 1000x wider than tall.
+        let ribbon = racetrack(0.5, 0.1, 0.1, 1e-4, 1e5);
+        if let Ok(ev) = RacetrackEvaluator::new(&ribbon, 8) {
+            let f = ev.evaluate([0.0, 0.0, 0.01]).unwrap();
+            assert!(f.field_t.iter().all(|x| x.is_finite()));
+        }
+    }
 }

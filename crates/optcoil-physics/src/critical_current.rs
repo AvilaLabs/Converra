@@ -576,7 +576,7 @@ fn invalid(message: &str) -> ModelError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use optcoil_model::material::{CellSpanLimits, MaterialDataset};
+    use optcoil_model::material::{CellSpanLimits, MaterialDataset, MaterialPoint};
 
     fn affine(position: [f64; 3]) -> f64 {
         100_000.0 + 2000.0 * position[0] - 3000.0 * position[1] + 50.0 * position[2]
@@ -951,5 +951,279 @@ mod tests {
         let p = [25.005, 2.005, 30.1];
         assert!((model.evaluate(p).unwrap().unwrap().ic_a_per_m / law(p) - 1.0).abs() < 1e-12);
         assert!(model.evaluate([25.0, 0.0, 30.0]).unwrap().is_none());
+    }
+
+    // -----------------------------------------------------------------
+    // Property tests against the real embedded datasets: deterministic
+    // pseudo-random queries (splitmix64, fixed seed — no test-time
+    // dependency on external RNG state) over the supported domain assert
+    // the invariants every caller relies on.
+    // -----------------------------------------------------------------
+
+    /// splitmix64: deterministic, dependency-free bit generator for tests.
+    struct Rng(u64);
+
+    impl Rng {
+        fn next_u64(&mut self) -> u64 {
+            self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut z = self.0;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            z ^ (z >> 31)
+        }
+        /// Uniform in `[lo, hi)`.
+        fn range(&mut self, lo: f64, hi: f64) -> f64 {
+            let u = (self.next_u64() >> 11) as f64 / (1u64 << 53) as f64;
+            lo + u * (hi - lo)
+        }
+    }
+
+    fn embedded_datasets() -> Vec<MaterialDataset> {
+        [
+            "robinson-shanghai-hflt-v3",
+            "robinson-superpower-ap-v3",
+            "robinson-superpower-ap-v3-lowfield",
+            "robinson-superpower-ap-v3-modelext",
+            "robinson-theva-ap-v2",
+            "babouche-superpower-m31477-memfit-v1",
+            "babouche-sst-yp506-memfit-v1",
+            "robinson-ffj-ybco-v1",
+        ]
+        .into_iter()
+        .map(|id| MaterialDataset::embedded_by_id(id).expect("embedded dataset"))
+        .collect()
+    }
+
+    /// For every embedded dataset and every interpolation method: random
+    /// queries anywhere in the measured bounding box must return either
+    /// `None` (a hole — never extrapolated) or a convex combination whose
+    /// interpolated Ic and n-value stay inside the support nodes' ranges.
+    /// Convexity is what makes "no overshoot" a guarantee rather than a
+    /// hope; a weight outside [0,1] or an Ic outside the cell's own
+    /// extremes means the barycentric solve is broken.
+    #[test]
+    fn random_queries_stay_convex_and_within_support_extremes() {
+        for dataset in embedded_datasets() {
+            let id = dataset.metadata.id.clone();
+            for method in [
+                IcInterpolationMethod::Linear,
+                IcInterpolationMethod::LogFieldLogCurrent,
+            ] {
+                for seam in [None, Some(180.0)] {
+                    let model = IcInterpolator::with_method_and_seam(
+                        &dataset.points,
+                        dataset.metadata.max_cell_spans,
+                        method,
+                        seam,
+                    )
+                    .unwrap_or_else(|e| panic!("{id} failed to build: {e}"));
+                    let lo: [f64; 3] = std::array::from_fn(|k| {
+                        dataset
+                            .points
+                            .iter()
+                            .map(|p| p.position()[k])
+                            .fold(f64::INFINITY, f64::min)
+                    });
+                    let hi: [f64; 3] = std::array::from_fn(|k| {
+                        dataset
+                            .points
+                            .iter()
+                            .map(|p| p.position()[k])
+                            .fold(f64::NEG_INFINITY, f64::max)
+                    });
+                    let by_row: std::collections::BTreeMap<u32, &MaterialPoint> =
+                        dataset.points.iter().map(|p| (p.source_row, p)).collect();
+                    let mut rng = Rng(0xC0FF_EE11 + id.len() as u64 + seam.unwrap_or(0.0) as u64);
+                    let mut evaluated = 0_usize;
+                    for _ in 0..4000 {
+                        let query = [
+                            rng.range(lo[0], hi[0]),
+                            rng.range(lo[1].max(1e-9), hi[1]),
+                            rng.range(lo[2], hi[2]),
+                        ];
+                        let Ok(Some(estimate)) = model.evaluate(query) else {
+                            continue;
+                        };
+                        evaluated += 1;
+                        assert!(
+                            estimate.ic_a_per_m.is_finite() && estimate.ic_a_per_m > 0.0,
+                            "{id}/{method:?}/{seam:?}: nonphysical Ic at {query:?}"
+                        );
+                        assert!(
+                            estimate.n_value.is_finite() && estimate.n_value > 1.0,
+                            "{id}/{method:?}/{seam:?}: nonphysical n at {query:?}"
+                        );
+                        if estimate.exact_measurement {
+                            continue;
+                        }
+                        let support: Vec<&MaterialPoint> = estimate
+                            .support
+                            .iter()
+                            .map(|w| *by_row.get(&w.source_row).expect("support row"))
+                            .collect();
+                        assert!(
+                            estimate.support.iter().all(|w| w.weight > 0.0),
+                            "{id}: nonpositive support weight at {query:?}"
+                        );
+                        assert!(
+                            (estimate.support.iter().map(|w| w.weight).sum::<f64>() - 1.0).abs()
+                                < 1e-9,
+                            "{id}: support weights not convex at {query:?}"
+                        );
+                        let (ic_lo, ic_hi) = support
+                            .iter()
+                            .fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), p| {
+                                (a.min(p.ic_a_per_m), b.max(p.ic_a_per_m))
+                            });
+                        let (n_lo, n_hi) = support
+                            .iter()
+                            .fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), p| {
+                                (a.min(p.n_value), b.max(p.n_value))
+                            });
+                        let tol = 1e-9;
+                        assert!(
+                            estimate.ic_a_per_m >= ic_lo * (1.0 - tol)
+                                && estimate.ic_a_per_m <= ic_hi * (1.0 + tol),
+                            "{id}/{method:?}: Ic {} overshot support [{ic_lo}, {ic_hi}] at {query:?}",
+                            estimate.ic_a_per_m
+                        );
+                        assert!(
+                            estimate.n_value >= n_lo - tol && estimate.n_value <= n_hi + tol,
+                            "{id}/{method:?}: n {} overshot support [{n_lo}, {n_hi}] at {query:?}",
+                            estimate.n_value
+                        );
+                    }
+                    assert!(
+                        evaluated > 0,
+                        "{id}/{method:?}/{seam:?}: no query landed in any cell"
+                    );
+                }
+            }
+        }
+    }
+
+    /// Queries outside the measured bounding box are never answered:
+    /// `None` is the contract for unsupported domain — the interpolator
+    /// must never fabricate a value beyond its measurements.
+    #[test]
+    fn queries_beyond_measured_extent_are_unsupported_never_extrapolated() {
+        for dataset in embedded_datasets() {
+            let id = dataset.metadata.id.clone();
+            let model = IcInterpolator::with_method_and_seam(
+                &dataset.points,
+                dataset.metadata.max_cell_spans,
+                IcInterpolationMethod::LogFieldLogCurrent,
+                Some(180.0),
+            )
+            .unwrap();
+            let lo: [f64; 3] = std::array::from_fn(|k| {
+                dataset
+                    .points
+                    .iter()
+                    .map(|p| p.position()[k])
+                    .fold(f64::INFINITY, f64::min)
+            });
+            let hi: [f64; 3] = std::array::from_fn(|k| {
+                dataset
+                    .points
+                    .iter()
+                    .map(|p| p.position()[k])
+                    .fold(f64::NEG_INFINITY, f64::max)
+            });
+            let mut rng = Rng(0xDEAD_5EED + id.len() as u64);
+            let mut checked = 0_usize;
+            for _ in 0..4000 {
+                // Push one coordinate clearly outside the measured box on
+                // the temperature or field axis while staying inside the
+                // valid coordinate range. Angle is skipped on purpose:
+                // the declared seam fold can legitimately move an
+                // out-of-box angle query back inside a seam cell.
+                let mut q = [
+                    rng.range(4.0, 400.0),
+                    rng.range(1e-9, 1000.0),
+                    rng.range(-360.0, 720.0),
+                ];
+                let axis = (rng.next_u64() % 2) as usize;
+                let below = rng.next_u64().is_multiple_of(2);
+                q[axis] = if below {
+                    (lo[axis] - rng.range(0.01, 50.0)).max(if axis == 0 { 0.001 } else { 1e-9 })
+                } else {
+                    (hi[axis] + rng.range(0.01, 50.0)).min(if axis == 0 { 400.0 } else { 1000.0 })
+                };
+                if !(q[axis] < lo[axis] || q[axis] > hi[axis]) {
+                    continue; // clamped back inside — not an out-of-box draw
+                }
+                checked += 1;
+                // A temperature/field query outside the measured box is
+                // unsupported regardless of the other coordinates — no
+                // tetrahedron's bbox can contain it.
+                if let Ok(Some(_)) = model.evaluate(q) {
+                    panic!("{id}: extrapolated answer at {q:?} (bbox {lo:?}..{hi:?})");
+                }
+            }
+            assert!(checked > 100, "{id}: too few out-of-box draws checked");
+        }
+    }
+
+    /// Bit-exact determinism: the same query twice returns identical
+    /// results, so a search record's numbers are reproducible.
+    #[test]
+    fn evaluation_is_deterministic() {
+        let dataset = embedded_datasets().remove(0);
+        let model = IcInterpolator::with_method(
+            &dataset.points,
+            dataset.metadata.max_cell_spans,
+            IcInterpolationMethod::LogFieldLogCurrent,
+        )
+        .unwrap();
+        let mut rng = Rng(0xB17_5EED);
+        for _ in 0..500 {
+            let q = [
+                rng.range(4.0, 77.0),
+                rng.range(1e-6, 20.0),
+                rng.range(0.0, 90.0),
+            ];
+            let a = model.evaluate(q);
+            let b = model.evaluate(q);
+            match (a, b) {
+                (Ok(Some(x)), Ok(Some(y))) => {
+                    assert_eq!(x.ic_a_per_m.to_bits(), y.ic_a_per_m.to_bits());
+                    assert_eq!(x.n_value.to_bits(), y.n_value.to_bits());
+                }
+                (Ok(None), Ok(None)) => {}
+                (Err(_), Err(_)) => {}
+                _ => panic!("nondeterministic result at {q:?}"),
+            }
+        }
+    }
+
+    /// Degenerate coordinates are rejected, never panic: NaN, infinities,
+    /// nonpositive temperature, and out-of-range field/angle all surface
+    /// as `Err` before any cell arithmetic runs.
+    #[test]
+    fn degenerate_queries_error_without_panicking() {
+        let dataset = embedded_datasets().remove(0);
+        let model = IcInterpolator::with_method(
+            &dataset.points,
+            dataset.metadata.max_cell_spans,
+            IcInterpolationMethod::LogFieldLogCurrent,
+        )
+        .unwrap();
+        for q in [
+            [f64::NAN, 1.0, 0.0],
+            [20.0, f64::NAN, 0.0],
+            [20.0, 1.0, f64::NAN],
+            [f64::INFINITY, 1.0, 0.0],
+            [20.0, f64::NEG_INFINITY, 0.0],
+            [0.0, 1.0, 0.0],
+            [-4.0, 1.0, 0.0],
+            [400.1, 1.0, 0.0],
+            [20.0, -1.0, 0.0],
+            [20.0, 1000.1, 0.0],
+            [20.0, 1.0, -360.1],
+            [20.0, 1.0, 720.1],
+        ] {
+            assert!(model.evaluate(q).is_err(), "query {q:?} was not rejected");
+        }
     }
 }
