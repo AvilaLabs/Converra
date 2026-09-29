@@ -121,10 +121,9 @@ An Avila Labs registry countersignature asserts that a bundle passed the
 dataset contract validator — it is **not** a claim that we witnessed the
 measurement. Provenance belongs to the issuer named in the attestation.
 
-The reference registry lives at `data/registry/datasets.json` and lists
-every embedded measured dataset's attested bundle (issuer `avila-labs`);
-a countersigned mirror registry with identical entries is maintained in
-the separate `converra-evidence` repository.
+The reference registry lives at `data/registry/datasets.json` and contains issuer
+keys and entries for selected issued bundles. Check the entry for each dataset;
+an available signature does not establish registry coverage.
 
 ## Authoring the files
 

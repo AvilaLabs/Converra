@@ -39,13 +39,15 @@ before/after measurement does not establish a general speed ranking.
 
 On 2026-09-29, formatting, workspace Clippy, all 490 workspace tests and wasm
 compilation passed. The release CLI generated the first-study diagnostic record
-with unchanged costs and verdicts and checker v19. Diagnostic and graded review
-packages passed verification as directories and after independent extraction
+with unchanged costs and verdicts and acceptance checker v19. Diagnostic and
+graded review packages passed verification as directories and after independent extraction
 with Python's standard tar reader. The graded scalar-price request was refused.
 
 The additional release portability regression uses the OC-031 declared field
 map, its original candidate grid, and two unsigned software-fixture aliases of
 attributed low-field and model-extension CSVs. This is software evidence only.
+The generated case SHA-256 is
+`66adaeb2be35d84244305679c5283f48667d5f6af1f39715735043fa330ff89e`.
 Its package contains the issued SuperPower AP bundle and both external sources.
 Directory and independently extracted tar verification pass; the package README's
 exact rerun command works with only the packaged input files. Costs, verdicts,
