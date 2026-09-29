@@ -4,6 +4,8 @@ mod capture;
 mod views;
 #[cfg(target_arch = "wasm32")]
 mod web;
+#[cfg(test)]
+mod workflow_tests;
 
 use eframe::egui::{self, Color32, RichText};
 use optcoil_model::{
@@ -103,6 +105,7 @@ enum JobResult {
     /// A saved coupled-search run record opened read-only — the embedded
     /// case is shown, but there is no source JSON to re-run.
     LoadedSearchRun(Box<CoupledSearchRunRecord>, PathBuf),
+    SourceCaseLoaded(String, PathBuf),
     Calculated(Box<RunRecord>),
     SearchCompleted(Box<CoupledSearchRunRecord>),
     /// A material dataset bundle the user picked explicitly (coupled mode).
@@ -188,6 +191,7 @@ struct DatasetSource {
     /// datasets and unsigned bundles. Verified only via `optcoil dataset
     /// verify`; shown here as provenance, not as a verified claim.
     attestation: Option<optcoil_model::attestation::DatasetAttestation>,
+    bundle_json: Option<String>,
 }
 
 /// Resolve a coupled-search case's declared dataset: the embedded store
@@ -203,6 +207,7 @@ fn resolve_dataset(case: &CoupledSearchCase, case_path: &Path) -> Option<Dataset
             dataset,
             origin: DatasetOrigin::Embedded,
             attestation: None,
+            bundle_json: None,
         });
     }
     // Sibling-file lookup exists only natively — the browser receives a
@@ -223,6 +228,7 @@ fn resolve_dataset(case: &CoupledSearchCase, case_path: &Path) -> Option<Dataset
                     dataset: bundle.dataset,
                     origin: DatasetOrigin::File(candidate),
                     attestation: bundle.attestation,
+                    bundle_json: Some(text),
                 });
             }
         }
@@ -238,6 +244,23 @@ struct Worker {
     /// flag). Unused on native.
     #[cfg(target_arch = "wasm32")]
     web_worker: Option<web_sys::Worker>,
+    #[cfg(target_arch = "wasm32")]
+    _web_callbacks: Option<BrowserWorkerCallbacks>,
+}
+#[cfg(target_arch = "wasm32")]
+struct BrowserWorkerCallbacks {
+    _message: wasm_bindgen::closure::Closure<dyn FnMut(web_sys::MessageEvent)>,
+    _error: wasm_bindgen::closure::Closure<dyn FnMut(wasm_bindgen::JsValue)>,
+}
+#[cfg(target_arch = "wasm32")]
+impl Drop for Worker {
+    fn drop(&mut self) {
+        if let Some(worker) = &self.web_worker {
+            worker.set_onmessage(None);
+            worker.set_onerror(None);
+            worker.terminate();
+        }
+    }
 }
 struct Workbench {
     case: Case,
@@ -256,6 +279,7 @@ struct Workbench {
     /// The case's declared material dataset, resolved at open (embedded or
     /// a sibling bundle) or picked explicitly from the Materials page.
     search_dataset: Option<DatasetSource>,
+    preflight: Option<optcoil_search::preflight::StudyPreflight>,
     /// The coupled-search case builder window, while open.
     author: Option<author::CaseDraft>,
     search_record: Option<CoupledSearchRunRecord>,
@@ -327,6 +351,7 @@ struct Workbench {
     /// Decision artifacts derived from the loaded record — computed once
     /// on arrival, not per frame.
     bom_record: Option<BomRecord>,
+    decision_summary: Option<optcoil_search::review::DecisionSummary>,
     grade_report: Option<GradingReport>,
     verify_checks: Option<Vec<CheckLine>>,
     sweep_record: Option<SensitivitySweepRecord>,
@@ -357,6 +382,7 @@ impl Workbench {
             search_json: String::new(),
             package_after_search: false,
             search_dataset: None,
+            preflight: None,
             author: None,
             search_record: None,
             selected_candidate: 0,
@@ -392,6 +418,7 @@ impl Workbench {
             ctx: ctx.clone(),
             search_record_json: String::new(),
             bom_record: None,
+            decision_summary: None,
             grade_report: None,
             verify_checks: None,
             sweep_record: None,
@@ -410,6 +437,7 @@ impl Workbench {
             message_fade_start: Instant::now(),
             drop_hint_start: None,
         };
+        app.open_example(ctx, true);
         let (recent_files, library_dir) = load_persisted();
         app.recent_files = recent_files;
         app.library_dir = library_dir;
@@ -425,6 +453,84 @@ impl Workbench {
             app.start(ctx);
         }
         Ok(app)
+    }
+
+    fn open_example(&mut self, ctx: &egui::Context, measured: bool) {
+        let json = if measured {
+            include_str!("../../../benchmarks/coupled/first-study.json").to_owned()
+        } else {
+            match serde_json::to_string_pretty(
+                &Case::demo().expect("embedded synthetic case is valid"),
+            ) {
+                Ok(json) => json,
+                Err(error) => {
+                    self.message = (true, error.to_string());
+                    return;
+                }
+            }
+        };
+        let name = if measured {
+            "first-study.json"
+        } else {
+            "synthetic-allocation.json"
+        };
+        self.apply_result(ctx, load_project_json(json, PathBuf::from(name)));
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn attach_source_case(&mut self, ctx: &egui::Context) {
+        self.launch(ctx, JobKind::Open, move |_| {
+            let Some(path) = rfd::FileDialog::new()
+                .set_title("Attach the original case used by this run")
+                .add_filter("Case JSON", &["json"])
+                .pick_file()
+            else {
+                return Ok(JobResult::Dismissed);
+            };
+            let json = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+            Ok(JobResult::SourceCaseLoaded(json, path))
+        });
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn attach_source_case(&mut self, ctx: &egui::Context) {
+        self.launch_wasm(ctx, JobKind::Open, async {
+            let Some((name, bytes)) = web::pick_bytes(&["json"]).await? else {
+                return Ok(JobResult::Dismissed);
+            };
+            let json = String::from_utf8(bytes).map_err(|e| e.to_string())?;
+            Ok(JobResult::SourceCaseLoaded(json, PathBuf::from(name)))
+        });
+    }
+
+    fn refresh_preflight(&mut self) {
+        self.preflight = self.search_case.as_ref().map(|case| {
+            let mut datasets = std::collections::BTreeMap::new();
+            if let Some(source) = &self.search_dataset {
+                datasets.insert(source.dataset.metadata.id.clone(), source.dataset.clone());
+            }
+            optcoil_search::preflight::preflight_coupled_search(
+                case,
+                Some(&datasets),
+                &Default::default(),
+            )
+        });
+    }
+
+    fn edit_case(&mut self, duplicate: bool) {
+        let Some(case) = self.search_case.as_ref() else {
+            return;
+        };
+        let draft = if duplicate {
+            author::CaseDraft::duplicate(case)
+        } else {
+            let json = self.case_json().unwrap_or_default();
+            author::CaseDraft::revision(&json)
+        };
+        match draft {
+            Ok(draft) => self.author = Some(draft),
+            Err(error) => self.message = (true, error),
+        }
     }
 
     fn launch(
@@ -460,6 +566,8 @@ impl Workbench {
             kind,
             #[cfg(target_arch = "wasm32")]
             web_worker: None,
+            #[cfg(target_arch = "wasm32")]
+            _web_callbacks: None,
         });
     }
 
@@ -490,10 +598,13 @@ impl Workbench {
                         e
                     ),
                 );
+                self.package_after_search = false;
                 return;
             }
         };
         let (sender, receiver) = mpsc::channel();
+        let error_sender = sender.clone();
+        let error_ctx = ctx.clone();
         let reply_ctx = ctx.clone();
         let onmessage =
             wasm_bindgen::closure::Closure::wrap(Box::new(move |event: web_sys::MessageEvent| {
@@ -522,18 +633,40 @@ impl Workbench {
                 reply_ctx.request_repaint();
             }) as Box<dyn FnMut(_)>);
         web_worker.set_onmessage(Some(onmessage.as_ref().unchecked_ref()));
-        onmessage.forget(); // lives until the page does — one per run
+        let onerror = wasm_bindgen::closure::Closure::wrap(Box::new(
+            move |_event: wasm_bindgen::JsValue| {
+                let _ = error_sender.send(Err("Search worker failed. Check the browser console and served worker bundle, then retry; the previous result is retained.".into()));
+                error_ctx.request_repaint();
+            },
+        ) as Box<dyn FnMut(_)>);
+        web_worker.set_onerror(Some(onerror.as_ref().unchecked_ref()));
         let payload = serde_json::json!({
             "case_json": json,
             "dataset_json": dataset
                 .and_then(|d| serde_json::to_string(&d).ok()),
         });
-        let _ = web_worker.post_message(&wasm_bindgen::JsValue::from_str(&payload.to_string()));
+        if let Err(error) =
+            web_worker.post_message(&wasm_bindgen::JsValue::from_str(&payload.to_string()))
+        {
+            web_worker.set_onmessage(None);
+            web_worker.set_onerror(None);
+            web_worker.terminate();
+            self.package_after_search = false;
+            self.message = (
+                true,
+                format!("Could not send the case to the search worker: {error:?}"),
+            );
+            return;
+        }
         self.worker = Some(Worker {
             receiver,
             cancel: Arc::new(AtomicBool::new(false)),
             kind: JobKind::Search,
             web_worker: Some(web_worker),
+            _web_callbacks: Some(BrowserWorkerCallbacks {
+                _message: onmessage,
+                _error: onerror,
+            }),
         });
     }
 
@@ -561,11 +694,53 @@ impl Workbench {
             cancel: Arc::new(AtomicBool::new(false)),
             kind,
             web_worker: None,
+            _web_callbacks: None,
         });
+    }
+
+    fn cancel_search(&mut self) {
+        let Some(worker) = self.worker.as_ref().filter(|w| w.kind == JobKind::Search) else {
+            return;
+        };
+        worker.cancel.store(true, Ordering::Relaxed);
+        self.package_after_search = false;
+        self.queue_active = false;
+        #[cfg(target_arch = "wasm32")]
+        {
+            // Termination cannot deliver a reply. Drop the owned callbacks and
+            // channel explicitly so cancellation makes the workbench usable.
+            self.worker = None;
+            self.search_progress = None;
+            self.message = (
+                false,
+                "Search cancelled. The previous completed result is retained.".into(),
+            );
+            self.message_fade_start = Instant::now();
+        }
     }
 
     fn start(&mut self, ctx: &egui::Context) {
         if self.worker.is_some() {
+            return;
+        }
+        if let Some(preflight) = &self.preflight
+            && !preflight.ready_to_run
+        {
+            self.message = (
+                true,
+                preflight
+                    .errors
+                    .iter()
+                    .map(|item| {
+                        format!(
+                            "{} {}",
+                            item.message,
+                            item.correction.as_deref().unwrap_or("")
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            );
             return;
         }
         // The browser build runs the search on a Web Worker holding a
@@ -596,7 +771,6 @@ impl Workbench {
                     .search_dataset
                     .as_ref()
                     .map(|source| source.dataset.clone());
-                self.search_record = None;
                 self.message = (
                     false,
                     "Searching in a browser worker — single-threaded, so a real grid takes a while; the page stays responsive…".into(),
@@ -629,7 +803,6 @@ impl Workbench {
                 .search_dataset
                 .as_ref()
                 .map(|source| source.dataset.clone());
-            self.search_record = None;
             self.message = (
                 false,
                 "Running coupled candidate search — every geometry is screened against the requirement…".into(),
@@ -774,6 +947,8 @@ impl Workbench {
     fn load_record_artifacts(&mut self, record: &CoupledSearchRunRecord) {
         self.search_record_json = serde_json::to_string(record).unwrap_or_default();
         self.bom_record = bom_from_record(&self.search_record_json).ok();
+        self.decision_summary =
+            optcoil_search::review::decision_summary(&self.search_record_json).ok();
         self.grade_report = grade_report_from_record(&self.search_record_json).ok();
         self.verify_checks = None;
         self.sweep_record = None;
@@ -1148,6 +1323,54 @@ impl Workbench {
         });
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
+    fn load_dataset_pair(&mut self, ctx: &egui::Context) {
+        self.launch(ctx, JobKind::Open, move |_| {
+            let Some(metadata) = rfd::FileDialog::new()
+                .set_title("Select attributed material metadata JSON")
+                .add_filter("Metadata", &["json"])
+                .pick_file()
+            else {
+                return Ok(JobResult::Dismissed);
+            };
+            let Some(csv) = rfd::FileDialog::new()
+                .set_title("Select canonical measurement CSV")
+                .add_filter("Measurements", &["csv"])
+                .pick_file()
+            else {
+                return Ok(JobResult::Dismissed);
+            };
+            let (metadata_json, csv_bytes) = author::read_material_pair_files(&metadata, &csv)?;
+            let bundle = optcoil_model::dataset_intake::material_bundle_from_pair(
+                &metadata_json,
+                &csv_bytes,
+            )
+            .map_err(|e| e.to_string())?;
+            Ok(JobResult::DatasetLoaded(Box::new(bundle), metadata))
+        });
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn load_dataset_pair(&mut self, ctx: &egui::Context) {
+        self.launch_wasm(ctx, JobKind::Open, async {
+            let Some((name, metadata)) = web::pick_bytes_limited(&["json"], 1024 * 1024).await?
+            else {
+                return Ok(JobResult::Dismissed);
+            };
+            let Some((_name, csv)) = web::pick_bytes_limited(&["csv"], 32 * 1024 * 1024).await?
+            else {
+                return Ok(JobResult::Dismissed);
+            };
+            let metadata = String::from_utf8(metadata).map_err(|e| e.to_string())?;
+            let bundle = optcoil_model::dataset_intake::material_bundle_from_pair(&metadata, &csv)
+                .map_err(|e| e.to_string())?;
+            Ok(JobResult::DatasetLoaded(
+                Box::new(bundle),
+                PathBuf::from(name),
+            ))
+        });
+    }
+
     #[cfg(target_arch = "wasm32")]
     fn load_dataset(&mut self, ctx: &egui::Context) {
         self.launch_wasm(ctx, JobKind::Open, async move {
@@ -1330,98 +1553,115 @@ impl Workbench {
         });
     }
 
-    /// Export the pilot bundle — one directory holding the case JSON
-    /// verbatim, the run record, the BOM and the RFQ document. That is
-    /// the auditable package a reviewer or vendor needs: the exact
-    /// inputs, the record, and the procurement-facing outputs.
-    #[cfg(target_arch = "wasm32")]
-    fn export_pilot_bundle(&mut self, _ctx: &egui::Context) {
-        // No directory on the web — the same four files arrive as
-        // individual downloads.
-        let Some(record) = self.search_record.clone() else {
+    fn export_previous_record(&mut self, ctx: &egui::Context) {
+        let Some(previous) = &self.compare_record else {
             return;
         };
-        let result = (|| -> Result<[(String, Vec<u8>); 4], String> {
-            let record_json =
-                serde_json::to_string_pretty(&record).map_err(|e| format!("Export failed: {e}"))?;
-            let case_json = if self.search_json.is_empty() {
-                serde_json::to_string_pretty(&record.case)
-                    .map_err(|e| format!("Export failed: {e}"))?
-            } else {
-                self.search_json.clone()
-            };
-            let bom = bom_from_record(&record_json).map_err(|e| format!("Export failed: {e}"))?;
-            let bom_json =
-                serde_json::to_string_pretty(&bom).map_err(|e| format!("Export failed: {e}"))?;
-            let rfq = optcoil_search::bom::rfq_markdown_from_record(&record_json)
-                .map_err(|e| format!("Export failed: {e}"))?;
-            Ok([
-                ("case.json".into(), case_json.into_bytes()),
-                ("record.json".into(), record_json.into_bytes()),
-                ("bom.json".into(), bom_json.into_bytes()),
-                ("rfq.md".into(), rfq.into_bytes()),
-            ])
-        })();
-        match result {
-            Ok(files) => {
-                for (name, bytes) in files {
-                    web::download_bytes(&name, &bytes);
-                }
-                self.message = (
-                    false,
-                    "Pilot bundle downloaded (case, record, BOM, RFQ — four files).".into(),
-                );
+        let json = match serde_json::to_string_pretty(previous) {
+            Ok(json) => json,
+            Err(error) => {
+                self.message = (true, error.to_string());
+                return;
             }
-            Err(e) => self.message = (true, e),
+        };
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = ctx;
+            web::download_bytes("previous-completed-record.json", json.as_bytes());
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        self.launch(ctx, JobKind::Export, move |_| {
+            let Some(path) = rfd::FileDialog::new()
+                .set_title("Save previous completed record")
+                .set_file_name("previous-completed-record.json")
+                .save_file()
+            else {
+                return Ok(JobResult::Dismissed);
+            };
+            use std::io::Write;
+            let mut file = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&path)
+                .map_err(|e| e.to_string())?;
+            file.write_all(json.as_bytes()).map_err(|e| e.to_string())?;
+            Ok(JobResult::Exported(path))
+        });
+    }
+
+    fn review_artifacts(&self) -> Result<Vec<(String, String)>, String> {
+        if self.search_record.is_none() {
+            return Err("Run a study before exporting a review package.".into());
+        }
+        let mut bundles = Vec::new();
+        if let Some(text) = self
+            .search_dataset
+            .as_ref()
+            .and_then(|source| source.bundle_json.as_deref())
+        {
+            bundles.push(MaterialBundle::from_json(text).map_err(|e| e.to_string())?);
+        }
+        optcoil_search::review::review_package(
+            &self.search_record_json,
+            (!self.search_json.is_empty()).then_some(self.search_json.as_str()),
+            &bundles,
+        )
+        .map_err(|e| e.to_string())
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn export_pilot_bundle(&mut self, _ctx: &egui::Context) {
+        match self.review_artifacts().and_then(|files| {
+            optcoil_search::review::review_package_tar(&files).map_err(|e| e.to_string())
+        }) {
+            Ok(bytes) => {
+                web::download_bytes("converra-review.tar", &bytes);
+                self.message = (false, "Review package downloaded. Extract it and run the verification command in README.txt.".into());
+            }
+            Err(error) => self.message = (true, error),
         }
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     fn export_pilot_bundle(&mut self, ctx: &egui::Context) {
-        let Some(record) = self.search_record.clone() else {
-            return;
+        let files = match self.review_artifacts() {
+            Ok(files) => files,
+            Err(error) => {
+                self.message = (true, error);
+                return;
+            }
         };
-        let case_json = self.search_json.clone();
         self.launch(ctx, JobKind::Export, move |_| {
-            let dir = rfd::FileDialog::new()
-                .set_title("Choose the pilot bundle directory")
-                .pick_folder();
-            let Some(dir) = dir else {
+            let Some(parent) = rfd::FileDialog::new()
+                .set_title("Choose parent directory for the review package")
+                .pick_folder()
+            else {
                 return Ok(JobResult::Dismissed);
             };
-            let record_json =
-                serde_json::to_string_pretty(&record).map_err(|e| format!("Export failed: {e}"))?;
-            let case_json = if case_json.is_empty() {
-                // A record opened read-only has no source JSON — embed
-                // the record's own case so the bundle still carries the
-                // exact case the run consumed.
-                serde_json::to_string_pretty(&record.case)
-                    .map_err(|e| format!("Export failed: {e}"))?
-            } else {
-                case_json
-            };
-            let bom = bom_from_record(&record_json).map_err(|e| format!("Export failed: {e}"))?;
-            let bom_json =
-                serde_json::to_string_pretty(&bom).map_err(|e| format!("Export failed: {e}"))?;
-            let rfq = optcoil_search::bom::rfq_markdown_from_record(&record_json)
-                .map_err(|e| format!("Export failed: {e}"))?;
-            for (name, bytes) in [
-                ("case.json", case_json.as_bytes()),
-                ("record.json", record_json.as_bytes()),
-                ("bom.json", bom_json.as_bytes()),
-                ("rfq.md", rfq.as_bytes()),
-            ] {
-                let path = dir.join(name);
-                if path.exists() {
-                    return Err(format!(
-                        "{} already exists — the bundle never overwrites",
-                        path.display()
-                    ));
+            let name = format!(
+                "converra-review-{}",
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_err(|e| e.to_string())?
+                    .as_millis()
+            );
+            let directory = parent.join(name);
+            fs::create_dir(&directory).map_err(|e| e.to_string())?;
+            use std::io::Write;
+            for (path, contents) in files {
+                let destination = directory.join(path);
+                if let Some(parent) = destination.parent() {
+                    fs::create_dir_all(parent).map_err(|e| e.to_string())?;
                 }
-                fs::write(&path, bytes)
-                    .map_err(|e| format!("cannot write {}: {e}", path.display()))?;
+                let mut file = fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(&destination)
+                    .map_err(|e| e.to_string())?;
+                file.write_all(contents.as_bytes())
+                    .map_err(|e| e.to_string())?;
             }
-            Ok(JobResult::Exported(dir))
+            Ok(JobResult::Exported(directory))
         });
     }
 
@@ -1437,7 +1677,18 @@ impl Workbench {
             let Some(path) = path else {
                 return Ok(JobResult::Dismissed);
             };
-            fs::write(&path, json).map_err(|e| format!("Save failed: {e}"))?;
+            use std::io::Write;
+            let mut file = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&path)
+                .map_err(|e| {
+                    format!(
+                        "Save failed: {e}. Choose a new filename; the source is never overwritten."
+                    )
+                })?;
+            file.write_all(json.as_bytes())
+                .map_err(|e| format!("Save failed: {e}"))?;
             Ok(JobResult::CaseWritten(path))
         });
     }
@@ -1447,6 +1698,7 @@ impl Workbench {
     #[cfg(target_arch = "wasm32")]
     fn save_case(&mut self, ctx: &egui::Context, json: String) {
         web::download_bytes("coupled-search-case.json", json.as_bytes());
+        self.author = None;
         self.open_bytes(
             ctx,
             Some(("coupled-search-case.json".into(), json.into_bytes())),
@@ -1504,10 +1756,23 @@ impl Workbench {
                 }
                 let auto_start = self.queue_active;
                 let (case, json) = *data;
-                self.search_dataset = resolve_dataset(&case, &path);
+                let previous_dataset = self
+                    .search_dataset
+                    .take()
+                    .filter(|source| case.validate_against_dataset(&source.dataset).is_ok());
+                self.search_dataset = previous_dataset.or_else(|| resolve_dataset(&case, &path));
                 self.search_case = Some(case);
                 self.search_json = json;
-                self.search_record = None;
+                if let Some(previous) = self.search_record.take() {
+                    self.compare_record = Some(previous);
+                }
+                self.search_record_json.clear();
+                self.bom_record = None;
+                self.decision_summary = None;
+                self.grade_report = None;
+                self.verify_checks = None;
+                self.sweep_record = None;
+                self.bakeoff_record = None;
                 self.record = None;
                 self.path = Some(path);
                 self.selected_candidate = 0;
@@ -1539,6 +1804,27 @@ impl Workbench {
                 if auto_start {
                     let ctx = self.ctx.clone();
                     self.start(&ctx);
+                }
+            }
+            Ok(JobResult::SourceCaseLoaded(json, path)) => {
+                use sha2::{Digest, Sha256};
+                let hash = format!("{:x}", Sha256::digest(json.as_bytes()));
+                let matches = self
+                    .search_record
+                    .as_ref()
+                    .is_some_and(|record| record.case_sha256.trim_start_matches("sha256:") == hash);
+                if matches {
+                    self.search_json = json;
+                    if let Some(case) = &self.search_case {
+                        let previous = self.search_dataset.take().filter(|source| {
+                            case.validate_against_dataset(&source.dataset).is_ok()
+                        });
+                        self.search_dataset = previous.or_else(|| resolve_dataset(case, &path));
+                    }
+                    self.path = Some(path);
+                    self.message = (false, "Original case attached and its byte hash verified. The completed result is retained; rerun and review export are available.".into());
+                } else {
+                    self.message = (true, "Case bytes do not match this record's case hash. Select the original file used for the run; the current result is retained.".into());
                 }
             }
             Ok(JobResult::LoadedSearchRun(record, path)) => {
@@ -1587,6 +1873,10 @@ impl Workbench {
                         record.acceptance.agreement_status,
                     ),
                 );
+                if let Some(previous) = self.search_record.take() {
+                    // A successful replacement retains the last completed result for comparison.
+                    self.compare_record = Some(previous);
+                }
                 self.search_record = Some(*record);
                 self.selected_candidate = 0;
                 self.plot_revision += 1;
@@ -1594,6 +1884,7 @@ impl Workbench {
                 if self.queue_active {
                     self.advance_queue();
                 } else if self.package_after_search {
+                    self.package_after_search = false;
                     // Chained pilot flow: the record is loaded and shown;
                     // the bundle prompt is the only decision left.
                     self.export_pilot_bundle(ctx);
@@ -1672,7 +1963,9 @@ impl Workbench {
                                 signed
                             ),
                         );
+                        let bundle_json = bundle.to_json().ok();
                         self.search_dataset = Some(DatasetSource {
+                            bundle_json,
                             dataset: bundle.dataset,
                             origin: DatasetOrigin::File(path),
                             attestation: bundle.attestation,
@@ -1718,11 +2011,13 @@ impl Workbench {
             }
             Ok(JobResult::Dismissed) => {}
             Err(error) => {
+                self.package_after_search = false;
                 // A user-cancelled run is an outcome, not a failure.
                 let is_cancel = error.contains("cancelled");
                 self.message = (!is_cancel, error);
             }
         }
+        self.refresh_preflight();
         self.message_fade_start = Instant::now();
     }
 
@@ -1744,12 +2039,24 @@ impl Workbench {
                         self.worker.is_none() && self.author.is_none(),
                         egui::Button::new("New search case…"),
                     )
-                    .on_hover_text("Guided walkthrough of a coupled-search case — 'All fields' exposes every schema field")
+                    .on_hover_text("Create a supported coupled-search case; revise loaded cases with the advanced editor")
                     .clicked()
                 {
                     self.author = Some(author::CaseDraft::guided());
                     ui.close();
                 }
+                if self.search_case.is_some() && self.worker.is_none() {
+                    if ui.button("Revise current case…").clicked() { self.edit_case(false); ui.close(); }
+                    if ui.button("Duplicate current case…").clicked() { self.edit_case(true); ui.close(); }
+                }
+                ui.menu_button("Examples", |ui| {
+                    if ui.add_enabled(self.worker.is_none(), egui::Button::new("Measured conductor first study")).clicked() {
+                        self.open_example(ui.ctx(), true); ui.close();
+                    }
+                    if ui.add_enabled(self.worker.is_none(), egui::Button::new("Synthetic allocation reference")).clicked() {
+                        self.open_example(ui.ctx(), false); ui.close();
+                    }
+                });
                 if ui
                     .add_enabled(
                         (self.record.is_some() || self.search_record.is_some())
@@ -1950,7 +2257,7 @@ impl Workbench {
                     self.worker.is_none() && self.author.is_none(),
                     egui::Button::new("New search case…"),
                 )
-                .on_hover_text("Guided walkthrough of a coupled-search case — 'All fields' exposes every schema field")
+                .on_hover_text("Create a supported coupled-search case; revise loaded cases with the advanced editor")
                 .clicked()
             {
                 self.author = Some(author::CaseDraft::guided());
@@ -1971,8 +2278,7 @@ impl Workbench {
             if self.search_case.is_some() {
                 ui.checkbox(&mut self.package_after_search, "bundle after run")
                     .on_hover_text(
-                        "When the search completes, prompt once for a directory to write \
-                         case.json + record.json + bom.json + rfq.md — the pilot package",
+                        "After completion, export the case, record, report, datasets and manifest; include procurement files when a candidate is selected. Desktop saves a new directory; browser downloads a tar archive.",
                     );
             }
             if let Some(worker) = &self.worker {
@@ -2030,11 +2336,7 @@ impl Workbench {
                     ui.colored_label(brand::MUTED, detail);
                 }
                 if worker.kind == JobKind::Search && ui.button("Cancel").clicked() {
-                    worker.cancel.store(true, Ordering::Relaxed);
-                    #[cfg(target_arch = "wasm32")]
-                    if let Some(w) = worker.web_worker.as_ref() {
-                        w.terminate();
-                    }
+                    self.cancel_search();
                 }
             }
         });
@@ -2168,7 +2470,7 @@ impl Workbench {
                     4 => {
                         ui.heading("Read the record");
                         ui.label(if coupled {
-                            "Results land on Overview: the verified optimum beside the baseline, every candidate's verdict and cost ledger, and the independent acceptance recomputation. A candidate row opens its limiting-point detail."
+                            "Results land on Overview: the selected screening option when available, the baseline, every candidate's verdict and cost ledger, and acceptance recomputation. Review unresolved checks and next actions; a candidate row opens its limiting-point detail."
                         } else {
                             "Results land on Overview: the optimized allocation beside baseline cost, per-module margins, and any checks the case could not close."
                         });
@@ -2181,7 +2483,7 @@ impl Workbench {
                     }
                     _ => {
                         ui.heading("Evidence & export");
-                        ui.label("Every run binds the case, dataset, model and checker versions by SHA-256. Export the record JSON or a self-contained HTML report for design review — either reprices exactly at a new tape price.");
+                        ui.label("Every run binds its inputs and implementation identities. Export a review package with the original case, record, report, datasets and verification manifest. Uniform-price scenarios are supported for compatible records; graded and purchased-piece costs retain their original ledger.");
                         ui.horizontal(|ui| {
                             if ui.add_enabled(has_results, egui::Button::new("Export report…")).clicked() {
                                 self.export_report(ctx);
@@ -2725,13 +3027,13 @@ impl eframe::App for Workbench {
         self.tour_window(&ctx);
         if self.help {
             egui::Window::new("Using Converra").open(&mut self.help).default_width(490.0).show(ui, |ui| {
-                ui.heading("Explore the cost of a coil allocation");
-                ui.label("1. Open a Converra project or use the bundled synthetic case.\n2. Run optimization with a chosen evaluation budget.\n3. Select a module to inspect its tape allocation and current margin.\n4. Review missing engineering checks before interpreting savings.");
+                ui.heading("Complete a supported coil study");
+                ui.label("1. Open a case or select the measured first study from File → Examples.\n2. Review inputs and applicability, then run.\n3. Inspect the decision and unresolved checks.\n4. Revise or duplicate the case, compare inputs, and export a review package. Prices in the examples are illustrative.");
                 ui.separator();
                 ui.label("Plots: drag to pan, scroll/pinch to zoom, double-click to reset. Click legend entries to hide a series. Hover data for values.");
                 ui.label("Tables: click a module row to inspect it. Drag column boundaries to resize. Filter by module name or sort by field.");
                 ui.label("Ctrl+O: open project · Ctrl+Shift+S: export run · F1: help");
-                ui.label("Project import accepts Converra allocation case JSON and coupled-search case JSON; a saved coupled-search run record opens read-only as a results view. STEP, CSV/Excel and native solver import are planned.");
+                ui.label("Import accepts allocation cases, coupled-search cases and saved run records. Materials accepts validated dataset bundles or metadata/CSV pairs. Declared field maps use the case builder. Browser searches use a background worker; folder features require desktop. STEP, arbitrary Excel column mapping and native solver APIs are planned.");
             });
         }
         let files_hovered = ctx.input(|i| !i.raw.hovered_files.is_empty());

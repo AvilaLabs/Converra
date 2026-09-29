@@ -42,7 +42,7 @@ Prebuilt desktop and CLI binaries are available from [GitHub Releases](https://g
 
 Extract the archive and launch `Converra` on Windows/Linux or `Converra.app` on macOS. No Rust installation is needed for these builds. The command-line executable is named `optcoil` (`optcoil.exe` on Windows).
 
-The desktop includes a synthetic example. Open a case JSON or create one with **New search case…**, run a search, and inspect the design comparison, materials, and evidence views. The guided builder authors racetrack cases; general planar and non-planar paths are authored as JSON. Linux desktop use requires a graphical session and graphics drivers.
+The workbench starts with a small attributed measured-conductor study and explicitly illustrative prices. Review **Applicability and work estimate**, run, inspect the decision, then **Revise** or **Duplicate** and export a **Review package**. **File → Examples** also offers the synthetic allocation reference. The guided builder authors supported racetrack and helix cases; the advanced revision editor preserves complete case JSON, including graded, field-map and non-planar declarations. Linux desktop use requires a graphical session and graphics drivers.
 
 ### Build from source
 
@@ -61,7 +61,7 @@ cd crates/optcoil-app && trunk serve
 
 The engine crates retain the `optcoil-*` names. Cargo defaults to the CLI, so headless commands build without the desktop graphics dependencies.
 
-The browser workbench — hosted at [converra.avilalabs.org](https://converra.avilalabs.org), or `trunk serve` in `crates/optcoil-app` for a local build — opens and inspects cases and records, authors cases, and downloads every export. Searches, folder-based features (library, bake-off directory, watch mode, run queue) and persistence need the desktop build — the browser is single-threaded, and a search would freeze the tab; the UI says so at each entry point.
+The browser workbench — hosted at [converra.avilalabs.org](https://converra.avilalabs.org), or `trunk serve` in `crates/optcoil-app` for a local build — opens, revises and searches cases using a background Web Worker. Cancellation terminates that worker. It accepts dataset bundles and attributed metadata/CSV pairs and downloads review packages as a single tar archive. Folder libraries, directory bake-offs, watch mode, queues and persisted desktop settings require the desktop build.
 
 ### Run a study from the CLI
 
@@ -70,6 +70,9 @@ Run these commands from the repository root:
 ```bash
 # Try the small synthetic allocation example.
 cargo run -- demo
+
+# Check input applicability before dispatch. This does not establish field coverage.
+cargo run --release -- preflight benchmarks/coupled/first-study.json
 
 # Search a shipped coupled field/conductor case and save its evidence.
 cargo run --release -- coupled-search benchmarks/coupled/oc-007.json \
@@ -85,7 +88,12 @@ cargo run --release -- bom runs/design.json --output runs/design.bom.json
 
 Coupled searches can take several minutes, depending on the candidate grid and sampling plan. The OC-007 example uses measured conductor data with **synthetic prices**. Run exports protect existing files; choose a new output filename when repeating a study. With a prebuilt CLI, use `optcoil` in place of `cargo run --release --` and supply your case file.
 
+Export a portable package with `optcoil review-package runs/design.json benchmarks/coupled/oc-007.json --output runs/design-review`, then check every artifact with `optcoil verify-package runs/design-review`. A saved record opened in the workbench can attach its original case file; its byte hash must match before a rerunnable package is exported.
+
 Use `optcoil --help` or `cargo run -- --help` to explore commands for field evaluation, material queries, sensitivity sweeps, dataset comparison, grading reports, and repricing. Keep your own cases and material files in ignored `customer-data/`, and generated records in ignored `runs/`.
+
+See [product completion evidence](docs/PRODUCT_COMPLETION.md) for the supported
+workflow, verification gates and open external engineer validation milestone.
 
 ### Use the Python bindings
 

@@ -12,11 +12,46 @@ use optcoil_search::verify;
 
 mod metrics;
 
+#[cfg(test)]
 pub(crate) use metrics::repriced_total_usd;
 use metrics::{
-    best_index_at_price, cost_values, explain_status, lifecycle_at_price, search_cost_components,
-    strands_suffix, usd, usd_k,
+    cost_values, explain_status, record_best_index_at_price, record_cost_components,
+    record_total_at_price, scalar_repricing_supported, strands_suffix, usd, usd_k,
 };
+
+fn shown_total(
+    record: &CoupledSearchRunRecord,
+    ledger: &optcoil_search::coupled_search::SearchCostLedger,
+    price: f64,
+    _scrap: f64,
+) -> f64 {
+    record_total_at_price(record, ledger, price).unwrap_or(ledger.total_usd)
+}
+fn best_index_at_price(record: &CoupledSearchRunRecord, price: f64, _scrap: f64) -> Option<usize> {
+    record_best_index_at_price(record, price)
+}
+fn shown_components(
+    record: &CoupledSearchRunRecord,
+    ledger: &optcoil_search::coupled_search::SearchCostLedger,
+    price: f64,
+    _scrap: f64,
+) -> [(&'static str, f64); 5] {
+    record_cost_components(record, ledger, price).unwrap_or([
+        ("Conductor", ledger.conductor_usd),
+        ("Scrap", ledger.scrap_usd),
+        ("Assembly", ledger.assembly_usd),
+        ("Joints", ledger.joints_usd),
+        ("Opex", ledger.opex_usd.unwrap_or(0.0)),
+    ])
+}
+fn shown_lifecycle(
+    record: &CoupledSearchRunRecord,
+    ledger: &optcoil_search::coupled_search::SearchCostLedger,
+    price: f64,
+    scrap: f64,
+) -> f64 {
+    shown_total(record, ledger, price, scrap) + ledger.opex_usd.unwrap_or(0.0)
+}
 
 const COST_LABELS: [&str; 4] = ["Conductor", "Scrap", "Assembly", "Joints"];
 
@@ -529,7 +564,7 @@ impl Workbench {
             "A project combines geometry, material data, requirements and analysis settings.",
         );
         ui.heading("Available now");
-        ui.label("Open or drop a Converra case (.json). The file contains the complete synthetic allocation problem. Export run records with their inputs and results from the toolbar.");
+        ui.label("Open or drop an allocation case, coupled-search case, or saved run record (.json). The builder loads dataset bundles or validated metadata/CSV pairs and imports declared field maps. Export a review package with inputs and evidence from Reports.");
         ui.add_space(12.0);
         ui.heading("Planned engineering imports");
         for (name, purpose) in [
@@ -538,8 +573,8 @@ impl Workbench {
                 "CAD solids and assemblies. Imported parts will need coil, orientation and current assignments.",
             ),
             (
-                "CSV, then Excel",
-                "Material measurements, costs and operating tables, with column mapping, units and provenance.",
+                "Excel and arbitrary CSV mapping",
+                "Map existing column names and units to the canonical material format; attribution and validation remain required.",
             ),
             (
                 "Native solver models / APIs",
@@ -578,8 +613,51 @@ impl Workbench {
         title(
             ui,
             "Coupled conductor search",
-            "Every declared geometry is screened against the magnet requirement; the optimum is the cheapest PASS.",
+            "Review applicability, run the declared candidate set, and inspect its refined recomputation and unresolved limits.",
         );
+        if self.search_case.is_some() {
+            ui.horizontal_wrapped(|ui| {
+                ui.label("Workflow: review inputs → run → inspect → revise → export");
+                if ui
+                    .add_enabled(
+                        self.worker.is_none() && self.author.is_none(),
+                        egui::Button::new("Revise…"),
+                    )
+                    .clicked()
+                {
+                    self.edit_case(false);
+                }
+            });
+            let case = self.search_case.as_ref().expect("case checked");
+            ui.collapsing("Input provenance and price assumptions", |ui| {
+                ui.label(&case.provenance);
+            });
+            ui.small(format!(
+                "{} · {:.3} T target at {:?} m · {:.1} K · prices {:?} (see provenance)",
+                case.id,
+                case.requirement.b_target_t,
+                case.requirement.bore_probe_m,
+                case.operating.temperature_k,
+                case.cost.price_source
+            ));
+        }
+        if let Some(preflight) = &self.preflight {
+            ui.collapsing(if preflight.ready_to_run { "Applicability and work estimate — inputs ready" } else { "Applicability — resolve inputs before running" }, |ui| {
+                ui.label(format!("{} · {}", preflight.geometry_support, preflight.field_source));
+                ui.label(format!("{} candidates · primary point estimate {} · refined point estimate {} · up to {} threads · q {:?}",
+                    preflight.workload.candidate_count, preflight.workload.primary_point_upper_estimate,
+                    preflight.workload.refined_point_upper_estimate, preflight.selected_threads, preflight.quadrature_orders));
+                ui.small(&preflight.workload.estimate_label);
+                for item in &preflight.items {
+                    ui.label(&item.message);
+                    if let Some(correction) = &item.correction { ui.small(correction); }
+                }
+                ui.small("Readiness checks inputs. Field/material coverage and engineering acceptance remain unresolved until evaluated.");
+            });
+        }
+        if self.worker.is_some() && self.search_record.is_some() {
+            ui.label("Showing the previous completed result for this input while its replacement runs. Cancelling keeps this result.");
+        }
         let reveal = self.reveal_progress();
         let record = self.search_record.as_ref();
         ui.columns(3, |columns| {
@@ -601,7 +679,8 @@ impl Workbench {
                         let price = self
                             .reprice_usd_per_m
                             .unwrap_or(r.case.cost.price_usd_per_m);
-                        usd(repriced_total_usd(
+                        usd(shown_total(
+                            r,
                             &r.candidates[r.baseline_index].cost,
                             price,
                             r.case.cost.scrap_fraction,
@@ -642,7 +721,8 @@ impl Workbench {
                             |i| {
                                 format!(
                                     "{} checked cost",
-                                    usd(repriced_total_usd(
+                                    usd(shown_total(
+                                        r,
                                         &r.candidates[i].cost,
                                         price,
                                         r.case.cost.scrap_fraction
@@ -673,13 +753,13 @@ impl Workbench {
                                 if i == r.baseline_index {
                                     "0.00%".into()
                                 } else {
-                                    let base = repriced_total_usd(
+                                    let base = shown_total(
+                                        r,
                                         &r.candidates[r.baseline_index].cost,
                                         price,
                                         scrap,
                                     );
-                                    let best =
-                                        repriced_total_usd(&r.candidates[i].cost, price, scrap);
+                                    let best = shown_total(r, &r.candidates[i].cost, price, scrap);
                                     if base > 0.0 {
                                         format!(
                                             "{:.2}%",
@@ -707,8 +787,8 @@ impl Workbench {
                                 .to_string();
                         }
                         let base =
-                            repriced_total_usd(&r.candidates[r.baseline_index].cost, price, scrap);
-                        let best = repriced_total_usd(&r.candidates[i].cost, price, scrap);
+                            shown_total(r, &r.candidates[r.baseline_index].cost, price, scrap);
+                        let best = shown_total(r, &r.candidates[i].cost, price, scrap);
                         format!(
                             "{} vs the declared baseline",
                             usd((base - best) * reveal as f64)
@@ -818,16 +898,13 @@ impl Workbench {
             let mut reset = false;
             // v24 piece-catalogue pricing is per-spec — a single $/m
             // slider cannot reprice it. Show the ledger's own totals.
-            let piece_priced = record
-                .candidates
-                .iter()
-                .any(|c| c.cost.piece_plan.is_some());
+            let piece_priced = !scalar_repricing_supported(record);
             ui.horizontal_wrapped(|ui| {
                 ui.label(RichText::new("Conductor $/m").color(brand::MUTED).small());
                 if piece_priced {
                     ui.colored_label(
                         brand::MUTED,
-                        "piece-catalogue pricing — slider not applicable",
+                        "per-spec / piece pricing — revise declared prices and rerun",
                     );
                 } else {
                     if ui
@@ -844,7 +921,10 @@ impl Workbench {
                         moved = true;
                     }
                     if self.reprice_usd_per_m.is_some() {
-                        ui.colored_label(brand::BLUE, "repriced — verdicts unchanged");
+                        ui.colored_label(
+                            brand::BLUE,
+                            "price scenario — screening only; selection acceptance NOT_EVALUATED",
+                        );
                         if ui.small_button("reset").clicked() {
                             reset = true;
                         }
@@ -874,7 +954,8 @@ impl Workbench {
                     candidate.geometry.tapes_along_width,
                     strands_suffix(candidate.geometry.strands_parallel),
                     candidate.operating_current_a,
-                    usd(repriced_total_usd(
+                    usd(shown_total(
+                        record,
                         &candidate.cost,
                         shown_price,
                         scrap_fraction
@@ -886,20 +967,21 @@ impl Workbench {
                     // Reprice the capex part under the slider; opex is
                     // conductor-price-independent, so it passes through.
                     let lifecycle =
-                        repriced_total_usd(&candidate.cost, shown_price, scrap_fraction) + opex;
+                        shown_total(record, &candidate.cost, shown_price, scrap_fraction) + opex;
                     ui.colored_label(
                         brand::BLUE,
                         format!("· lifecycle {} (incl. declared opex)", usd(lifecycle)),
                     );
                 }
                 {
-                    let base = repriced_total_usd(
+                    let base = shown_total(
+                        record,
                         &record.candidates[record.baseline_index].cost,
                         shown_price,
                         scrap_fraction,
                     );
                     let best_total =
-                        repriced_total_usd(&candidate.cost, shown_price, scrap_fraction);
+                        shown_total(record, &candidate.cost, shown_price, scrap_fraction);
                     if base > 0.0 {
                         ui.colored_label(
                             brand::BLUE,
@@ -915,7 +997,7 @@ impl Workbench {
         } else {
             ui.colored_label(
                 status_color(Status::Fail),
-                "No candidate passed — no feasible geometry in the declared choice set.",
+                "No candidate passed screening in the declared choice set; review unresolved gates.",
             );
         }
         // Cost breakdown: the declared baseline vs the inspected (or
@@ -938,9 +1020,9 @@ impl Workbench {
                         "declared baseline vs inspected candidate · hover for values",
                     );
                 });
-                let headroom = search_cost_components(baseline, shown_price, scrap_fraction)
+                let headroom = shown_components(record, baseline, shown_price, scrap_fraction)
                     .into_iter()
-                    .chain(search_cost_components(shown, shown_price, scrap_fraction))
+                    .chain(shown_components(record, shown, shown_price, scrap_fraction))
                     .map(|(_, v)| v)
                     .fold(0.0_f64, f64::max)
                     * 1.15;
@@ -963,14 +1045,14 @@ impl Workbench {
                     .show(ui, |plot| {
                         plot.bar_chart(search_cost_bars(
                             "Baseline",
-                            &search_cost_components(baseline, shown_price, scrap_fraction),
+                            &shown_components(record, baseline, shown_price, scrap_fraction),
                             -0.18,
                             brand::BASELINE,
                             1.0,
                         ));
                         plot.bar_chart(search_cost_bars(
                             "Candidate",
-                            &search_cost_components(shown, shown_price, scrap_fraction),
+                            &shown_components(record, shown, shown_price, scrap_fraction),
                             0.18,
                             brand::BLUE,
                             1.0,
@@ -1160,7 +1242,7 @@ impl Workbench {
                 ui.strong("Search space");
                 ui.colored_label(
                     brand::MUTED,
-                    "every declared geometry · click to inspect · blue ring = cheapest PASS at shown price · grey ring = baseline",
+                    "every declared geometry · click to inspect · blue ring = record selection or screening price scenario · grey ring = baseline",
                 );
                 if strands.len() > 1 {
                     egui::ComboBox::from_id_salt("map-strand")
@@ -1235,7 +1317,8 @@ impl Workbench {
                                 egui::Stroke::new(0.5, brand::BASELINE.gamma_multiply(0.6))
                             };
                             let status = cand.status;
-                            let total = repriced_total_usd(&cand.cost, shown_price, scrap_fraction);
+                            let total =
+                                shown_total(record, &cand.cost, shown_price, scrap_fraction);
                             let iop = cand.operating_current_a;
                             let resp = egui::Frame::new()
                                 .fill(fill)
@@ -1263,7 +1346,7 @@ impl Workbench {
                                         ui.label("declared baseline");
                                     }
                                     if is_best {
-                                        ui.label("optimum at shown price");
+                                        ui.label("selection at shown price");
                                     }
                                 });
                             if resp.clicked() {
@@ -1286,7 +1369,8 @@ impl Workbench {
                 "sorted by modeled cost · click a row to inspect",
             );
         });
-        let baseline_cost = repriced_total_usd(
+        let baseline_cost = shown_total(
+            record,
             &record.candidates[record.baseline_index].cost,
             shown_price,
             scrap_fraction,
@@ -1354,7 +1438,8 @@ impl Workbench {
                         ui.label(format!("{:.1}", candidate.operating_current_a));
                     });
                     row.col(|ui| {
-                        ui.label(usd(repriced_total_usd(
+                        ui.label(usd(shown_total(
+                            record,
                             &candidate.cost,
                             shown_price,
                             scrap_fraction,
@@ -1363,7 +1448,7 @@ impl Workbench {
                     row.col(|ui| {
                         ui.label(format!(
                             "{:+.1}%",
-                            (repriced_total_usd(&candidate.cost, shown_price, scrap_fraction)
+                            (shown_total(record, &candidate.cost, shown_price, scrap_fraction)
                                 - baseline_cost)
                                 / baseline_cost
                                 * 100.0
@@ -1425,143 +1510,36 @@ impl Workbench {
     /// substantiate. Rendered entirely from the record, so it can never
     /// claim more than the run did.
     fn recommendation_card(&self, ui: &mut egui::Ui, record: &CoupledSearchRunRecord) {
-        let price = self
-            .reprice_usd_per_m
-            .unwrap_or(record.case.cost.price_usd_per_m);
-        let scrap = record.case.cost.scrap_fraction;
-        let best = best_index_at_price(record, price, scrap);
-        egui::Frame::group(ui.style())
-            .fill(brand::status_tint(brand::BLUE))
-            .show(ui, |ui| {
-                ui.set_min_width(ui.available_width());
-                ui.horizontal(|ui| {
-                    ui.strong("Recommendation");
-                    ui.colored_label(brand::MUTED, "search");
-                    status_chip(ui, record.search_status);
-                    ui.colored_label(brand::MUTED, "acceptance");
-                    status_chip(ui, record.acceptance.agreement_status);
-                });
-                let Some(i) = best else {
-                    ui.colored_label(
-                        status_color(Status::Fail),
-                        "No candidate passed screening — nothing to recommend. The Checks page \
-                         lists the failing gates.",
-                    );
-                    return;
-                };
-                let cand = &record.candidates[i];
-                let g = &cand.geometry;
-                let spec_note = g
-                    .tape_spec_ids
-                    .as_ref()
-                    .map(|ids| format!(" — spec assignment: {}", ids.join(" / ")))
-                    .unwrap_or_default();
-                let total = repriced_total_usd(&cand.cost, price, scrap);
-                let base = repriced_total_usd(
-                    &record.candidates[record.baseline_index].cost,
-                    price,
-                    scrap,
-                );
-                ui.label(format!(
-                    "{} × {}{}{} at {}",
-                    g.turns_along_normal,
-                    g.tapes_along_width,
-                    strands_suffix(g.strands_parallel),
-                    spec_note,
-                    usd(total)
-                ));
-                if i != record.baseline_index && base > 0.0 {
-                    ui.colored_label(
-                        brand::MUTED,
-                        format!(
-                            "{} ({:.1}%) below the declared baseline",
-                            usd(base - total),
-                            (base - total) / base * 100.0
-                        ),
-                    );
-                }
-                if let Some(screening) = &cand.screening
-                    && let Some(u) = screening.max_utilization
-                {
-                    let limit = record.case.limits.utilization_limit;
-                    let loc = screening
-                        .limiting
-                        .as_ref()
-                        .map(|p| {
-                            format!(
-                                " at {} (turn {}, tape {})",
-                                p.station, p.turn_index, p.tape_index
-                            )
-                        })
-                        .unwrap_or_default();
-                    let tight = u >= limit * 0.95;
-                    ui.colored_label(
-                        if tight {
-                            status_color(Status::Inconclusive)
-                        } else {
-                            brand::MUTED
-                        },
-                        format!(
-                            "limiting margin: utilization {u:.4} of the declared {limit} \
-                             limit{loc}{}",
-                            if tight { " — thin margin" } else { "" }
-                        ),
-                    );
-                }
-                // What the run did not establish — named, not hidden.
-                let mut unchecked: Vec<String> = Vec::new();
-                if cand.mechanical_feasible.is_none() {
-                    unchecked.push("mechanical bound undeclared".into());
-                }
-                match &cand.screens {
-                    None => unchecked.push("no optional screens declared".into()),
-                    Some(screens) => {
-                        let rows: [(&str, Option<Status>); 6] = [
-                            (
-                                "thermal margin",
-                                screens.thermal_margin.as_ref().map(|s| s.status),
-                            ),
-                            ("ac loss", screens.ac_loss.as_ref().map(|s| s.status)),
-                            (
-                                "quench hotspot",
-                                screens.quench_hotspot.as_ref().map(|s| s.status),
-                            ),
-                            (
-                                "screening current",
-                                screens.screening_current.as_ref().map(|s| s.status),
-                            ),
-                            ("transition", screens.transition.as_ref().map(|s| s.status)),
-                            (
-                                "quench transient",
-                                screens.quench_transient.as_ref().map(|s| s.status),
-                            ),
-                        ];
-                        for (name, st) in rows {
-                            match st {
-                                Some(Status::Pass) => {}
-                                Some(st) => unchecked.push(format!("{name}: {}", status_label(st))),
-                                None => unchecked.push(format!("{name}: not declared")),
-                            }
-                        }
-                    }
-                }
-                if !unchecked.is_empty() {
-                    ui.colored_label(
-                        status_color(Status::Inconclusive),
-                        format!("Not established: {}", unchecked.join("; ")),
-                    );
-                }
-                ui.small(format!(
-                    "{} recorded limitations — the Checks page carries them verbatim. A screening \
-                     pass is not manufacturing acceptance.",
-                    record.limitations.len()
-                ));
+        let Some(summary) = &self.decision_summary else {
+            return;
+        };
+        egui::Frame::group(ui.style()).fill(brand::status_tint(brand::BLUE)).show(ui, |ui| {
+            ui.strong("Decision at the declared inputs and prices");
+            ui.horizontal_wrapped(|ui| {
+                ui.label("Search"); status_chip(ui, record.search_status);
+                ui.label("Recomputation agreement"); status_chip(ui, record.acceptance.agreement_status);
             });
-        ui.add_space(8.0);
+            if let Some(geometry) = &summary.selected_geometry {
+                ui.label(format!("{} turns × {} tapes{} · {} · baseline {}", geometry.turns_along_normal, geometry.tapes_along_width,
+                    strands_suffix(geometry.strands_parallel), summary.selected_total_usd.map(usd).unwrap_or_default(), usd(summary.baseline_total_usd)));
+            } else { ui.label("No resolved screening recommendation in this candidate set."); }
+            if let Some(cost) = &summary.cost_components {
+                ui.small(format!("Conductor {} · scrap {} · assembly {} · joints {}", usd(cost.conductor_usd), usd(cost.scrap_usd), usd(cost.assembly_usd), usd(cost.joints_usd)));
+            }
+            if let Some(utilization) = summary.current_utilization {
+                ui.label(format!("Current utilization {:.4} / limit {:.4} · {}", utilization, summary.utilization_limit, summary.limiting_location.as_deref().unwrap_or("location unavailable")));
+            }
+            if self.reprice_usd_per_m.is_some() && scalar_repricing_supported(record) { ui.colored_label(brand::MUTED, "The price scenario below is screening arithmetic. Its selected option has acceptance NOT_EVALUATED; this decision retains the original recomputation."); }
+            ui.collapsing("Unresolved work and next actions", |ui| {
+                for basis in &summary.price_basis { ui.small(basis); }
+                for gate in &summary.unresolved_gates { ui.label(gate); }
+                for action in &summary.next_actions { ui.label(format!("→ {action}")); }
+                for limitation in &summary.limitations { ui.small(limitation); }
+            });
+            ui.small("Cost recomputation is separate. Shared physics agreement does not establish independent physical validation or production acceptance.");
+        });
     }
 
-    /// Checks page for a coupled-search project: the embedded acceptance
-    /// recomputation plus the run's own checks, rendered as one ledger.
     pub(super) fn search_checks(&mut self, ui: &mut egui::Ui) {
         title(
             ui,
@@ -1807,8 +1785,8 @@ impl Workbench {
         let scrap = record.case.cost.scrap_fraction;
         let mut indices: Vec<usize> = (0..record.candidates.len()).collect();
         indices.sort_by(|&a, &b| {
-            lifecycle_at_price(&record.candidates[a].cost, price, scrap).total_cmp(
-                &lifecycle_at_price(&record.candidates[b].cost, price, scrap),
+            shown_lifecycle(record, &record.candidates[a].cost, price, scrap).total_cmp(
+                &shown_lifecycle(record, &record.candidates[b].cost, price, scrap),
             )
         });
         indices
@@ -1825,13 +1803,89 @@ impl Workbench {
             "Procurement-facing outputs computed from the loaded run record — the same artifacts the CLI emits, rendered.",
         );
         let Some(record) = self.search_record.clone() else {
-            ui.colored_label(
-                brand::MUTED,
-                "No coupled-search record loaded — run a search or open a saved record to see its artifacts.",
-            );
+            ui.label("The active input has no completed result yet. Review applicability and run it when ready.");
+            if let Some(previous) = self.compare_record.clone() {
+                ui.heading(format!("Previous completed study — {}", previous.case.id));
+                ui.horizontal_wrapped(|ui| {
+                    ui.label("Previous search");
+                    status_chip(ui, previous.search_status);
+                    ui.label("Previous recomputation agreement");
+                    status_chip(ui, previous.acceptance.agreement_status);
+                });
+                if let Some(candidate) = previous
+                    .best_index
+                    .and_then(|index| previous.candidates.get(index))
+                {
+                    ui.label(format!(
+                        "Previous selected option: {} turns × {} tapes · {}",
+                        candidate.geometry.turns_along_normal,
+                        candidate.geometry.tapes_along_width,
+                        usd(candidate.cost.total_usd)
+                    ));
+                } else {
+                    ui.label("The previous study has no resolved screening selection.");
+                }
+                ui.collapsing("Previous candidate ledger", |ui| {
+                    for candidate in &previous.candidates {
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label(format!(
+                                "#{} · {} × {} · {}",
+                                candidate.index,
+                                candidate.geometry.turns_along_normal,
+                                candidate.geometry.tapes_along_width,
+                                usd(candidate.cost.total_usd)
+                            ));
+                            status_chip(ui, candidate.status);
+                        });
+                    }
+                });
+                if let Some(case) = &self.search_case {
+                    let before = serde_json::to_string(&previous.case).unwrap_or_default();
+                    let after = serde_json::to_string(case).unwrap_or_default();
+                    if let Ok(changes) = optcoil_search::review::input_changes(&before, &after) {
+                        ui.collapsing(
+                            format!("Changed inputs ({}) — previous → active", changes.len()),
+                            |ui| {
+                                for change in changes {
+                                    ui.label(format!(
+                                        "{}: {:?} → {:?}",
+                                        change.pointer, change.before, change.after
+                                    ));
+                                }
+                            },
+                        );
+                    }
+                }
+                if ui
+                    .add_enabled(
+                        self.worker.is_none(),
+                        egui::Button::new("Save previous completed record…"),
+                    )
+                    .clicked()
+                {
+                    self.export_previous_record(ui.ctx());
+                }
+                ui.small("This record belongs to its previous input. It provides no screening or acceptance verdict for the revised active input.");
+            }
             return;
         };
 
+        if self.search_json.is_empty() {
+            ui.horizontal_wrapped(|ui| {
+                ui.label(
+                    "A saved record needs its original case bytes for a rerunnable review package.",
+                );
+                if ui
+                    .add_enabled(
+                        self.worker.is_none(),
+                        egui::Button::new("Attach original case…"),
+                    )
+                    .clicked()
+                {
+                    self.attach_source_case(ui.ctx());
+                }
+            });
+        }
         // --- Record compare ---------------------------------------------------
         ui.horizontal_wrapped(|ui| {
             ui.strong("Compare records");
@@ -1890,6 +1944,29 @@ impl Workbench {
                         "other record: dataset {} · started {}",
                         other.dataset_id, other.started_unix_ms
                     ));
+                    let before = serde_json::to_string(&other.case).unwrap_or_default();
+                    let after = serde_json::to_string(&record.case).unwrap_or_default();
+                    if let Ok(changes) = optcoil_search::review::input_changes(&before, &after) {
+                        ui.collapsing(
+                            format!("Changed inputs ({}) — other → this record", changes.len()),
+                            |ui| {
+                                for change in changes {
+                                    ui.label(format!(
+                                        "{}: {} → {}",
+                                        change.pointer,
+                                        change
+                                            .before
+                                            .map(|v| v.to_string())
+                                            .unwrap_or("absent".into()),
+                                        change
+                                            .after
+                                            .map(|v| v.to_string())
+                                            .unwrap_or("absent".into())
+                                    ));
+                                }
+                            },
+                        );
+                    }
                 });
         }
         ui.add_space(14.0);
@@ -2199,6 +2276,7 @@ impl Workbench {
             "The coupled case's declared dataset and screening settings — all case-author assumptions, versioned in the run record.",
         );
         let mut wants_dataset = false;
+        let mut wants_pair = false;
         {
             let Some(case) = self.search_case.as_ref() else {
                 return;
@@ -2250,6 +2328,7 @@ impl Workbench {
                     {
                         wants_dataset = true;
                     }
+                    if ui.button("Load metadata + CSV…").on_hover_text("Select attributed metadata, then canonical measurements. The CSV hash is computed; any declared hash must match.").clicked() { wants_pair = true; }
                 });
                 ui.end_row();
                 ui.strong("Operating point");
@@ -2374,6 +2453,9 @@ impl Workbench {
         }
         if wants_dataset {
             self.load_dataset(ui.ctx());
+        }
+        if wants_pair {
+            self.load_dataset_pair(ui.ctx());
         }
         ui.add_space(8.0);
         ui.colored_label(
@@ -3247,6 +3329,10 @@ fn search_case_summary(ui: &mut egui::Ui, case: &CoupledSearchCase) {
                     case.fixed_geometry.tape_normal
                 ),
             });
+            if let Some(path) = &case.fixed_geometry.path3d {
+                ui.label(format!("non-planar path · {} segments · length {:.3} m", path.segments.len(), path.length_m()));
+            }
+            case_geometry_preview(ui, case);
             ui.add_space(8.0);
             ui.strong("Search space");
             ui.label(format!("turns: {:?}", case.choices.turns_along_normal));
@@ -3368,6 +3454,49 @@ fn headroom_color(usage: f64) -> Color32 {
     } else {
         status_color(Status::Fail)
     }
+}
+
+/// A geometric preview only: the declared centerline before any field calculation.
+fn case_geometry_preview(ui: &mut egui::Ui, case: &CoupledSearchCase) {
+    let mut xy = Vec::new();
+    let mut xz = Vec::new();
+    if let Some(path) = &case.fixed_geometry.path3d {
+        for index in 0..=128 {
+            if let Ok(pose) = path.pose_at(path.length_m() * index as f64 / 128.0) {
+                xy.push([pose.position_m[0], pose.position_m[1]]);
+                xz.push([pose.position_m[0], pose.position_m[2]]);
+            }
+        }
+    } else {
+        let path = case.fixed_geometry.path.clone().or_else(|| {
+            let straight = case.fixed_geometry.straight_half_length_m?;
+            let radius = case.fixed_geometry.bend_radius_m?;
+            Some(optcoil_model::path::CoilPath::racetrack(straight, radius))
+        });
+        if let Some(path) = path {
+            for index in 0..=128 {
+                if let Ok(pose) = path.pose_at(path.length_m() * index as f64 / 128.0) {
+                    xy.push([pose.position_m[0], pose.position_m[1]]);
+                }
+            }
+        }
+    }
+    if xy.is_empty() {
+        return;
+    }
+    ui.collapsing("Declared winding centerline — geometry preview", |ui| {
+        Plot::new(("case-centerline-xy", &case.id)).height(180.0).data_aspect(1.0)
+            .x_axis_label("x / m").y_axis_label("y / m").show(ui, |plot| {
+                plot.line(Line::new("centerline XY", xy).color(brand::BLUE));
+            });
+        if !xz.is_empty() {
+            Plot::new(("case-centerline-xz", &case.id)).height(150.0).data_aspect(1.0)
+                .x_axis_label("x / m").y_axis_label("z / m").show(ui, |plot| {
+                    plot.line(Line::new("centerline XZ", xz).color(brand::BLUE));
+                });
+        }
+        ui.small("Declared centerline sampled for display; pack extent, field calculation and engineering checks are separate.");
+    });
 }
 
 /// "Where it binds" — the candidate's limiting point drawn twice: on the

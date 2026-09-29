@@ -30,13 +30,13 @@ use optcoil_physics::{
 };
 use serde::{Deserialize, Serialize};
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use crate::{
     RunError,
     coupled::{
         CandidateResult, CoupledOptions, LimitingPoint, SpecRuntime, StationGroup,
-        aggregate_status, run_coupled_case_with_datasets_ticked, spec_runtime,
+        aggregate_status, run_coupled_case_with_datasets_ticked_cancellable, spec_runtime,
     },
     coupled_search::{
         AcLossScreenRecord, QuenchHotspotScreenRecord, QuenchTransientScreenRecord,
@@ -144,8 +144,11 @@ fn declared_dataset_refs<'a>(
 /// both the refined gate and the agreement gates becomes the reported
 /// `best`. Which candidate `best` names therefore differs by
 /// construction on cases where the walk promotes a survivor.
+/// Bumped to v19 for baseline-equals-best reuse: the baseline's independent
+/// recomputation now also supplies the selected-best acceptance result when
+/// both indices are identical, with its progress leg collapsed to zero.
 pub const COUPLED_SEARCH_ACCEPTANCE_CHECKER_ID: &str =
-    "coupled-search-acceptance-independent-cost-and-field-recomputation/v18";
+    "coupled-search-acceptance-independent-cost-and-field-recomputation/v19";
 
 /// Bound on the fallback walk: the number of *additional* PASS
 /// candidates re-verified after the cheapest fails §9.4. Bounded
@@ -428,6 +431,30 @@ pub fn assess_progress(
     datasets: &BTreeMap<String, MaterialDataset>,
     progress: Option<&SearchProgress>,
 ) -> Result<CoupledSearchAcceptance, RunError> {
+    assess_progress_cancellable(
+        search,
+        candidates,
+        baseline_index,
+        best_index,
+        datasets,
+        progress,
+        &AtomicBool::new(false),
+    )
+}
+
+/// Cancellation-aware form of [`assess_progress`]. The flag is passed into
+/// every independent field rerun and refined-plan worker. Cancellation
+/// returns `RunError::Cancelled`, so no partial acceptance is emitted.
+pub(crate) fn assess_progress_cancellable(
+    search: &CoupledSearchCase,
+    candidates: &[SearchCandidateResult],
+    baseline_index: usize,
+    best_index: Option<usize>,
+    datasets: &BTreeMap<String, MaterialDataset>,
+    progress: Option<&SearchProgress>,
+    cancel: &AtomicBool,
+) -> Result<CoupledSearchAcceptance, RunError> {
+    check_cancelled(cancel)?;
     // Fetch the pre-planned leg, revising its estimate to the actual
     // scope; if the runner did not pre-plan one (standalone callers),
     // append it instead.
@@ -449,16 +476,30 @@ pub fn assess_progress(
             ),
         )
     });
-    let baseline = recompute_one(
+    let baseline = recompute_one_cancellable(
         "baseline",
         baseline_index,
         search,
         baseline_original,
         datasets,
         baseline_leg.as_deref(),
+        cancel,
     )?;
 
+    check_cancelled(cancel)?;
     let best = match best_index {
+        Some(i) if i == baseline_index => {
+            // The baseline has already been independently recomputed above.
+            // When it is also the selected optimum, copying that recomputed
+            // assessment preserves the independent acceptance check while
+            // avoiding a second identical field/material rerun.
+            if let Some(p) = progress {
+                p.set_leg_planned(candidates.len() + 1, 0);
+            }
+            let mut same_candidate = baseline.clone();
+            same_candidate.label = "best".into();
+            Some(same_candidate)
+        }
         Some(i) => {
             let best_leg = progress.map(|p| {
                 p.set_phase("acceptance: recomputing optimum".to_owned());
@@ -473,13 +514,14 @@ pub fn assess_progress(
                     ),
                 )
             });
-            Some(recompute_one(
+            Some(recompute_one_cancellable(
                 "best",
                 i,
                 search,
                 &candidates[i],
                 datasets,
                 best_leg.as_deref(),
+                cancel,
             )?)
         }
         None => {
@@ -541,6 +583,7 @@ pub fn assess_progress(
                 .then(a.cmp(&b))
         });
         for &j in order.iter().take(ACCEPTANCE_FALLBACK_LIMIT) {
+            check_cancelled(cancel)?;
             let leg = progress.map(|p| {
                 p.set_phase("acceptance: examining cheaper candidates".to_owned());
                 p.add_leg(acceptance_planned_evals(
@@ -550,13 +593,14 @@ pub fn assess_progress(
                     true,
                 ))
             });
-            let mut attempt = recompute_one(
+            let mut attempt = recompute_one_cancellable(
                 "fallback",
                 j,
                 search,
                 &candidates[j],
                 datasets,
                 leg.as_deref(),
+                cancel,
             )?;
             if attempt.sampling_refinement_status == Status::Pass
                 && attempt.agreement_status == Status::Pass
@@ -881,6 +925,15 @@ fn tick(t: Option<&AtomicU64>) {
     }
 }
 
+fn check_cancelled(cancel: &AtomicBool) -> Result<(), RunError> {
+    if cancel.load(Ordering::Relaxed) {
+        Err(RunError::Cancelled)
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
 fn recompute_one(
     label: &str,
     index: usize,
@@ -890,6 +943,28 @@ fn recompute_one(
     // Progress tick: incremented once per field evaluation.
     progress_tick: Option<&AtomicU64>,
 ) -> Result<RecomputedCandidate, RunError> {
+    recompute_one_cancellable(
+        label,
+        index,
+        search,
+        original,
+        datasets,
+        progress_tick,
+        &AtomicBool::new(false),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn recompute_one_cancellable(
+    label: &str,
+    index: usize,
+    search: &CoupledSearchCase,
+    original: &SearchCandidateResult,
+    datasets: &BTreeMap<String, MaterialDataset>,
+    progress_tick: Option<&AtomicU64>,
+    cancel: &AtomicBool,
+) -> Result<RecomputedCandidate, RunError> {
+    check_cancelled(cancel)?;
     let turns = original.geometry.turns_along_normal;
     let tapes = original.geometry.tapes_along_width;
     // The candidate's recorded assignment (schema v10) — `None` on
@@ -974,6 +1049,7 @@ fn recompute_one(
     let recomputed_unit_bore_bz = match &search.field_map {
         Some(fm) => fm.bore_field_at_reference_t / fm.map.reference_ampere_turns_a(),
         None => {
+            check_cancelled(cancel)?;
             let value = fresh_evaluator
                 .as_ref()
                 .expect("engine-field runs build the acceptance evaluator")
@@ -1008,10 +1084,12 @@ fn recompute_one(
                 .lattice_points(search.requirement.bore_probe_m)
                 .iter()
                 .map(|&point| {
+                    check_cancelled(cancel)?;
                     fresh_evaluator
                         .as_ref()
                         .expect("good_field_region is forbidden under a declared field_map")
                         .evaluate(point)
+                        .map_err(RunError::from)
                         .map(|value| {
                             tick(progress_tick);
                             value.field_t[2]
@@ -1050,6 +1128,7 @@ fn recompute_one(
             let probe = search.requirement.bore_probe_m;
             let mut circle = Vec::with_capacity(n_theta);
             for k in 0..n_theta {
+                check_cancelled(cancel)?;
                 let theta = 2.0 * std::f64::consts::PI * k as f64 / n_theta as f64;
                 circle.push(
                     fresh_evaluator
@@ -1305,12 +1384,13 @@ fn recompute_one(
     )?;
     let case_json = serde_json::to_string(&coupled_case)?;
     let dataset_refs = declared_dataset_refs(&coupled_case, datasets);
-    let rerun = run_coupled_case_with_datasets_ticked(
+    let rerun = run_coupled_case_with_datasets_ticked_cancellable(
         &case_json,
         None,
         &CoupledOptions::default(),
         &dataset_refs,
         progress_tick,
+        cancel,
     )?;
     let rerun_candidate = &rerun.candidates[0];
     let rerun_screening_status = rerun_candidate.status;
@@ -1434,6 +1514,7 @@ fn recompute_one(
             datasets,
             tape_spec_ids,
             progress_tick,
+            cancel,
         )?
     } else {
         SamplingRefinementResult {
@@ -1719,7 +1800,9 @@ fn run_refined_plan(
     tape_spec_ids: Option<&[String]>,
     // Progress tick: shared across the station-group threads.
     progress_tick: Option<&AtomicU64>,
+    cancel: &AtomicBool,
 ) -> Result<SamplingRefinementResult, RunError> {
+    check_cancelled(cancel)?;
     // Schema v21: axis-resolved dims shadow the fixed declarations —
     // the refined plan evaluates the same searched geometry.
     let fg = search.fixed_geometry.resolved_for(dims);
@@ -1762,12 +1845,13 @@ fn run_refined_plan(
                     )?;
                     let case_json = serde_json::to_string(&case)?;
                     let dataset_refs = declared_dataset_refs(&case, datasets);
-                    let record = run_coupled_case_with_datasets_ticked(
+                    let record = run_coupled_case_with_datasets_ticked_cancellable(
                         &case_json,
                         None,
                         &CoupledOptions::default(),
                         &dataset_refs,
                         progress_tick,
+                        cancel,
                     )?;
                     // This module's own per-turn normal loads on the
                     // refined plan's denser sampling — the pressure
@@ -1788,6 +1872,7 @@ fn run_refined_plan(
             });
         }
     });
+    check_cancelled(cancel)?;
     let parts: Vec<RefinedPart> = outcomes
         .into_inner()
         .expect("refined-plan results mutex poisoned")
@@ -3328,6 +3413,57 @@ mod tests {
         assert_eq!(
             acceptance.baseline.agreement_status,
             expected_baseline_agreement
+        );
+    }
+
+    #[test]
+    fn identical_baseline_and_best_reuse_one_independent_acceptance_rerun() {
+        let run =
+            run_coupled_search_case(reduced_case_json(), &CoupledSearchOptions::default()).unwrap();
+        let dataset = MaterialDataset::embedded_by_id("robinson-superpower-ap-v3").unwrap();
+        let datasets = std::collections::BTreeMap::from([(dataset.metadata.id.clone(), dataset)]);
+        let progress = SearchProgress::new();
+        for _ in 0..run.candidates.len() + 2 {
+            progress.add_leg(1);
+        }
+        let acceptance = assess_progress_cancellable(
+            &run.case,
+            &run.candidates,
+            run.baseline_index,
+            Some(run.baseline_index),
+            &datasets,
+            Some(&progress),
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+        let best = acceptance
+            .best
+            .as_ref()
+            .expect("baseline is also selected best");
+        assert_eq!(best.label, "best");
+        assert_eq!(best.index, acceptance.baseline.index);
+        assert_eq!(
+            best.cost_agreement_status,
+            acceptance.baseline.cost_agreement_status
+        );
+        assert_eq!(
+            best.field_agreement_status,
+            acceptance.baseline.field_agreement_status
+        );
+        let baseline_leg = progress.leg(run.candidates.len()).unwrap();
+        let best_leg = progress.leg(run.candidates.len() + 1).unwrap();
+        assert!(
+            baseline_leg.load(Ordering::Relaxed) > 0,
+            "baseline acceptance rerun should perform field work"
+        );
+        assert_eq!(
+            best_leg.load(Ordering::Relaxed),
+            0,
+            "identical optimum must not repeat its field work"
+        );
+        assert_eq!(
+            progress.legs.lock().unwrap()[run.candidates.len() + 1].planned,
+            0
         );
     }
 

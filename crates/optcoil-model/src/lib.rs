@@ -4,6 +4,7 @@ pub mod attestation;
 pub mod bakeoff;
 pub mod coupled;
 pub mod coupled_search;
+pub mod dataset_intake;
 mod encoding;
 pub mod magnetics;
 pub mod material;

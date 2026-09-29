@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased — complete supported study workflow
+
+- Measured-conductor startup study with explicit illustrative prices, shared
+  CLI/workbench applicability checks, workload estimates and unresolved actions.
+- Loaded-case revision and duplication preserve complete declarations; comparison
+  includes input changes and retains previous results during replacement runs.
+- Graded and purchased-piece costs use their actual ledgers. Scalar repricing is
+  restricted to compatible cases; scenario selection acceptance is
+  `NOT_EVALUATED` in the version 2 reprice artifact.
+- Direct bounded metadata/CSV intake, documented price basis, and portable review
+  packages with original inputs, dataset dependencies and offline verification.
+- Cooperative cancellation through acceptance and reuse of an independently
+  recomputed baseline when it is also the selected candidate. Acceptance checker
+  identity advances to v19; field kernels and numerical gates are unchanged.
+- Complete headless workflow regression and recorded release performance evidence.
+  External engineer validation remains an open product milestone.
+
 ## v0.1.0 — first public release
 
 Public release of Converra: an MIT-licensed screening and

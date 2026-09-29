@@ -44,7 +44,7 @@ use crate::{
     coupled::{
         CandidateResult, CoupledOptions, DatasetIdentity, LimitingPoint, MaterialRuntimes,
         MonotonicityAuditRecord, PointCounts, aggregate_status, evaluate_candidate_point,
-        resolve_datasets, run_coupled_case_with_datasets_ticked, spec_runtime,
+        resolve_datasets, run_coupled_case_with_datasets_ticked_cancellable, spec_runtime,
     },
     field::{RuntimeInfo, runtime_info},
     hash,
@@ -333,6 +333,14 @@ fn planned_field_evals(search: &CoupledSearchCase, turns: u32, tapes: u32) -> u6
 fn tick(tick: Option<&AtomicU64>) {
     if let Some(t) = tick {
         t.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
+fn check_cancelled(cancel: &AtomicBool) -> Result<(), RunError> {
+    if cancel.load(Ordering::Relaxed) {
+        Err(RunError::Cancelled)
+    } else {
+        Ok(())
     }
 }
 
@@ -1176,7 +1184,7 @@ pub fn run_coupled_search_case_with_dataset_progress(
                 n
             ));
         }
-        let outcome = evaluate_one_candidate(
+        let outcome = evaluate_one_candidate_cancellable(
             &search,
             index,
             *turns,
@@ -1186,6 +1194,7 @@ pub fn run_coupled_search_case_with_dataset_progress(
             *dims,
             &runtimes,
             leg.as_deref(),
+            cancel,
         );
         results
             .lock()
@@ -1278,14 +1287,16 @@ pub fn run_coupled_search_case_with_dataset_progress(
     // Checker v18's fallback walk may promote a later candidate when the
     // cheapest PASS under-resolves on the refined plan — the reported
     // optimum is whoever `acceptance.best` names afterward.
-    let acceptance = search_acceptance::assess_progress(
+    let acceptance = search_acceptance::assess_progress_cancellable(
         &search,
         &candidates,
         baseline_index,
         best_index,
         &runtimes.datasets,
         progress,
+        cancel,
     )?;
+    check_cancelled(cancel)?;
     let best_index = acceptance.best.as_ref().map(|b| b.index);
     let (savings_usd, savings_percent) = match best_index {
         Some(i) => {
@@ -2801,6 +2812,33 @@ pub(crate) fn evaluate_one_candidate(
     // call or declared-map lookup). Display-only; never read back.
     progress_tick: Option<&AtomicU64>,
 ) -> Result<SearchCandidateResult, RunError> {
+    evaluate_one_candidate_cancellable(
+        search,
+        index,
+        turns_along_normal,
+        tapes_along_width,
+        strands_parallel,
+        tape_spec_ids,
+        dims,
+        runtimes,
+        progress_tick,
+        &AtomicBool::new(false),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn evaluate_one_candidate_cancellable(
+    search: &CoupledSearchCase,
+    index: usize,
+    turns_along_normal: u32,
+    tapes_along_width: u32,
+    strands_parallel: u32,
+    tape_spec_ids: &[String],
+    dims: CandidateDims,
+    runtimes: &MaterialRuntimes,
+    progress_tick: Option<&AtomicU64>,
+    cancel: &AtomicBool,
+) -> Result<SearchCandidateResult, RunError> {
     // Schema v21: the candidate's resolved racetrack geometry — axis
     // values shadow the fixed declarations; every consumer below reads
     // `fg`, so fixed and searched dims take one path.
@@ -2989,6 +3027,7 @@ pub(crate) fn evaluate_one_candidate(
         bore_unit = [[0.0, 0.0, unit_b], [0.0, 0.0, unit_b]];
     } else {
         for (i, evaluator) in evaluators.iter().enumerate() {
+            check_cancelled(cancel)?;
             let value = evaluator.evaluate(search.requirement.bore_probe_m)?;
             tick(progress_tick);
             requirement_kernel_evaluations += value.kernel_evaluations;
@@ -3032,6 +3071,7 @@ pub(crate) fn evaluate_one_candidate(
             let mut worst_point_m = search.requirement.bore_probe_m;
             for (i, evaluator) in evaluators.iter().enumerate() {
                 for &point in &lattice {
+                    check_cancelled(cancel)?;
                     let value = evaluator.evaluate(point)?;
                     tick(progress_tick);
                     requirement_kernel_evaluations += value.kernel_evaluations;
@@ -3075,6 +3115,7 @@ pub(crate) fn evaluate_one_candidate(
                             probe[1] + harmonics.reference_radius_m * theta.sin(),
                             probe[2],
                         ];
+                        check_cancelled(cancel)?;
                         let value = evaluators[1].evaluate(point)?;
                         tick(progress_tick);
                         requirement_kernel_evaluations += value.kernel_evaluations;
@@ -3328,6 +3369,7 @@ pub(crate) fn evaluate_one_candidate(
                             }
                             None => {
                                 for (i, evaluator) in evaluators.iter().enumerate() {
+                                    check_cancelled(cancel)?;
                                     let clock = Instant::now();
                                     let value = evaluator.evaluate(position)?;
                                     tick(progress_tick);
@@ -3518,12 +3560,13 @@ pub(crate) fn evaluate_one_candidate(
         .values()
         .filter(|d| declared_ids.contains(d.metadata.id.as_str()))
         .collect();
-    let full_record = run_coupled_case_with_datasets_ticked(
+    let full_record = run_coupled_case_with_datasets_ticked_cancellable(
         &case_json,
         None,
         &CoupledOptions::default(),
         &dataset_refs,
         progress_tick,
+        cancel,
     )?;
     let full_screening = full_record.candidates[0].clone();
     let full_plan_refinement_status = full_record
@@ -5608,6 +5651,93 @@ pub(crate) mod tests {
         )
         .unwrap();
         assert_eq!(record.candidates.len(), 3);
+    }
+
+    #[test]
+    fn mid_candidate_cancellation_is_observed_between_live_field_evaluations() {
+        let json = reduced_case_json("[3, 60, 80]", 30.0);
+        let progress = Arc::new(SearchProgress::new());
+        let cancel = Arc::new(AtomicBool::new(false));
+        std::thread::scope(|scope| {
+            let progress_watch = Arc::clone(&progress);
+            let cancel_watch = Arc::clone(&cancel);
+            let watcher = scope.spawn(move || {
+                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+                loop {
+                    if progress_watch.candidates_total.load(Ordering::Relaxed) > 0
+                        && progress_watch
+                            .leg(0)
+                            .is_some_and(|leg| leg.load(Ordering::Relaxed) >= 1)
+                    {
+                        cancel_watch.store(true, Ordering::Relaxed);
+                        return true;
+                    }
+                    assert!(
+                        std::time::Instant::now() < deadline,
+                        "candidate evaluation did not publish a progress tick"
+                    );
+                    std::thread::yield_now();
+                }
+            });
+            let result = run_coupled_search_case_with_dataset_progress(
+                &json,
+                &CoupledSearchOptions { threads: Some(1) },
+                None,
+                &cancel,
+                Some(&progress),
+            );
+            assert!(
+                watcher.join().unwrap(),
+                "cancellation was not injected from live progress"
+            );
+            assert!(matches!(result, Err(RunError::Cancelled)));
+        });
+    }
+
+    #[test]
+    fn acceptance_phase_cancellation_stops_its_independent_rerun() {
+        let json = reduced_case_json("[3, 60, 80]", 30.0).replace(
+            "\"baseline\": {\"turns_along_normal\": 3",
+            "\"baseline\": {\"turns_along_normal\": 60",
+        );
+        let progress = Arc::new(SearchProgress::new());
+        let cancel = Arc::new(AtomicBool::new(false));
+        std::thread::scope(|scope| {
+            let progress_watch = Arc::clone(&progress);
+            let cancel_watch = Arc::clone(&cancel);
+            let watcher = scope.spawn(move || {
+                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+                loop {
+                    let acceptance = progress_watch.phase_label().starts_with("acceptance:");
+                    let baseline_leg = progress_watch.candidates_total.load(Ordering::Relaxed);
+                    if acceptance
+                        && progress_watch
+                            .leg(baseline_leg)
+                            .is_some_and(|leg| leg.load(Ordering::Relaxed) >= 1)
+                    {
+                        cancel_watch.store(true, Ordering::Relaxed);
+                        return true;
+                    }
+                    assert!(
+                        std::time::Instant::now() < deadline,
+                        "acceptance rerun did not publish a progress tick"
+                    );
+                    std::thread::yield_now();
+                }
+            });
+            let result = run_coupled_search_case_with_dataset_progress(
+                &json,
+                &CoupledSearchOptions { threads: Some(1) },
+                None,
+                &cancel,
+                Some(&progress),
+            );
+            assert!(
+                watcher.join().unwrap(),
+                "cancellation was not injected from the acceptance phase"
+            );
+            assert!(matches!(result, Err(RunError::Cancelled)));
+        });
     }
 
     /// The customer-data path: a supplied dataset is bound by the case's

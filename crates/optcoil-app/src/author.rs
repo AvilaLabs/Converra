@@ -27,7 +27,8 @@ use optcoil_model::{
         ScreeningCurrentScreen, SearchFieldMap, SearchNumerics, SearchOperating, SearchSampling,
         TapeSpec, ThermalMarginScreen, TransitionScreen, TurnBounds,
     },
-    material::MaterialDataset,
+    dataset_intake::material_bundle_from_pair,
+    material::{MaterialBundle, MaterialDataset},
     path::{CoilPath, PathSegment},
     path3d::{CoilPath3D, PathSegment3D},
     product::{ProductRegistry, RegistryProduct},
@@ -140,6 +141,10 @@ enum PendingFieldMap {
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     Picked(String, Result<FieldMap, String>),
     Generated(Result<optcoil_search::fieldmap::GeneratedFieldMap, String>),
+}
+
+enum PendingMaterialPair {
+    Loaded(String, Result<MaterialBundle, String>),
 }
 
 /// One editable `path3d` helix segment — the CCT/CORC element.
@@ -274,13 +279,10 @@ pub struct CaseDraft {
     /// Index into the picked product's `dataset_variants`; 0 selects the
     /// product's own `dataset_id`.
     dataset_variant_choice: usize,
-    /// Requirement preset: 0 custom · 1 solenoid bore · 2
-    /// insert-in-outsert · 3 field-map driven. Presets only fill fields —
+    /// Requirement preset: 0 custom · 1 solenoid bore · 2 insert geometry
+    /// seed · 3 field-map driven. Presets only fill fields —
     /// every emitted value stays visible and editable.
     preset_choice: usize,
-    /// Declared outsert field for the insert preset — annotation context
-    /// folded into provenance, never solved by this tool.
-    outsert_b_t: f64,
     /// The last sizing estimate and its render — kept so the search-space
     /// step can show the derivation, not just the numbers it proposed.
     sizing_hint: Option<optcoil_search::sizing::SizingHint>,
@@ -347,6 +349,8 @@ pub struct CaseDraft {
     /// targets) the filament generator's result land here and apply at
     /// the top of `show`.
     field_map_pending: Option<std::sync::mpsc::Receiver<PendingFieldMap>>,
+    material_pair_pending: Option<std::sync::mpsc::Receiver<PendingMaterialPair>>,
+    imported_material_label: Option<String>,
     field_map_bore_field_t: f64,
     /// Pack extents — emitted only under a declared map, which
     /// validates candidates against them.
@@ -397,11 +401,18 @@ pub struct CaseDraft {
     splice_cost_usd: f64,
     /// 0 = undeclared, 1..=4 = synthetic/estimated/published/quoted.
     price_source: usize,
+    /// Human-readable citation or estimate basis. The enum stays in the
+    /// cost declaration; this text is carried in case provenance.
+    price_basis_text: String,
     /// Guided mode: `Some(step)` renders the wizard pages over the same
     /// fields; `None` renders the complete field form. The wizard never
     /// hides anything permanently — "All fields…" drops to the full
     /// editor with everything the wizard set preserved.
     guided_step: Option<u8>,
+    /// Loaded cases are edited as their original JSON document so every
+    /// schema declaration survives revisions, including fields unknown to
+    /// the guided builder.
+    advanced_json: Option<String>,
     /// One runtime-checked bracket per pancake (tapes) count.
     brackets: Vec<[u32; 3]>,
     monotonicity_check: bool,
@@ -486,7 +497,6 @@ impl Default for CaseDraft {
             product_choice: 0,
             dataset_variant_choice: 0,
             preset_choice: 0,
-            outsert_b_t: 0.0,
             sizing_hint: None,
             sizing_error: None,
             low_field_clamp_t: 0.0501,
@@ -545,6 +555,8 @@ impl Default for CaseDraft {
             map_gen_margin_m: 0.01,
             map_gen_reference_ni: 1.0e4,
             field_map_pending: None,
+            material_pair_pending: None,
+            imported_material_label: None,
             field_map_bore_field_t: 1.0,
             pack_radial_width_m: 0.048,
             pack_axial_height_m: 0.012,
@@ -592,9 +604,11 @@ impl Default for CaseDraft {
             // Builder prices are placeholders — mark them synthetic so
             // records that embed the case keep the dollar figures honest.
             price_source: 1,
+            price_basis_text: "Synthetic placeholder from the case builder; replace with a specific price source before use.".into(),
             // OC-012-style hints: fail at 100 turns, pass near
             // ~3840/tapes — checked at run time, not trusted.
             guided_step: None,
+            advanced_json: None,
             brackets: vec![[4, 100, 800], [6, 100, 640], [8, 100, 480], [12, 100, 320]],
             monotonicity_check: true,
             use_manufacturing: true,
@@ -616,6 +630,37 @@ impl Default for CaseDraft {
 }
 
 impl CaseDraft {
+    /// Open a validated loaded case in the lossless advanced JSON editor.
+    pub fn revision(json: &str) -> Result<Self, String> {
+        CoupledSearchCase::from_json(json).map_err(|e| e.to_string())?;
+        Ok(Self {
+            advanced_json: Some(json.to_owned()),
+            ..Self::default()
+        })
+    }
+
+    /// Start an explicit duplicate with all declarations retained. The
+    /// duplicated identity is clearly marked and provenance records the
+    /// source case; the editor lets the author adjust either before saving.
+    pub fn duplicate(case: &CoupledSearchCase) -> Result<Self, String> {
+        let mut value = serde_json::to_value(case).map_err(|e| e.to_string())?;
+        let object = value
+            .as_object_mut()
+            .ok_or_else(|| "serialized case is not a JSON object".to_owned())?;
+        let source_id = case.id.trim();
+        let duplicate_id = format!("{source_id}-copy");
+        object.insert("id".into(), serde_json::Value::String(duplicate_id));
+        object.insert(
+            "provenance".into(),
+            serde_json::Value::String(format!(
+                "{}\nDuplicated from case `{source_id}`; review this copy's identity and provenance.",
+                case.provenance.trim_end()
+            )),
+        );
+        let json = serde_json::to_string_pretty(&value).map_err(|e| e.to_string())?;
+        Self::revision(&json)
+    }
+
     /// Guided authoring: the evidence-grade defaults plus a step-by-step
     /// walk of the fields a customer actually changes — requirement,
     /// envelope, search space, material, cost, identity. Every step's
@@ -736,7 +781,16 @@ impl CaseDraft {
         Ok(CoupledSearchCase {
             schema: COUPLED_SEARCH_CASE_SCHEMA_V24.into(),
             id: self.id.trim().into(),
-            provenance: self.provenance.trim().into(),
+            provenance: if self.price_basis_text.trim().is_empty() {
+                self.provenance.trim().into()
+            } else {
+                format!(
+                    "{}\nPrice basis ({}): {}",
+                    self.provenance.trim(),
+                    price_basis_label(self.price_source),
+                    self.price_basis_text.trim()
+                )
+            },
             requirement: Requirement {
                 bore_probe_m: self.bore_probe,
                 b_target_t: self.b_target_t,
@@ -1073,6 +1127,20 @@ impl CaseDraft {
     /// The modal window. Returns `Some((case, json))` when the user asked
     /// to save — the caller writes `json` to disk and opens it.
     pub fn show(&mut self, ctx: &egui::Context) -> Option<(CoupledSearchCase, String)> {
+        if let Some(receiver) = &self.material_pair_pending {
+            match receiver.try_recv() {
+                Ok(PendingMaterialPair::Loaded(label, result)) => {
+                    self.material_pair_pending = None;
+                    self.apply_material_pair(result, label);
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    ctx.request_repaint_after(std::time::Duration::from_millis(200));
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    self.material_pair_pending = None;
+                }
+            }
+        }
         // Async field-map work — the browser pick's dialog and the
         // filament generator both resolve between frames.
         if let Some(receiver) = &self.field_map_pending {
@@ -1096,7 +1164,9 @@ impl CaseDraft {
         }
         let mut open = true;
         let mut save: Option<(CoupledSearchCase, String)> = None;
-        let title = if self.guided_step.is_some() {
+        let title = if self.advanced_json.is_some() {
+            "Revise coupled-search case"
+        } else if self.guided_step.is_some() {
             "Guided coupled-search case"
         } else {
             "New coupled-search case"
@@ -1221,6 +1291,80 @@ impl CaseDraft {
                 );
             }
             Err(e) => self.error = Some(format!("field map: {e}")),
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn load_material_pair_dialog(&mut self) {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let metadata_path = rfd::FileDialog::new()
+                .set_title("Choose material metadata JSON")
+                .add_filter("Material metadata", &["json"])
+                .pick_file();
+            let Some(metadata_path) = metadata_path else {
+                return;
+            };
+            let csv_path = rfd::FileDialog::new()
+                .set_title("Choose matching measurement CSV")
+                .add_filter("Material measurements", &["csv"])
+                .pick_file();
+            let Some(csv_path) = csv_path else {
+                return;
+            };
+            let label = format!(
+                "{} + {}",
+                metadata_path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy(),
+                csv_path.file_name().unwrap_or_default().to_string_lossy()
+            );
+            let result =
+                read_material_pair_files(&metadata_path, &csv_path).and_then(|(metadata, csv)| {
+                    material_bundle_from_pair(&metadata, &csv).map_err(|e| e.to_string())
+                });
+            let _ = sender.send(PendingMaterialPair::Loaded(label, result));
+        });
+        self.material_pair_pending = Some(receiver);
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn load_material_pair_dialog(&mut self) {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        wasm_bindgen_futures::spawn_local(async move {
+            let metadata = crate::web::pick_bytes_limited(&["json"], 1024 * 1024).await;
+            let Ok(Some((metadata_name, metadata_bytes))) = metadata else {
+                return;
+            };
+            let csv = crate::web::pick_bytes_limited(&["csv"], 32 * 1024 * 1024).await;
+            let Ok(Some((csv_name, csv_bytes))) = csv else {
+                return;
+            };
+            let label = format!("{metadata_name} + {csv_name}");
+            let result = String::from_utf8(metadata_bytes)
+                .map_err(|e| e.to_string())
+                .and_then(|metadata| {
+                    material_bundle_from_pair(&metadata, &csv_bytes).map_err(|e| e.to_string())
+                });
+            let _ = sender.send(PendingMaterialPair::Loaded(label, result));
+        });
+        self.material_pair_pending = Some(receiver);
+    }
+
+    fn apply_material_pair(&mut self, result: Result<MaterialBundle, String>, label: String) {
+        match result {
+            Ok(bundle) => {
+                self.dataset_id = bundle.dataset.metadata.id.clone();
+                self.dataset_sha = bundle.dataset.metadata.csv_sha256.clone();
+                self.dataset_choice = DATASET_CUSTOM;
+                self.imported_material_label = Some(format!(
+                    "Validated {label}: {} — {:?}",
+                    bundle.dataset.metadata.id, bundle.dataset.metadata.data_class
+                ));
+                self.error = None;
+            }
+            Err(error) => self.error = Some(format!("material metadata/CSV pair: {error}")),
         }
     }
 
@@ -1402,6 +1546,18 @@ impl CaseDraft {
     /// Build + round-trip + schema-validate; on success returns the case
     /// and its canonical JSON for the caller to write.
     fn try_save(&mut self) -> Option<(CoupledSearchCase, String)> {
+        if let Some(json) = self.advanced_json.as_ref() {
+            match CoupledSearchCase::from_json(json) {
+                Ok(case) => {
+                    self.error = None;
+                    return Some((case, json.clone()));
+                }
+                Err(e) => {
+                    self.error = Some(e.to_string());
+                    return None;
+                }
+            }
+        }
         match self.build().and_then(|case| {
             let json = serde_json::to_string_pretty(&case).map_err(|e| e.to_string())?;
             // Round-trip: save only a document the runner itself accepts.
@@ -1496,16 +1652,6 @@ impl CaseDraft {
                 self.region_half = [0.04, 0.04, 0.03];
                 self.region_points = 3;
                 self.stations = self.derived_stations();
-                if kind == 2 {
-                    self.provenance = format!(
-                        "{} Insert-in-outsert preset: the {:.2} T target is the insert's own \
-                         contribution; a {:.2} T outsert field is declared context, not solved \
-                         by this tool.",
-                        self.provenance.trim_end(),
-                        self.b_target_t,
-                        self.outsert_b_t
-                    );
-                }
             }
             _ => {}
         }
@@ -1641,6 +1787,20 @@ impl CaseDraft {
                 .unwrap_or_default();
         }
         if self.dataset_choice == DATASET_CUSTOM {
+            let pending = self.material_pair_pending.is_some();
+            if ui
+                .add_enabled(!pending, egui::Button::new("Load metadata + CSV pair…"))
+                .clicked()
+            {
+                self.load_material_pair_dialog();
+            }
+            if let Some(label) = &self.imported_material_label {
+                ui.small(label);
+                ui.colored_label(
+                    brand::MUTED,
+                    "The saved case binds this dataset id and CSV hash. Keep the attributed metadata and CSV together; load them on the Materials page to run with this external dataset.",
+                );
+            }
             field(ui, "Dataset id", |ui| {
                 ui.text_edit_singleline(&mut self.dataset_id)
             });
@@ -1653,6 +1813,17 @@ impl CaseDraft {
             );
         } else {
             ui.small(format!("CSV SHA-256: {}", self.dataset_sha));
+            if self.dataset_id == "robinson-superpower-ap-v3-modelext" {
+                ui.colored_label(
+                    brand::MUTED,
+                    "This dataset contains modeled nodes above 8 T; those nodes are not measurements. Choose the measured low-field dataset when its measured envelope covers your operating field.",
+                );
+            } else if self.dataset_id == "robinson-superpower-ap-v3-lowfield" {
+                ui.colored_label(
+                    brand::MUTED,
+                    "Measured dataset; its declared field envelope ends at 8 T, so unsupported higher-field queries remain inconclusive.",
+                );
+            }
         }
     }
 
@@ -1693,18 +1864,14 @@ impl CaseDraft {
                             [
                                 "custom",
                                 "solenoid bore field",
-                                "insert in a declared outsert",
+                                "insert geometry seed",
                                 "field-map driven",
                             ][self.preset_choice],
                         )
                         .show_ui(ui, |ui| {
                             ui.selectable_value(&mut self.preset_choice, 0, "custom");
                             ui.selectable_value(&mut self.preset_choice, 1, "solenoid bore field");
-                            ui.selectable_value(
-                                &mut self.preset_choice,
-                                2,
-                                "insert in a declared outsert",
-                            );
+                            ui.selectable_value(&mut self.preset_choice, 2, "insert geometry seed");
                             ui.selectable_value(&mut self.preset_choice, 3, "field-map driven");
                         });
                     if preset.inner.is_some() {
@@ -1712,12 +1879,9 @@ impl CaseDraft {
                     }
                     match self.preset_choice {
                         2 => {
-                            field(ui, "Declared outsert field (T)", |ui| {
-                                ui.add(egui::DragValue::new(&mut self.outsert_b_t).speed(0.1))
-                            });
                             ui.colored_label(
                                 brand::MUTED,
-                                "The outsert is declared context folded into provenance — the target below is the insert's own contribution. Apply again after changing it.",
+                                "This seeds the insert's geometry and bore requirement. The case models only its declared winding geometry and field source; it does not model or add a background outsert field. Use a declared field map when the required field includes external coils.",
                             );
                         }
                         3 => {
@@ -1927,6 +2091,16 @@ impl CaseDraft {
                     field(ui, "Joint cost ($/joint)", |ui| {
                         ui.add(egui::DragValue::new(&mut self.joint_usd).speed(10.0))
                     });
+                    field(ui, "Price source", |ui| {
+                        price_source_combo(ui, "guided-cost-price-src", &mut self.price_source)
+                    });
+                    field(ui, "Price basis detail", |ui| {
+                        ui.text_edit_multiline(&mut self.price_basis_text)
+                    });
+                    ui.colored_label(
+                        brand::MUTED,
+                        "The category is a typed cost declaration; this note is carried in case provenance.",
+                    );
                     ui.checkbox(
                         &mut self.use_piece_policy,
                         "Buy conductor in discrete pieces",
@@ -2063,6 +2237,50 @@ impl CaseDraft {
     }
 
     fn body(&mut self, ui: &mut egui::Ui, save: &mut Option<(CoupledSearchCase, String)>) {
+        if self.advanced_json.is_some() {
+            ui.colored_label(
+                brand::MUTED,
+                "Edit the complete case JSON. This preserves the loaded schema and every supported declaration, including grading, field maps, path3d, and policy blocks. Save validates the full case before accepting the revision.",
+            );
+            ui.add_space(8.0);
+            let mut accept = false;
+            let mut cancel = false;
+            {
+                let json = self.advanced_json.as_mut().expect("checked above");
+                egui::ScrollArea::vertical()
+                    .max_height(360.0)
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        ui.add(
+                            egui::TextEdit::multiline(json)
+                                .font(egui::TextStyle::Monospace)
+                                .code_editor()
+                                .desired_rows(20)
+                                .desired_width(f32::INFINITY),
+                        );
+                    });
+            }
+            if let Some(error) = self.error.as_deref()
+                && error != "__closed__"
+            {
+                ui.colored_label(egui::Color32::RED, error);
+            }
+            ui.horizontal(|ui| {
+                if ui.button("Validate and accept revision").clicked() {
+                    accept = true;
+                }
+                if ui.button("Cancel revision").clicked() {
+                    cancel = true;
+                }
+            });
+            if accept {
+                *save = self.try_save();
+            }
+            if cancel {
+                self.error = Some("__closed__".into());
+            }
+            return;
+        }
         if let Some(step) = self.guided_step {
             self.guided_body(ui, save, step);
         } else {
@@ -2671,6 +2889,13 @@ impl CaseDraft {
                 field(ui, "Price source", |ui| {
                     price_source_combo(ui, "cost-price-src", &mut self.price_source)
                 });
+                field(ui, "Price basis detail", |ui| {
+                    ui.text_edit_multiline(&mut self.price_basis_text)
+                });
+                ui.colored_label(
+                    brand::MUTED,
+                    "This note is appended to case provenance; the price source category above remains a separate typed cost declaration. Describe a quote, publication, estimate, or synthetic basis.",
+                );
             });
 
             form_section(ui, "Piece procurement (schema v24)", |ui| {
@@ -3527,6 +3752,42 @@ fn price_source_combo(ui: &mut egui::Ui, salt: &str, idx: &mut usize) {
         });
 }
 
+fn price_basis_label(index: usize) -> &'static str {
+    match index {
+        1 => "synthetic",
+        2 => "estimated",
+        3 => "published",
+        4 => "quoted",
+        _ => "undeclared",
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn read_material_pair_files(
+    metadata_path: &std::path::Path,
+    csv_path: &std::path::Path,
+) -> Result<(String, Vec<u8>), String> {
+    use std::io::Read;
+    fn bounded(path: &std::path::Path, max: u64, label: &str) -> Result<Vec<u8>, String> {
+        let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
+        if file.metadata().map_err(|e| e.to_string())?.len() > max {
+            return Err(format!("{label} exceeds the supported size limit"));
+        }
+        let mut bytes = Vec::new();
+        file.take(max + 1)
+            .read_to_end(&mut bytes)
+            .map_err(|e| e.to_string())?;
+        if bytes.len() as u64 > max {
+            return Err(format!("{label} exceeds the supported size limit"));
+        }
+        Ok(bytes)
+    }
+    let metadata = String::from_utf8(bounded(metadata_path, 1024 * 1024, "metadata JSON")?)
+        .map_err(|e| e.to_string())?;
+    let csv = bounded(csv_path, 32 * 1024 * 1024, "measurement CSV")?;
+    Ok((metadata, csv))
+}
+
 /// Wrap a wide table in a horizontal scroll area so a narrow window
 /// scrolls it sideways instead of pinning the window open.
 fn wide_table(ui: &mut egui::Ui, salt: &str, add: impl FnOnce(&mut egui::Ui)) {
@@ -3614,6 +3875,102 @@ mod tests {
     use super::*;
     use optcoil_model::coupled_search::{PriceSource, RelativeTurnIndex};
 
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn native_pair_reader_rejects_oversized_file_before_reading_it() {
+        use std::io::Write;
+        let dir = std::env::temp_dir().join(format!(
+            "converra-pair-limit-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&dir).unwrap();
+        let metadata = dir.join("metadata.json");
+        let csv = dir.join("measurements.csv");
+        let file = std::fs::File::create(&metadata).unwrap();
+        file.set_len((1024 * 1024 + 1) as u64).unwrap();
+        std::fs::File::create(&csv)
+            .unwrap()
+            .write_all(b"temperature_k,field_t\n4.2,0.1\n")
+            .unwrap();
+
+        let error = read_material_pair_files(&metadata, &csv).unwrap_err();
+        assert!(error.contains("metadata JSON exceeds"), "{error}");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    fn benchmark(name: &str) -> String {
+        std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../benchmarks/coupled")
+                .join(name),
+        )
+        .expect("benchmark fixture")
+    }
+
+    #[test]
+    fn loaded_cases_round_trip_without_losing_declarations() {
+        for name in ["oc-007.json", "oc-020.json", "oc-031-helix-layer.json"] {
+            let source = benchmark(name);
+            let original: serde_json::Value = serde_json::from_str(&source).unwrap();
+            let mut draft = CaseDraft::revision(&source).expect("valid fixture");
+            let (_, saved) = draft.try_save().expect("unchanged revision validates");
+            let round_trip: serde_json::Value = serde_json::from_str(&saved).unwrap();
+            assert_eq!(round_trip, original, "fixture changed: {name}");
+        }
+    }
+
+    #[test]
+    fn invalid_revision_is_rejected_and_duplicate_retains_declarations() {
+        let source = benchmark("oc-031-helix-layer.json");
+        let case = CoupledSearchCase::from_json(&source).expect("valid fixture");
+        let mut duplicate = CaseDraft::duplicate(&case).expect("duplicate editor");
+        let (copy, json) = duplicate.try_save().expect("duplicate validates");
+        assert_ne!(copy.id, case.id);
+        assert_eq!(copy.schema, case.schema);
+        let source_value: serde_json::Value = serde_json::from_str(&source).unwrap();
+        let copy_value: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(
+            copy_value["fixed_geometry"]["path3d"],
+            source_value["fixed_geometry"]["path3d"]
+        );
+        assert_eq!(copy_value["field_map"], source_value["field_map"]);
+        assert!(copy.provenance.contains(&case.id));
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&json).unwrap()["schema"],
+            case.schema
+        );
+
+        let invalid = source.replace("optcoil-coupled-search/v19", "optcoil-coupled-search/v999");
+        let mut revision = CaseDraft::revision(&source).unwrap();
+        revision.advanced_json = Some(invalid);
+        assert!(
+            revision.try_save().is_none(),
+            "invalid edit must be rejected"
+        );
+        assert!(revision.error.is_some());
+    }
+
+    #[test]
+    fn builder_accepts_only_a_validated_material_pair_binding() {
+        let bundle = material_bundle_from_pair(
+            optcoil_model::material::SUPERPOWER_METADATA,
+            optcoil_model::material::SUPERPOWER_CSV,
+        )
+        .unwrap();
+        let expected_id = bundle.dataset.metadata.id.clone();
+        let expected_sha = bundle.dataset.metadata.csv_sha256.clone();
+        let mut draft = CaseDraft::default();
+        draft.apply_material_pair(Ok(bundle), "metadata.json + measurements.csv".into());
+        assert_eq!(draft.dataset_choice, DATASET_CUSTOM);
+        assert_eq!(draft.dataset_id, expected_id);
+        assert_eq!(draft.dataset_sha, expected_sha);
+        assert!(draft.imported_material_label.is_some());
+    }
+
     /// The shipped defaults must produce a case the runner accepts —
     /// catches schema drift between the form and `from_json`'s gates.
     #[test]
@@ -3624,6 +3981,12 @@ mod tests {
         let parsed = CoupledSearchCase::from_json(&json).expect("round-trip must validate");
         assert_eq!(parsed.schema, COUPLED_SEARCH_CASE_SCHEMA_V24);
         assert_eq!(parsed.choices.turns_along_normal.len(), 5);
+        assert!(parsed.provenance.contains("Price basis (synthetic):"));
+        assert!(
+            parsed
+                .provenance
+                .contains("replace with a specific price source")
+        );
         assert!(parsed.requirement.good_field_region.is_some());
         let mechanical = parsed.mechanical.as_ref().expect("mechanical block");
         assert!(mechanical.max_hoop_stress_pa.is_some());
@@ -3902,22 +4265,18 @@ mod tests {
             .expect("preset case must validate");
     }
 
-    /// The insert preset declares the outsert as provenance context —
-    /// the target stays the insert's own contribution and no outsert
-    /// field is solved into the case.
+    /// The insert preset seeds supported geometry and a requirement; it
+    /// makes no outsert field claim.
     #[test]
-    fn insert_preset_annotates_provenance_only() {
+    fn insert_preset_only_seeds_supported_geometry() {
         let mut draft = CaseDraft {
             b_target_t: 3.0,
-            outsert_b_t: 12.0,
             ..Default::default()
         };
         draft.apply_preset(2);
-        assert!(draft.provenance.contains("outsert"));
-        assert!(draft.provenance.contains("12.00"));
         let case = draft.build().expect("insert preset must build");
-        // The outsert field is context — the case target is unchanged.
         assert_eq!(case.requirement.b_target_t, 3.0);
+        assert!(case.fixed_geometry.path.is_none());
         CoupledSearchCase::from_json(&serde_json::to_string(&case).unwrap())
             .expect("insert preset case must validate");
     }

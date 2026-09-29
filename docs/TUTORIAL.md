@@ -1,120 +1,91 @@
-# Your first study — fifteen minutes with Converra
+# Your first supported study
 
-A guided walk through a real coupled search: open a shipped case, run
-it, read the verdicts, and export the evidence. Everything below uses
-files already in the repository — no external data needed.
+Start with the workbench's **Measured conductor first study** or
+`benchmarks/coupled/first-study.json`. It uses attributed Robinson SuperPower
+AP data at 21 K, a small racetrack candidate set and **invented teaching prices**.
+The geometry and costs are an example, not a customer's design or supplier quote.
 
-The example is **OC-007**, the benchmark the cost-search pipeline was
-built against: a 0.9 T / 80 mm-bore racetrack dipole spec screened
-against *measured* SuperPower REBCO data (Robinson Institute,
-CC-BY). Its prices are declared synthetic — read the numbers as
-"modeled", not quoted.
+## Review applicability
 
-## 1. Run the search
+In the workbench, expand **Applicability and work estimate** before running.
+Review geometry, dataset identity and evidence class, width assumptions, operating
+criterion, price provenance, and missing screens. The work estimate counts
+sampling work; it is not an elapsed-time guarantee or a coverage verdict.
 
 From the repository root:
 
 ```bash
-cargo run --release -- coupled-search benchmarks/coupled/oc-007.json \
-  --output runs/oc-007-first.json --threads 4
+cargo run --release -- preflight benchmarks/coupled/first-study.json
+cargo run --release -- coupled-search benchmarks/coupled/first-study.json \
+  --output runs/first-study.json
 ```
 
-This takes a few minutes in a release build (it is the 15-candidate
-exhaustive grid). You'll see one line per candidate and a summary like:
+The small first study deliberately exposes a limit of the uncorrected self-field
+screen: its candidates remain `INCONCLUSIVE` when the limiting self-field ratio
+exceeds the declared bound. No candidate can be recommended from that result.
+The CLI saves the diagnostic record and exits nonzero because the search is not
+fully PASS. Read **Decision at declared inputs and prices** and the named next
+steps. Raising a bound merely to get PASS would change the engineering question.
 
-```
-  120 turns × 4 tapes   PASS    $41,513.13
-```
+For a larger reference with a documented passing option, use
+`benchmarks/coupled/oc-007.json`; its 15-candidate search and refined checks take
+longer. See [OC-007](OC007.md) for its exact scope and results.
 
-The two verdicts that matter:
+## Revise and compare
 
-- **`search_status: PASS`** — the best candidate met every declared
-  requirement under the screening model.
-- **`acceptance` agreement `PASS`** — an *independent* recomputation
-  module (separate cost ledger, separate screening walk, finer refined
-  sampling plan) reproduced the result. This is the project's core
-  contract: the search never grades its own homework.
+Use **Revise** to edit the complete loaded JSON, or **File → Duplicate current
+case** to retain every declaration with a new identity. Accepting a revision
+validates it first. Save to a new filename; source files are protected. Cancelling
+or an invalid edit retains the current case and completed result. The previous
+completed record remains available for comparison after an accepted revision.
 
-## 2. Read what it found
+Use the Reports view to compare changed inputs, dataset identities and results.
+A change in requirements, material policy or fidelity can explain a cost change;
+matching dollar figures alone do not establish an equivalent design comparison.
 
-Open the record in the workbench:
+A scalar price scenario is available only for uniform pricing. Graded and
+piece-priced cases require editing the per-spec declaration and rerunning. A
+scenario's cheapest screening candidate has `NOT_EVALUATED` selection acceptance;
+the original refined recommendation stays attached to the original record.
+
+## Bring conductor evidence
+
+The builder and Materials view accept a dataset bundle or two files: attributed
+metadata JSON followed by canonical measurement CSV. The CSV hash is computed
+when metadata omits it or declares null; an existing mismatched hash is rejected.
+This does not infer units, attribution or validity from arbitrary spreadsheets.
+See [datasets](DATASETS.md) for canonical columns and required provenance.
+
+Document a price category and its source or assumptions. Placeholder prices,
+published estimates and actual supplier quotes remain distinguishable. A price
+label alone does not verify a quote or reproduce commercial terms.
+
+## Export and verify
+
+**Reports → Review package** exports exact case bytes, the completed record,
+readable HTML and decision summary, material bundles, an artifact hash manifest,
+and BOM/RFQ when a selected option exists. A study without an optimum carries an
+explicit procurement-unavailable note. Desktop creates a new package directory;
+browser downloads a tar archive that preserves its directory layout.
 
 ```bash
-cargo run -p optcoil-app
+cargo run --release -- review-package runs/first-study.json \
+  benchmarks/coupled/first-study.json --output runs/first-study-review
+cargo run --release -- verify-package runs/first-study-review
 ```
 
-Then File → Open → `runs/oc-007-first.json`. The Overview page shows the
-baseline vs. optimum cost comparison; the candidate table lists all 15
-pack geometries colored by verdict.
+A saved record alone cannot recreate the original case bytes. Use **Attach
+original case** in Reports to bind the source file by its recorded SHA-256 before
+exporting a rerunnable package. External conductor bundles must also be available.
 
-Click any candidate — the detail panel shows per-check verdicts
-(requirement, refinement, screening, mechanical) and, under them, the
-**reason the verdict closed**. FAIL and INCONCLUSIVE always name their
-limiter, e.g.:
+Verification checks hashes, identities and modeled ledger arithmetic. Cost
+recomputation is separate from search; its shared physics is not independent
+physical validation. Structural, thermal, quench-protection, manufacturing and
+full-width conductor qualification still need engineering evidence.
 
-- `over the 0.80 utilization limit (1.57 at station p2)`
-- `7 point(s) sit below the dataset floor — bounded, not determined`
+## Validation beyond this example
 
-## 3. Learn to read INCONCLUSIVE
-
-This is the verdict most first-time users misread. It is not a failure
-— it is a declared *unresolved* region:
-
-- **below the dataset floor** — the tape's measured characterization
-  stops around 1 T (the robinson dataset); a point at 0.9 T gets a
-  conservative bound, and the candidate stays unresolved rather than
-  certified on extrapolation.
-- **outside the measured domain** — the point's field/angle/temperature
-  exceed anything the lab measured.
-- **along-current excluded** — the field points mostly along the tape's
-  length, where the screening policy refuses to claim a capacity.
-
-Try it: `benchmarks/coupled/oc-031-helix-layer.json` (the non-planar
-helical-layer case — fast, ~4 candidates) was built to hit exactly this
-boundary: thick packs settle at utilization 0.78 yet stay INCONCLUSIVE
-because helix-end points dip under the dataset's field floor. The
-detail panel names all three blockers it produced.
-
-## 4. Export and verify
-
-```bash
-# Human-readable evidence digest — open runs/oc-007.html in a browser.
-cargo run --release -- report runs/oc-007-first.json --output runs/oc-007.html
-
-# Independent artifact check: hash bindings + ledger arithmetic.
-cargo run --release -- verify runs/oc-007-first.json benchmarks/coupled/oc-007.json
-
-# Modeled procurement document for the optimum.
-cargo run --release -- bom runs/oc-007-first.json --output runs/oc-007.bom.json
-```
-
-`verify` prints `PASS` per check and — honestly — `NOT_CHECKED` for
-physics: it confirms the record is internally consistent and bound to
-the case file, not that the physics is right.
-
-## 5. Change one knob
-
-The fastest way to build intuition is to move one declared bound:
-
-1. Copy `benchmarks/coupled/oc-007.json` to `runs/my-case.json`.
-2. Edit `limits.utilization_limit`: `0.8` → `0.95`.
-3. Re-run. More candidates pass — the optimum shifts, and the record
-   shows you exactly which limiter released it.
-
-Or reprice the existing record without rerunning physics:
-
-```bash
-cargo run --release -- reprice runs/oc-007-first.json \
-  --price-usd-per-m 80 --output runs/oc-007-at-80.json
-```
-
-## Where to go next
-
-- `docs/SUPPORTED_DOMAINS.md` — which field/temperature/angle ranges the
-  embedded datasets actually cover (the honest envelope).
-- `docs/OC010.md` — the physically-built-coil parity study (CERN
-  Feather-M2, ~3% tape-mass agreement).
-- `docs/OC031.md` — non-planar helical winding under a declared field map.
-- `benchmarks/coupled/` — 20+ authored cases covering graded packs,
-  piece procurement, vendor bakeoffs and the high-field regimes.
-- `docs/BENCHMARK.md` — how the benchmark suite is organized.
+A reference workflow verifies software behavior. Product validation additionally
+needs an identified engineer, their authorized case and conductor data, documented
+prices, an actual decision and observed effort compared with their existing process.
+That external gate remains open until those observations exist.

@@ -53,6 +53,30 @@ pub(crate) async fn pick_bytes(extensions: &[&str]) -> Result<Option<(String, Ve
     Ok(Some((handle.file_name().to_owned(), handle.read().await)))
 }
 
+/// Pick a browser file while bounding allocation before reading its contents.
+pub(crate) async fn pick_bytes_limited(
+    extensions: &[&str],
+    max_bytes: usize,
+) -> Result<Option<(String, Vec<u8>)>, String> {
+    let Some(handle) = rfd::AsyncFileDialog::new()
+        .add_filter("File", extensions)
+        .pick_file()
+        .await
+    else {
+        return Ok(None);
+    };
+    let name = handle.file_name();
+    let size = handle.inner().size();
+    if size > max_bytes as f64 {
+        return Err(format!("{name} exceeds the {max_bytes}-byte size limit"));
+    }
+    let bytes = handle.read().await;
+    if bytes.len() > max_bytes {
+        return Err(format!("{name} exceeds the {max_bytes}-byte size limit"));
+    }
+    Ok(Some((name, bytes)))
+}
+
 fn show_boot_error(message: &str) {
     let Some(document) = web_sys::window().and_then(|window| window.document()) else {
         return;

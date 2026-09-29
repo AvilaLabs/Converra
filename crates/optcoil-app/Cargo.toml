@@ -22,7 +22,7 @@ eframe.workspace = true
 egui_extras.workspace = true
 egui_plot.workspace = true
 image.workspace = true
-rfd.workspace = true
+rfd = { workspace = true, features = ["file-handle-inner"] }
 serde_json.workspace = true
 sha2.workspace = true
 optcoil-model.workspace = true

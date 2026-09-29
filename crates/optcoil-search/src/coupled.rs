@@ -9,7 +9,7 @@
 use std::{
     collections::BTreeMap,
     path::Path,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::atomic::{AtomicBool, AtomicU64, Ordering},
 };
 
 use crate::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -695,6 +695,27 @@ pub(crate) fn run_coupled_case_with_datasets_ticked(
     // Progress tick: incremented once per field evaluation.
     tick: Option<&AtomicU64>,
 ) -> Result<CoupledRunRecord, RunError> {
+    run_coupled_case_with_datasets_ticked_cancellable(
+        case_json,
+        reference_json,
+        options,
+        datasets,
+        tick,
+        &AtomicBool::new(false),
+    )
+}
+
+/// Cancellation-aware form of [`run_coupled_case_with_datasets_ticked`].
+/// Checks the shared flag before every bounded field evaluation/map lookup;
+/// a cancelled run returns no partial record.
+pub(crate) fn run_coupled_case_with_datasets_ticked_cancellable(
+    case_json: &str,
+    reference_json: Option<&str>,
+    options: &CoupledOptions,
+    datasets: &[&MaterialDataset],
+    tick: Option<&AtomicU64>,
+    cancel: &AtomicBool,
+) -> Result<CoupledRunRecord, RunError> {
     let started = Instant::now();
     let started_unix_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -872,6 +893,9 @@ pub(crate) fn run_coupled_case_with_datasets_ticked(
                 let mut geometry_points = Vec::with_capacity(nodes.len());
                 let mut unit_fields = Vec::with_capacity(nodes.len());
                 for (width_index, &xi) in nodes.iter().enumerate() {
+                    if cancel.load(Ordering::Relaxed) {
+                        return Err(RunError::Cancelled);
+                    }
                     let offset_m = width_offset_m(case.winding.tape_width_m, xi);
                     let position_m = add(center_position_m, scale(frame.w, offset_m));
                     let mut unit_here = [[0.0_f64; 3]; 2];
@@ -925,6 +949,9 @@ pub(crate) fn run_coupled_case_with_datasets_ticked(
                     let ampere_turns_a = total_turns as f64 * current_a;
                     let mut candidate_points = Vec::with_capacity(nodes.len());
                     for (width_index, unit_here) in unit_fields.iter().enumerate() {
+                        if cancel.load(Ordering::Relaxed) {
+                            return Err(RunError::Cancelled);
+                        }
                         let point = evaluate_candidate_point(
                             &runtime.interpolator,
                             &case,
@@ -1088,6 +1115,10 @@ pub(crate) fn run_coupled_case_with_datasets_ticked(
             station: station.id().to_owned(),
             tapes,
         });
+    }
+
+    if cancel.load(Ordering::Relaxed) {
+        return Err(RunError::Cancelled);
     }
 
     let mut candidates = Vec::with_capacity(num_candidates);

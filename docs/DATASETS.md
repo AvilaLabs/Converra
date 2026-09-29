@@ -49,7 +49,19 @@ optcoil coupled-search case.json --metadata material.json --csv measurements.csv
 In the workbench, open the case first: the Materials page reports the declared
 dataset and whether it resolved (embedded, a sibling `datasets/<id>.json` or
 `<id>.json` beside the case, or missing). "Load dataset bundle…" picks a
-bundle explicitly. A case whose dataset cannot be resolved will not run.
+bundle explicitly. **Load metadata + CSV…** accepts the attributed metadata and
+canonical measurement CSV directly, natively and in the browser. The builder
+binds their validated id and computed CSV SHA-256. Missing or null metadata hashes
+are computed; a supplied mismatched hash is rejected. This does not supply missing
+attribution, infer spreadsheet units, or attest a dataset. A case whose dataset
+cannot be resolved will not run.
+
+Review packages include exact referenced dataset bundles and an artifact manifest.
+Browser tar archives preserve the dependency directory layout; extract before
+verification. The CLI and workbench search entry points currently accept one
+explicit external base dataset plus embedded spec datasets; additional external
+spec dependencies are reported by preflight and require a supported resolution
+path rather than silent substitution.
 
 ## Signed bundles — `optcoil-material-dataset/v2`
 

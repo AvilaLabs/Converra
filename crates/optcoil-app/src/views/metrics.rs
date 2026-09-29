@@ -34,9 +34,75 @@ pub(crate) fn repriced_total_usd(
         + ledger.joints_usd
 }
 
+/// Whether a single $/m control has an unambiguous meaning for this run.
+/// Piece catalogues and per-spec prices cannot be represented by one
+/// absolute scalar price.
+pub(crate) fn scalar_repricing_supported(record: &CoupledSearchRunRecord) -> bool {
+    record.case.cost.piece_policy.is_none()
+        && record.case.grading.is_none()
+        && record
+            .case
+            .tape_specs
+            .as_ref()
+            .is_none_or(std::collections::BTreeMap::is_empty)
+        && record
+            .candidates
+            .iter()
+            .all(|c| c.geometry.tape_spec_ids.is_none())
+}
+
+/// Price a ledger in its record context. For graded or piece-priced records
+/// the declared price is still a valid display of the original ledger; a
+/// hypothetical scalar price is not.
+pub(crate) fn record_total_at_price(
+    record: &CoupledSearchRunRecord,
+    ledger: &SearchCostLedger,
+    price_usd_per_m: f64,
+) -> Option<f64> {
+    if scalar_repricing_supported(record) {
+        Some(repriced_total_usd(
+            ledger,
+            price_usd_per_m,
+            record.case.cost.scrap_fraction,
+        ))
+    } else if (price_usd_per_m - record.case.cost.price_usd_per_m).abs() <= f64::EPSILON {
+        Some(ledger.total_usd)
+    } else {
+        None
+    }
+}
+
+/// Record-aware ledger components for the cost views. This keeps every
+/// declared per-spec amount intact at the source price and declines a
+/// hypothetical scalar split when prices are incompatible.
+pub(crate) fn record_cost_components(
+    record: &CoupledSearchRunRecord,
+    ledger: &SearchCostLedger,
+    price_usd_per_m: f64,
+) -> Option<[(&'static str, f64); 5]> {
+    if scalar_repricing_supported(record) {
+        Some(search_cost_components(
+            ledger,
+            price_usd_per_m,
+            record.case.cost.scrap_fraction,
+        ))
+    } else if (price_usd_per_m - record.case.cost.price_usd_per_m).abs() <= f64::EPSILON {
+        Some([
+            ("Conductor", ledger.conductor_usd),
+            ("Scrap", ledger.scrap_usd),
+            ("Assembly", ledger.assembly_usd),
+            ("Joints", ledger.joints_usd),
+            ("Opex", ledger.opex_usd.unwrap_or(0.0)),
+        ])
+    } else {
+        None
+    }
+}
+
 /// Lifecycle at a hypothetical conductor price: repriced capex + the
 /// opex term (declared heat loads are price-independent — they pass
 /// through untouched).
+#[cfg(test)]
 pub(super) fn lifecycle_at_price(
     ledger: &SearchCostLedger,
     price_usd_per_m: f64,
@@ -71,6 +137,20 @@ pub(super) fn best_index_at_price(
                 .then(a.index.cmp(&b.index))
         })
         .map(|(i, _)| i)
+}
+
+/// Record-aware optimum selection. Incompatible pricing keeps the source
+/// optimum at the declared price and has no hypothetical scalar result.
+pub(crate) fn record_best_index_at_price(
+    record: &CoupledSearchRunRecord,
+    price_usd_per_m: f64,
+) -> Option<usize> {
+    if !scalar_repricing_supported(record) {
+        return ((price_usd_per_m - record.case.cost.price_usd_per_m).abs() <= f64::EPSILON)
+            .then_some(record.best_index)
+            .flatten();
+    }
+    best_index_at_price(record, price_usd_per_m, record.case.cost.scrap_fraction)
 }
 
 /// Compact USD for map cells: `$201k` / `$8.7k` / `$640`.

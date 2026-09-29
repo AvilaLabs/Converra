@@ -109,6 +109,48 @@ pub fn render_search_report_html(record: &CoupledSearchRunRecord) -> Result<Stri
         .filter(|c| c.status == Status::NotEvaluated)
         .count();
 
+    let summary = crate::review::decision_summary(&serde_json::to_string(record)?)?;
+    let mut decision = format!(
+        "<div class=\"card\"><p>Selected option: {}. Baseline: {}.</p>",
+        summary
+            .selected_candidate_index
+            .map(|i| format!("candidate {i}, {}", usd(summary.selected_total_usd)))
+            .unwrap_or_else(|| "no resolved screening recommendation".into()),
+        usd(Some(summary.baseline_total_usd))
+    );
+    if let Some(utilization) = summary.current_utilization {
+        decision.push_str(&format!(
+            "<p>Current utilization {utilization:.4} / limit {:.4}; {}</p>",
+            summary.utilization_limit,
+            esc(summary
+                .limiting_location
+                .as_deref()
+                .unwrap_or("location unavailable"))
+        ));
+    }
+    if let Some(cost) = &summary.cost_components {
+        decision.push_str(&format!(
+            "<p>Conductor {} · scrap {} · assembly {} · joints {} · total {}</p>",
+            usd(Some(cost.conductor_usd)),
+            usd(Some(cost.scrap_usd)),
+            usd(Some(cost.assembly_usd)),
+            usd(Some(cost.joints_usd)),
+            usd(Some(cost.total_usd))
+        ));
+    }
+    decision.push_str("<h3>Price basis</h3><ul>");
+    for basis in &summary.price_basis {
+        decision.push_str(&format!("<li>{}</li>", esc(basis)));
+    }
+    decision.push_str("</ul><h3>Unresolved work</h3><ul>");
+    for gate in &summary.unresolved_gates {
+        decision.push_str(&format!("<li>{}</li>", esc(gate)));
+    }
+    decision.push_str("</ul><h3>Next actions</h3><ul>");
+    for action in &summary.next_actions {
+        decision.push_str(&format!("<li>{}</li>", esc(action)));
+    }
+    decision.push_str("</ul><p>Separate cost recomputation uses shared physics; agreement does not establish independent physical validation or production acceptance.</p></div>");
     let mut rows = String::new();
     for (i, c) in record.candidates.iter().enumerate() {
         let (label, color) = verdict(c.status);
@@ -246,7 +288,10 @@ td.num {{ text-align: right; font-variant-numeric: tabular-nums; }}
 <div>Sampling work</div><div>{k_evals} kernel evaluations · {pts} points</div>
 </div></div>
 
-<h2>Independent acceptance</h2>
+<h2>Decision at declared inputs and prices</h2>
+{decision}
+
+<h2>Acceptance recomputation</h2>
 <div class="card"><div class="kv">
 <div>Agreement</div><div>{a_badge2}</div>
 <div>Baseline recompute</div><div>cost {bcost:?} · field {bfield:?} · region {bregion:?}</div>
@@ -385,6 +430,7 @@ could not resolve the point, not that it is physically infeasible.</div></div>
             .as_ref()
             .map(|b| format!("{:?}", b.sampling_refinement_status))
             .unwrap_or_else(|| "—".into()),
+        decision = decision,
         rows = rows,
         check_rows = check_rows,
         case_sha = esc(&record.case_sha256),

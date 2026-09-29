@@ -20,7 +20,7 @@ use optcoil_model::Status;
 
 use crate::{RunError, coupled_search::CoupledSearchRunRecord};
 
-pub const REPRICE_NOTE_SCHEMA: &str = "optcoil-reprice-note/v1";
+pub const REPRICE_NOTE_SCHEMA: &str = "optcoil-reprice-note/v2";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RepricedCandidate {
@@ -58,9 +58,15 @@ pub struct RepriceNote {
     pub baseline_total_usd: f64,
     pub savings_usd: Option<f64>,
     pub savings_percent: Option<f64>,
-    /// Carried through unchanged — repricing cannot move a verdict.
-    pub search_status: Status,
-    pub acceptance_agreement_status: Status,
+    /// Source run verdict. It describes the source choice only.
+    #[serde(alias = "search_status")]
+    pub source_search_status: Status,
+    /// Source run acceptance agreement. It does not certify the repriced
+    /// winner, which may be a different candidate.
+    #[serde(alias = "acceptance_agreement_status")]
+    pub source_acceptance_agreement_status: Status,
+    /// Acceptance of the repriced selection was not recomputed.
+    pub selection_acceptance_status: Status,
     pub limitations: Vec<String>,
 }
 
@@ -81,6 +87,30 @@ pub fn reprice_record(
 ) -> Result<RepriceNote, RunError> {
     let record: CoupledSearchRunRecord = serde_json::from_str(record_json)
         .map_err(|e| RunError::Invalid(format!("coupled-search record parse: {e}")))?;
+    if record.candidates.is_empty() {
+        return Err(RunError::Invalid(
+            "reprice: source record has no candidates".into(),
+        ));
+    }
+    if record.baseline_index >= record.candidates.len() {
+        return Err(RunError::Invalid(format!(
+            "reprice: baseline_index {} is outside {} candidates",
+            record.baseline_index,
+            record.candidates.len()
+        )));
+    }
+    let source_checks = crate::verify::verify_record_checks(record_json, None, None, None, &[])?;
+    let failed_checks: Vec<_> = source_checks
+        .iter()
+        .filter(|check| check.outcome == crate::verify::Outcome::Fail)
+        .map(|check| format!("{}: {}", check.name, check.detail))
+        .collect();
+    if !failed_checks.is_empty() {
+        return Err(RunError::Invalid(format!(
+            "reprice: source record failed integrity checks: {}",
+            failed_checks.join("; ")
+        )));
+    }
     if !(price_usd_per_m.is_finite() && price_usd_per_m > 0.0) {
         return Err(RunError::Invalid(
             "reprice: --price-usd-per-m must be a positive finite number".into(),
@@ -101,6 +131,26 @@ pub fn reprice_record(
             "reprice: this record uses schema v24 piece-catalogue pricing — \
              a single $/m cannot reprice per-spec offerings; re-run the case \
              with updated piece_offerings instead"
+                .into(),
+        ));
+    }
+    // A single scalar can only describe a case whose candidates all use
+    // the same base conductor price. Grading assigns prices per spec, so
+    // scaling installed metres by the base price silently corrupts its
+    // ledger even when the selected candidate happens to be uniform.
+    if record.case.grading.is_some()
+        || record
+            .case
+            .tape_specs
+            .as_ref()
+            .is_some_and(|specs| !specs.is_empty())
+        || record
+            .candidates
+            .iter()
+            .any(|c| c.geometry.tape_spec_ids.is_some())
+    {
+        return Err(RunError::Invalid(
+            "reprice: scalar $/m repricing supports uniform cases only; graded/spec-priced records require per-spec repricing"
                 .into(),
         ));
     }
@@ -157,12 +207,14 @@ pub fn reprice_record(
         baseline_total_usd: baseline_total,
         savings_usd,
         savings_percent: savings_usd.map(|s| 100.0 * s / baseline_total),
-        search_status: record.search_status,
-        acceptance_agreement_status: record.acceptance.agreement_status,
+        source_search_status: record.search_status,
+        source_acceptance_agreement_status: record.acceptance.agreement_status,
+        selection_acceptance_status: Status::NotEvaluated,
         candidates,
         limitations: vec![
             "Derived arithmetic on the source record — no physics reran; verdicts, margins and acceptance statuses are the source run's, unchanged by construction.".into(),
-            "The optimum is re-selected by argmin over repriced totals among PASS candidates; under a large enough price change fixed costs can move it.".into(),
+            "Source search and acceptance statuses describe the source run only. Acceptance of the repriced selection is NOT_EVALUATED because the selected candidate can change.".into(),
+            "The optimum is re-selected by argmin over repriced totals among source-screened PASS candidates; under a large enough price change fixed costs can move it.".into(),
             "Assembly and joint costs are price-independent in the cost model and carry over unchanged.".into(),
         ],
     })
@@ -200,7 +252,8 @@ mod tests {
             assert_eq!(repriced.joints_usd, src.cost.joints_usd);
         }
         assert_eq!(note.source_price_usd_per_m, 30.0);
-        assert_eq!(note.search_status, record.search_status);
+        assert_eq!(note.source_search_status, record.search_status);
+        assert_eq!(note.selection_acceptance_status, Status::NotEvaluated);
         assert!(note.savings_usd.is_some() == record.savings_usd.is_some());
     }
 
@@ -222,6 +275,32 @@ mod tests {
     }
 
     #[test]
+    fn graded_records_keep_their_actual_spec_priced_ledger_and_refuse_scalar_reprice() {
+        let record = crate::coupled_search::run_coupled_search_case(
+            &crate::coupled_search::tests::reduced_graded_case_json("[4, 200]", 10.0, 0.5),
+            &crate::coupled_search::CoupledSearchOptions::default(),
+        )
+        .unwrap();
+        let candidate = &record.candidates[record.best_index.unwrap()];
+        assert_eq!(
+            candidate.cost.total_usd,
+            candidate.cost.conductor_usd
+                + candidate.cost.scrap_usd
+                + candidate.cost.assembly_usd
+                + candidate.cost.joints_usd
+        );
+        let json = serde_json::to_string(&record).unwrap();
+        let bom = crate::bom::bom_from_record(&json).unwrap();
+        let grading = crate::gradereport::grade_report_from_record(&json).unwrap();
+        assert!(bom.totals_agree);
+        assert_eq!(bom.record_total_usd, candidate.cost.total_usd);
+        assert_eq!(bom.total_usd, candidate.cost.total_usd);
+        assert_eq!(grading.optimum_total_usd, Some(candidate.cost.total_usd));
+        let err = reprice_record(&json, &record_sha256(&json), 60.0, "test quote").unwrap_err();
+        assert!(matches!(err, RunError::Invalid(ref m) if m.contains("graded/spec-priced")));
+    }
+
+    #[test]
     fn missing_provenance_is_rejected() {
         let record = crate::coupled_search::run_coupled_search_case(
             &crate::coupled_search::tests::reduced_case_json("[3]", 30.0),
@@ -231,5 +310,25 @@ mod tests {
         let json = serde_json::to_string(&record).unwrap();
         assert!(reprice_record(&json, "x", 60.0, "  ").is_err());
         assert!(reprice_record(&json, "x", -5.0, "test").is_err());
+    }
+
+    #[test]
+    fn invalid_source_indices_and_ledger_are_rejected_without_indexing() {
+        let record = crate::coupled_search::run_coupled_search_case(
+            &crate::coupled_search::tests::reduced_case_json("[3]", 30.0),
+            &crate::coupled_search::CoupledSearchOptions::default(),
+        )
+        .unwrap();
+        let mut value = serde_json::to_value(&record).unwrap();
+        value["baseline_index"] = serde_json::json!(usize::MAX);
+        let invalid_index = serde_json::to_string(&value).unwrap();
+        assert!(reprice_record(&invalid_index, "x", 60.0, "test").is_err());
+
+        value = serde_json::to_value(&record).unwrap();
+        // Finite corruption exercises the independent ledger recomputation.
+        value["candidates"][0]["cost"]["total_usd"] = serde_json::json!(123.0);
+        let invalid_ledger = serde_json::to_string(&value).unwrap();
+        let err = reprice_record(&invalid_ledger, "x", 60.0, "test").unwrap_err();
+        assert!(err.to_string().contains("failed integrity checks"));
     }
 }

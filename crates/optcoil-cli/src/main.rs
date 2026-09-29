@@ -140,6 +140,27 @@ enum Command {
         #[command(flatten)]
         args: CoupledSearchArgs,
     },
+    /// Check applicability and estimate declared work before running a study.
+    /// Readiness does not establish field coverage or engineering acceptance.
+    Preflight {
+        case: PathBuf,
+        #[command(flatten)]
+        args: CoupledSearchArgs,
+    },
+    /// Export an exact-input review package with datasets and hash manifest.
+    ReviewPackage {
+        record: PathBuf,
+        case: PathBuf,
+        #[arg(long, short)]
+        output: PathBuf,
+        /// Write a single uncompressed tar archive instead of a new directory.
+        #[arg(long)]
+        archive: bool,
+        #[arg(long)]
+        dataset_bundle: Vec<PathBuf>,
+    },
+    /// Verify every review-package artifact and its case/dataset/ledger bindings.
+    VerifyPackage { directory: PathBuf },
     /// Run a declared sensitivity sweep (optcoil-sensitivity/v1, /v2 or
     /// /v3) over a coupled-search case: a full-factorial grid of ic_scale /
     /// temperature_k / price_usd_per_m perturbations (v2 adds
@@ -752,6 +773,37 @@ fn execute(cli: Cli) -> Result<(), Box<dyn Error>> {
         Command::CoupledSearch { case, args } => {
             let json = fs::read_to_string(case)?;
             let dataset = args.dataset()?;
+            let parsed = optcoil_model::coupled_search::CoupledSearchCase::from_json(&json)?;
+            let mut dataset_map = std::collections::BTreeMap::new();
+            if let Some(dataset) = &dataset {
+                dataset_map.insert(dataset.metadata.id.clone(), dataset.clone());
+            }
+            let preflight = optcoil_search::preflight::preflight_coupled_search_with_options(
+                &parsed,
+                Some(&dataset_map),
+                &args.options(),
+            );
+            if !preflight.ready_to_run {
+                return Err(preflight
+                    .errors
+                    .iter()
+                    .map(|item| {
+                        format!(
+                            "{} {}",
+                            item.message,
+                            item.correction.as_deref().unwrap_or("")
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+                    .into());
+            }
+            eprintln!(
+                "Preflight: {} candidates; {} primary sampled points (estimate), q {:?}. Input readiness does not establish coverage.",
+                preflight.workload.candidate_count,
+                preflight.workload.primary_point_upper_estimate,
+                preflight.quadrature_orders
+            );
             // Long grids print a progress line every 2 s on stderr —
             // silent until enumeration lands, and quiet for fast cases.
             // Progress is a view concern only; verdicts/ledger unchanged.
@@ -795,6 +847,103 @@ fn execute(cli: Cli) -> Result<(), Box<dyn Error>> {
             let _ = reporter.join();
             let record = record?;
             finish_coupled_search(&record, &args)?;
+        }
+        Command::Preflight { case, args } => {
+            let case = optcoil_model::coupled_search::CoupledSearchCase::from_json(
+                &fs::read_to_string(case)?,
+            )?;
+            let mut datasets = std::collections::BTreeMap::new();
+            if let Some(dataset) = args.dataset()? {
+                datasets.insert(dataset.metadata.id.clone(), dataset);
+            }
+            let preflight = optcoil_search::preflight::preflight_coupled_search_with_options(
+                &case,
+                Some(&datasets),
+                &args.options(),
+            );
+            if args.json {
+                println!("{}", serde_json::to_string_pretty(&preflight)?);
+            } else {
+                println!(
+                    "{}: {} candidates · {} primary sampled points (estimate) · up to {} threads · q {:?}",
+                    preflight.case_id,
+                    preflight.workload.candidate_count,
+                    preflight.workload.primary_point_upper_estimate,
+                    preflight.selected_threads,
+                    preflight.quadrature_orders
+                );
+                println!(
+                    "{} · {}",
+                    preflight.geometry_support, preflight.field_source
+                );
+                for item in &preflight.items {
+                    println!("{:?}: {}", item.level, item.message);
+                    if let Some(correction) = &item.correction {
+                        println!("  {correction}");
+                    }
+                }
+                println!(
+                    "Readiness checks inputs; coverage and engineering acceptance require evaluation."
+                );
+            }
+            if !preflight.ready_to_run {
+                return Err("preflight found incompatible or missing inputs".into());
+            }
+        }
+        Command::ReviewPackage {
+            record,
+            case,
+            output,
+            archive,
+            dataset_bundle,
+        } => {
+            let record_json = fs::read_to_string(record)?;
+            let case_json = fs::read_to_string(case)?;
+            let bundles = dataset_bundle
+                .iter()
+                .map(|path| {
+                    MaterialBundle::from_json(&fs::read_to_string(path)?)
+                        .map_err(Box::<dyn Error>::from)
+                })
+                .collect::<Result<Vec<_>, Box<dyn Error>>>()?;
+            let artifacts =
+                optcoil_search::review::review_package(&record_json, Some(&case_json), &bundles)?;
+            if archive {
+                use std::io::Write;
+                let bytes = optcoil_search::review::review_package_tar(&artifacts)?;
+                let mut file = fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(&output)?;
+                file.write_all(&bytes)?;
+            } else {
+                write_review_package(&output, &artifacts)?;
+            }
+            println!(
+                "Saved {} artifacts to {}",
+                artifacts.len(),
+                output.display()
+            );
+        }
+        Command::VerifyPackage { directory } => {
+            let manifest_json = fs::read_to_string(directory.join("manifest.json"))?;
+            let manifest: optcoil_search::review::ReviewPackageManifest =
+                serde_json::from_str(&manifest_json)?;
+            let mut artifacts = vec![("manifest.json".into(), manifest_json)];
+            for path in manifest.files.keys() {
+                // Verify paths before reading, so a crafted manifest cannot escape the package.
+                if Path::new(path)
+                    .components()
+                    .any(|part| !matches!(part, std::path::Component::Normal(_)))
+                {
+                    return Err(format!("unsafe package path: {path}").into());
+                }
+                artifacts.push((path.clone(), fs::read_to_string(directory.join(path))?));
+            }
+            optcoil_search::review::verify_review_package(&artifacts)?;
+            println!(
+                "PASS: artifact hashes, case/dataset bindings and ledger arithmetic; physics validation remains separate."
+            );
         }
         Command::Sensitivity { case, spec, args } => {
             let json = fs::read_to_string(case)?;
@@ -1059,11 +1208,11 @@ fn execute(cli: Cli) -> Result<(), Box<dyn Error>> {
                         note.source_price_usd_per_m
                     );
                     println!(
-                        "Savings  ${:.0} ({:.1}%)  ·  search {:?} · acceptance {:?}",
+                        "Savings  ${:.0} ({:.1}%)  ·  source search {:?} · source acceptance {:?} · scenario acceptance NOT_EVALUATED",
                         note.savings_usd.unwrap_or(0.0),
                         note.savings_percent.unwrap_or(0.0),
-                        note.search_status,
-                        note.acceptance_agreement_status
+                        note.source_search_status,
+                        note.source_acceptance_agreement_status
                     );
                 }
                 None => println!("Optimum  none (no PASS candidate in the source record)"),
@@ -1970,6 +2119,22 @@ fn unix_now_ms() -> Result<u64, Box<dyn Error>> {
 
 /// Writes a file, refusing to overwrite — run artifacts and key material
 /// are never silently clobbered.
+fn write_review_package(
+    directory: &Path,
+    artifacts: &[(String, String)],
+) -> Result<(), Box<dyn Error>> {
+    // A new directory prevents merging partial or stale files with a previous review.
+    fs::create_dir(directory)?;
+    for (path, contents) in artifacts {
+        let destination = directory.join(path);
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        write_new(&destination, contents)?;
+    }
+    Ok(())
+}
+
 fn write_new(path: &Path, text: &str) -> Result<(), Box<dyn Error>> {
     let mut file = fs::File::options()
         .write(true)
