@@ -602,7 +602,7 @@ impl Workbench {
             });
         }
         ui.add_space(8.0);
-        ui.small("Planned inputs: measured-material CSV, then Excel tables, then STEP CAD and solver connections.");
+        ui.small("Materials accepts attributed metadata/CSV pairs now. Arbitrary Excel mapping, STEP CAD and solver connections are planned.");
     }
 
     // ---- Coupled-search project pages ------------------------------------

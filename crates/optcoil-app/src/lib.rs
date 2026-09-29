@@ -512,7 +512,9 @@ impl Workbench {
             optcoil_search::preflight::preflight_coupled_search(
                 case,
                 Some(&datasets),
-                &Default::default(),
+                &optcoil_search::preflight::PreflightOptions {
+                    threads: cfg!(target_arch = "wasm32").then_some(1),
+                },
             )
         });
     }
@@ -2676,7 +2678,11 @@ impl Workbench {
             ui.strong(format!("{}", case.candidate_count()));
             ui.add_space(6.0);
             ui.label("Worker threads");
-            ui.label(format!("up to {}", case.execution.max_threads));
+            ui.label(if cfg!(target_arch = "wasm32") {
+                "1 browser search worker".into()
+            } else {
+                format!("up to {}", case.execution.max_threads)
+            });
             ui.add_space(14.0);
             ui.checkbox(&mut self.show_inspector, "Candidate inspector");
         } else {
