@@ -604,6 +604,36 @@ pub(crate) fn resolve_datasets<'a>(
     Ok(map)
 }
 
+/// Resolve each unique declared binding from an explicitly supplied map
+/// keyed by the dataset's actual `metadata.id`, or from the embedded
+/// registry. A map key that disagrees with metadata is invalid, and no
+/// dataset is substituted for a missing declared id.
+pub(crate) fn resolve_datasets_map<'a>(
+    materials: impl IntoIterator<Item = &'a MaterialSettings>,
+    supplied: &BTreeMap<String, MaterialDataset>,
+) -> Result<BTreeMap<String, MaterialDataset>, RunError> {
+    for (key, dataset) in supplied {
+        if key != &dataset.metadata.id {
+            return Err(RunError::Invalid(format!(
+                "supplied dataset map key '{}' does not match metadata id '{}'",
+                key, dataset.metadata.id
+            )));
+        }
+    }
+    let mut map = BTreeMap::new();
+    for material in materials {
+        if map.contains_key(&material.dataset_id) {
+            continue;
+        }
+        let dataset = match supplied.get(&material.dataset_id) {
+            Some(d) => d.clone(),
+            None => MaterialDataset::embedded_by_id(&material.dataset_id)?,
+        };
+        map.insert(material.dataset_id.clone(), dataset);
+    }
+    Ok(map)
+}
+
 /// Build one binding's screening state: interpolator over its resolved
 /// dataset, that dataset's monotonicity audit under the binding's own
 /// tolerance, and the binding's critical-state table (under its own

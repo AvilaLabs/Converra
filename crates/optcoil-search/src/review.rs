@@ -557,6 +557,37 @@ pub fn review_package(
     case_json: Option<&str>,
     provided_bundles: &[MaterialBundle],
 ) -> Result<Vec<(String, String)>, RunError> {
+    let texts = provided_bundles
+        .iter()
+        .map(MaterialBundle::to_json)
+        .collect::<Result<Vec<_>, _>>()?;
+    let refs = texts.iter().map(String::as_str).collect::<Vec<_>>();
+    review_package_with_bundle_json(record_json, case_json, &refs)
+}
+
+/// Build a review package retaining each supplied bundle's exact JSON bytes.
+/// Registry entries can pin the hash of the whole bundle file, so preserving
+/// only its parsed CSV and signature is insufficient for portable verification.
+/// Clients reading bundle files should use this entry point rather than the
+/// typed convenience API, whose inputs have already lost their source bytes.
+pub fn review_package_with_bundle_json(
+    record_json: &str,
+    case_json: Option<&str>,
+    provided_bundle_json: &[&str],
+) -> Result<Vec<(String, String)>, RunError> {
+    let mut provided_bundles = BTreeMap::new();
+    for &text in provided_bundle_json {
+        let bundle = MaterialBundle::from_json(text)?;
+        let id = bundle.dataset.metadata.id.clone();
+        if provided_bundles
+            .insert(id.clone(), (bundle, text))
+            .is_some()
+        {
+            return Err(RunError::Invalid(format!(
+                "review package: duplicate supplied dataset id '{id}'"
+            )));
+        }
+    }
     let case_json = case_json.ok_or_else(|| {
         RunError::Invalid(
             "review package: original case bytes unavailable; provide the exact case source file used for this run"
@@ -621,26 +652,30 @@ pub fn review_package(
     );
     referenced.sort();
     referenced.dedup();
+    for id in provided_bundles.keys() {
+        if !referenced.iter().any(|(declared, _)| declared == id) {
+            return Err(RunError::Invalid(format!(
+                "review package: supplied dataset '{id}' is not referenced by the record"
+            )));
+        }
+    }
     let mut datasets = Vec::new();
     let mut dataset_files = Vec::new();
     for (ordinal, (id, expected_sha)) in referenced.iter().enumerate() {
-        let bundle = if let Some(bundle) = provided_bundles.iter().find(|b| {
-            b.dataset.metadata.id == *id
-                && strip_sha(&b.dataset.metadata.csv_sha256) == strip_sha(expected_sha)
-        }) {
-            MaterialBundle::from_parts(
-                bundle.dataset.clone(),
-                bundle.csv_data.clone(),
-                bundle.attestation.clone(),
-            )?
-        } else if let Some(bundle) = embedded_bundle(id)? {
-            bundle
+        let text = if let Some((bundle, text)) = provided_bundles.get(id) {
+            if strip_sha(&bundle.dataset.metadata.csv_sha256) != strip_sha(expected_sha) {
+                return Err(RunError::Invalid(format!(
+                    "review package: supplied dataset '{id}' CSV hash does not match the record's {expected_sha}"
+                )));
+            }
+            (*text).to_owned()
+        } else if let Some(text) = embedded_bundle_json(id)? {
+            text
         } else {
             return Err(RunError::Invalid(format!(
                 "review package: dataset '{id}' ({expected_sha}) is external and its original material bundle was not provided"
             )));
         };
-        let text = bundle.to_json()?;
         datasets.push(text.clone());
         dataset_files.push((format!("datasets/dataset-{:03}.json", ordinal + 1), text));
     }
@@ -691,8 +726,12 @@ pub fn review_package(
         command.push_str(" --dataset ");
         command.push_str(path);
     }
+    let rerun_bundles = dataset_files
+        .iter()
+        .map(|(path, _)| format!(" --dataset-bundle {path}"))
+        .collect::<String>();
     let readme = format!(
-        "Converra review package. The manifest binds the exact case and run-record bytes; its files map hashes every package artifact except manifest.json itself.\n\nVerify from this directory:\n  optcoil verify-package .\n\nOr run the underlying record verifier with all packaged datasets:\n  {command}\n\nRerun from this directory with embedded materials:\n  optcoil coupled-search case.json --output rerun.json\n\nFor one external material binding, add `--dataset-bundle datasets/dataset-NNN.json` for its matching bundle. The current CLI and workbench accept one external bundle per search; a case requiring multiple distinct external datasets cannot be rerun through these frontends. This package retains all referenced bundles for inspection.\n\nVerification checks artifact bindings and ledger arithmetic. It does not validate physics or establish engineering acceptance. Dataset signatures, when present, require separate `optcoil dataset verify` checks against a trusted registry/key.\n"
+        "Converra review package. The manifest binds the exact case and run-record bytes; its files map hashes every package artifact except manifest.json itself.\n\nVerify from this directory:\n  optcoil verify-package .\n\nOr run the underlying record verifier with all packaged datasets:\n  {command}\n\nRerun the search from this directory with every packaged material binding:\n  optcoil coupled-search case.json --output rerun.json{rerun_bundles}\n\nEach `--dataset-bundle` is resolved by its declared dataset id and must match the exact id and CSV SHA-256 required by the case. Supplying the package's exact bundle for an embedded dataset is also safe; a mismatched or undeclared bundle is rejected. The command includes every dependency, so it also works for graded cases with multiple external spec datasets.\n\nVerification checks artifact bindings and ledger arithmetic. It does not validate physics or establish engineering acceptance. Dataset signatures, when present, require separate `optcoil dataset verify` checks against a trusted registry/key.\n"
     );
     let mut files = BTreeMap::new();
     for (path, contents) in &artifacts {
@@ -885,15 +924,41 @@ fn sha256_hex(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
-fn embedded_bundle(id: &str) -> Result<Option<MaterialBundle>, RunError> {
+fn embedded_bundle_json(id: &str) -> Result<Option<String>, RunError> {
     use optcoil_model::material as m;
+    // Keep the issued bundle bytes intact, including signatures. Registry
+    // entries bind the exact file hash, not a reserialized equivalent.
+    let issued = match id {
+        m::SUPERPOWER_ID => Some(include_str!(
+            "../../../data/materials/robinson-superpower-ap-v3/bundle.json"
+        )),
+        m::SUPERPOWER_LOWFIELD_ID => Some(include_str!(
+            "../../../data/materials/robinson-superpower-ap-v3-lowfield/bundle.json"
+        )),
+        m::SUPERPOWER_MODELEXT_ID => Some(include_str!(
+            "../../../data/materials/robinson-superpower-ap-v3-modelext/bundle.json"
+        )),
+        m::SHANGHAI_HFLT_ID => Some(include_str!(
+            "../../../data/materials/robinson-shanghai-hflt-v3/bundle.json"
+        )),
+        m::THEVA_AP_ID => Some(include_str!(
+            "../../../data/materials/robinson-theva-ap-v2/bundle.json"
+        )),
+        m::FFJ_YBCO_ID => Some(include_str!(
+            "../../../data/materials/robinson-ffj-ybco-v1/bundle.json"
+        )),
+        _ => None,
+    };
+    if let Some(text) = issued {
+        let bundle = MaterialBundle::from_json(text)?;
+        if bundle.dataset.metadata.id != id {
+            return Err(RunError::Invalid(format!(
+                "embedded bundle metadata id does not match '{id}'"
+            )));
+        }
+        return Ok(Some(text.to_owned()));
+    }
     let csv: Option<&[u8]> = match id {
-        m::SUPERPOWER_ID => Some(m::SUPERPOWER_CSV),
-        m::SUPERPOWER_LOWFIELD_ID => Some(m::SUPERPOWER_LOWFIELD_CSV),
-        m::SUPERPOWER_MODELEXT_ID => Some(m::SUPERPOWER_MODELEXT_CSV),
-        m::SHANGHAI_HFLT_ID => Some(m::SHANGHAI_HFLT_CSV),
-        m::THEVA_AP_ID => Some(m::THEVA_AP_CSV),
-        m::FFJ_YBCO_ID => Some(m::FFJ_YBCO_CSV),
         m::BABOUCHE_SP_ID => Some(m::BABOUCHE_SP_CSV),
         m::BABOUCHE_SST_ID => Some(m::BABOUCHE_SST_CSV),
         m::BABOUCHE_SP_V2_ID => Some(m::BABOUCHE_SP_V2_CSV),
@@ -904,12 +969,30 @@ fn embedded_bundle(id: &str) -> Result<Option<MaterialBundle>, RunError> {
     let dataset = optcoil_model::material::MaterialDataset::embedded_by_id(id)?;
     let csv = String::from_utf8(csv.to_vec())
         .map_err(|e| RunError::Invalid(format!("embedded dataset '{id}' CSV is not UTF-8: {e}")))?;
-    Ok(Some(MaterialBundle::from_parts(dataset, csv, None)?))
+    Ok(Some(
+        MaterialBundle::from_parts(dataset, csv, None)?.to_json()?,
+    ))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{collections::BTreeMap, sync::atomic::AtomicBool};
+
+    fn external_reference_bundle(source_id: &str, external_id: &str) -> MaterialBundle {
+        use optcoil_model::material as m;
+        let csv = match source_id {
+            m::SUPERPOWER_LOWFIELD_ID => m::SUPERPOWER_LOWFIELD_CSV,
+            m::SUPERPOWER_MODELEXT_ID => m::SUPERPOWER_MODELEXT_CSV,
+            _ => panic!("test fixture must use an attributed embedded reference dataset"),
+        };
+        let mut dataset = m::MaterialDataset::embedded_by_id(source_id).unwrap();
+        // These are software fixtures built from attributed reference CSVs;
+        // the suffixed identities model two separately supplied customer
+        // bundles without claiming that the fixture ids are published tapes.
+        dataset.metadata.id = external_id.into();
+        MaterialBundle::from_parts(dataset, String::from_utf8(csv.to_vec()).unwrap(), None).unwrap()
+    }
 
     #[test]
     fn json_diff_uses_escaped_pointers_and_reports_array_changes() {
@@ -962,6 +1045,141 @@ mod tests {
             .to_string();
         assert!(error.contains("lacks resolved dataset identities"));
         assert!(error.contains("Rerun the original case"));
+    }
+
+    #[test]
+    fn package_carries_and_verifies_two_external_graded_dataset_dependencies() {
+        let first = external_reference_bundle(
+            optcoil_model::material::SUPERPOWER_LOWFIELD_ID,
+            "review-fixture-external-lowfield",
+        );
+        let second = external_reference_bundle(
+            optcoil_model::material::SUPERPOWER_MODELEXT_ID,
+            "review-fixture-external-modelext",
+        );
+        let mut case: Value = serde_json::from_str(
+            &crate::coupled_search::tests::reduced_graded_case_json("[4]", 10.0, 0.5),
+        )
+        .unwrap();
+        for (spec_id, bundle) in [("cheap", &first), ("other", &second)] {
+            if case["tape_specs"].get(spec_id).is_none() {
+                case["tape_specs"][spec_id] = case["tape_specs"]["cheap"].clone();
+            }
+            case["tape_specs"][spec_id]["material"]["dataset_id"] =
+                Value::String(bundle.dataset.metadata.id.clone());
+            case["tape_specs"][spec_id]["material"]["csv_sha256"] =
+                Value::String(bundle.dataset.metadata.csv_sha256.clone());
+        }
+        case["grading"]["regions"][0]["tape_spec_choices"] =
+            serde_json::json!(["base", "cheap", "other"]);
+        case["grading"]["regions"][1]["tape_spec_choices"] =
+            serde_json::json!(["base", "cheap", "other"]);
+        let case_json = serde_json::to_string(&case).unwrap();
+        let datasets = BTreeMap::from([
+            (first.dataset.metadata.id.clone(), first.dataset.clone()),
+            (second.dataset.metadata.id.clone(), second.dataset.clone()),
+        ]);
+        let record = crate::coupled_search::run_coupled_search_case_with_datasets(
+            &case_json,
+            &crate::coupled_search::CoupledSearchOptions::default(),
+            &datasets,
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+        let record_json = serde_json::to_string(&record).unwrap();
+        // Source formatting participates in registry bundle identity. Use
+        // deliberately noncanonical texts to catch a parse/serialize cycle.
+        let first_text = format!("\n{}\n\n", first.to_json().unwrap());
+        let second_text = serde_json::to_string(
+            &serde_json::from_str::<Value>(&second.to_json().unwrap()).unwrap(),
+        )
+        .unwrap();
+        let package = review_package_with_bundle_json(
+            &record_json,
+            Some(&case_json),
+            &[&first_text, &second_text],
+        )
+        .unwrap();
+        verify_review_package(&package).unwrap();
+        for (id, expected) in [
+            (first.dataset.metadata.id.as_str(), first_text.as_str()),
+            (second.dataset.metadata.id.as_str(), second_text.as_str()),
+            (
+                optcoil_model::material::SUPERPOWER_ID,
+                include_str!("../../../data/materials/robinson-superpower-ap-v3/bundle.json"),
+            ),
+        ] {
+            let text = package
+                .iter()
+                .filter(|(path, _)| path.starts_with("datasets/"))
+                .find(|(_, text)| {
+                    MaterialBundle::from_json(text).unwrap().dataset.metadata.id == id
+                })
+                .unwrap()
+                .1
+                .as_str();
+            assert_eq!(text.as_bytes(), expected.as_bytes(), "bundle {id}");
+            if id == optcoil_model::material::SUPERPOWER_ID {
+                let checks = verify::verify_dataset_bundle(
+                    text,
+                    Some(include_str!("../../../data/registry/datasets.json")),
+                    None,
+                )
+                .unwrap();
+                assert!(checks.iter().all(|check| check.verdict == "PASS"));
+            }
+        }
+        assert!(
+            review_package_with_bundle_json(
+                &record_json,
+                Some(&case_json),
+                &[&first_text, &first_text, &second_text],
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("duplicate supplied dataset id")
+        );
+        let readme = package
+            .iter()
+            .find(|(path, _)| path == "README.txt")
+            .unwrap()
+            .1
+            .clone();
+        assert!(readme.contains("--dataset-bundle datasets/dataset-002.json"));
+        assert!(readme.contains("every packaged material binding"));
+        assert_eq!(
+            package
+                .iter()
+                .filter(|(path, _)| path.starts_with("datasets/") && path.ends_with(".json"))
+                .count(),
+            3 // base material plus both referenced external specs
+        );
+
+        let missing_one = review_package(
+            &record_json,
+            Some(&case_json),
+            &[external_reference_bundle(
+                optcoil_model::material::SUPERPOWER_LOWFIELD_ID,
+                "review-fixture-external-lowfield",
+            )],
+        );
+        assert!(missing_one.unwrap_err().to_string().contains("external"));
+        let wrong_pair = [
+            external_reference_bundle(
+                optcoil_model::material::SUPERPOWER_LOWFIELD_ID,
+                "review-fixture-external-modelext",
+            ),
+            external_reference_bundle(
+                optcoil_model::material::SUPERPOWER_MODELEXT_ID,
+                "review-fixture-external-lowfield",
+            ),
+        ];
+        assert!(
+            review_package(&record_json, Some(&case_json), &wrong_pair)
+                .unwrap_err()
+                .to_string()
+                .contains("external")
+        );
     }
 
     #[test]

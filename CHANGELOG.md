@@ -11,6 +11,11 @@
   `NOT_EVALUATED` in the version 2 reprice artifact.
 - Direct bounded metadata/CSV intake, documented price basis, and portable review
   packages with original inputs, dataset dependencies and offline verification.
+- Multiple external material bindings pass through preflight, search, margin
+  sweeps, the browser worker and review export. CLI search, preflight and
+  sensitivity accept repeated bundle flags; packaged rerun commands include
+  every dependency. Supplied bundle files retain their original bytes so
+  registry checks remain bound to the same signed artifact.
 - Cooperative cancellation through acceptance and reuse of an independently
   recomputed baseline when it is also the selected candidate. Acceptance checker
   identity advances to v19; field kernels and numerical gates are unchanged.

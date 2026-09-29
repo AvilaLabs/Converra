@@ -2019,7 +2019,7 @@ impl Workbench {
         });
         if ui
             .add_enabled(
-                self.worker.is_none() && self.search_dataset.is_some(),
+                self.worker.is_none() && self.unresolved_dataset_bindings().is_empty(),
                 egui::Button::new("Run margin sweep"),
             )
             .on_hover_text("Sweeps the declared utilization limit over a fixed grid — the capacity-margin price curve")
@@ -2027,8 +2027,12 @@ impl Workbench {
         {
             self.run_frontier();
         }
-        if self.search_dataset.is_none() {
-            ui.small("Load the declared dataset on the Materials page first.");
+        let missing = self.unresolved_dataset_bindings();
+        if !missing.is_empty() {
+            ui.small(format!(
+                "Load all declared material datasets on the Materials page first: {}.",
+                missing.join(", ")
+            ));
         }
         if let Some(sweep) = &self.sweep_record {
             let mut frontier: Vec<[f64; 2]> = Vec::new();
@@ -2331,6 +2335,56 @@ impl Workbench {
                     if ui.button("Load metadata + CSV…").on_hover_text("Select attributed metadata, then canonical measurements. The CSV hash is computed; any declared hash must match.").clicked() { wants_pair = true; }
                 });
                 ui.end_row();
+                for (binding_id, material) in case.material_bindings().into_iter().skip(1) {
+                    ui.strong(format!("Tape specification: {binding_id}"));
+                    ui.vertical(|ui| {
+                        ui.label(&material.dataset_id);
+                        ui.small(format!("CSV SHA-256: {}", material.csv_sha256));
+                        if let Some(source) = self.dataset_source(&material.dataset_id)
+                            && source.dataset.metadata.csv_sha256 == material.csv_sha256
+                        {
+                            match &source.origin {
+                                crate::DatasetOrigin::File(path) => {
+                                    ui.small(format!(
+                                        "Source: external bundle — {}",
+                                        path.display()
+                                    ));
+                                }
+                                crate::DatasetOrigin::Embedded => {
+                                    ui.small("Source: embedded dataset store");
+                                }
+                            }
+                        } else if self
+                            .preflight
+                            .as_ref()
+                            .and_then(|preflight| {
+                                preflight
+                                    .datasets
+                                    .iter()
+                                    .find(|dataset| dataset.binding_id == binding_id)
+                            })
+                            .is_some_and(|dataset| {
+                                dataset.available && dataset.identity_compatible == Some(true)
+                            })
+                        {
+                            ui.small("Source: embedded dataset store");
+                        } else {
+                            ui.colored_label(
+                                status_color(Status::Inconclusive),
+                                "Unresolved — load the exact declared dataset before running",
+                            );
+                        }
+                        ui.horizontal(|ui| {
+                            if ui.button("Load matching bundle…").clicked() {
+                                wants_dataset = true;
+                            }
+                            if ui.button("Load metadata + CSV…").clicked() {
+                                wants_pair = true;
+                            }
+                        });
+                    });
+                    ui.end_row();
+                }
                 ui.strong("Operating point");
                 ui.label(format!(
                     "{:.1} K · E criterion {:.0e} V/m",

@@ -1,17 +1,16 @@
 # Customer material datasets
 
-OptCoil runs coupled searches against a *material dataset*: a measured
-critical-current table `Ic(B, T, θ)` plus provenance metadata. Five datasets
-are embedded in the binary (the published Robinson characterizations —
-three SuperPower AP variants, Shanghai Superconductor HFLT, and THEVA
-Pro-Line Advanced Pinning — all over the identical declared 20–40 K ×
-1–8 T × 0–180° window); customer data — another vendor's tape, QC
-measurements, a different superconductor — is supplied at run time,
-without rebuilding.
+OptCoil runs coupled searches against critical-current tables `Ic(B, T, θ)`
+and their provenance metadata. Ten datasets are embedded: five attributed
+measured characterizations, one explicitly labeled model extension, and four
+published model-fit variants. Their operating domains differ; consult each
+dataset's metadata. Customer measurements can be supplied at run time without
+rebuilding. Measured, modeled and synthetic evidence remain distinguishable.
 
 ## The identity contract
 
-A coupled-search case declares two fields:
+A coupled-search case declares two fields for its base material and for each
+explicit graded tape specification:
 
 - `material.dataset_id` — must equal the dataset's metadata `id`
 - `material.csv_sha256` — the SHA-256 of the dataset's CSV bytes
@@ -40,14 +39,29 @@ optcoil coupled-search case.json --dataset-bundle my-tape.bundle.json
 
 (`dataset-bundle` remains for writing unsigned v1 bundles.)
 
+For a graded case, repeat the flag for every external dataset referenced by the
+base or tape-spec bindings. The same flags apply to `preflight` and `sensitivity`:
+
+```bash
+optcoil coupled-search graded-case.json \
+  --dataset-bundle base.bundle.json --dataset-bundle graded-tape.bundle.json
+```
+
+Each bundle must match a declared id and CSV hash. Duplicate or undeclared ids
+are rejected. Omitted embedded dependencies resolve from the embedded store;
+omitted external dependencies prevent the run.
+
+`coupled-refine` currently accepts a single supplied dataset and rejects multiple
+bundle flags explicitly; the multi-binding workflow uses `coupled-search`.
+
 **Metadata/CSV pair** — pass both paths directly:
 
 ```bash
 optcoil coupled-search case.json --metadata material.json --csv measurements.csv
 ```
 
-In the workbench, open the case first: the Materials page reports the declared
-dataset and whether it resolved (embedded, a sibling `datasets/<id>.json` or
+In the workbench, open the case first: the Materials page reports every declared
+dependency and whether it resolved (embedded, a sibling `datasets/<id>.json` or
 `<id>.json` beside the case, or missing). "Load dataset bundle…" picks a
 bundle explicitly. **Load metadata + CSV…** accepts the attributed metadata and
 canonical measurement CSV directly, natively and in the browser. The builder
@@ -56,12 +70,17 @@ are computed; a supplied mismatched hash is rejected. This does not supply missi
 attribution, infer spreadsheet units, or attest a dataset. A case whose dataset
 cannot be resolved will not run.
 
-Review packages include exact referenced dataset bundles and an artifact manifest.
-Browser tar archives preserve the dependency directory layout; extract before
-verification. The CLI and workbench search entry points currently accept one
-explicit external base dataset plus embedded spec datasets; additional external
-spec dependencies are reported by preflight and require a supported resolution
-path rather than silent substitution.
+Load a matching bundle or metadata/CSV pair for each external dependency. The
+workbench retains those sources across revisions that preserve their bindings,
+and uses them for search, margin sweeps, record verification and review export.
+
+Review packages include every resolved material dependency, preserving the exact
+supplied bundle JSON, CSV bytes and attestations, with an artifact manifest.
+Issued embedded bundles retain their original bytes and signatures where
+available. Their README contains a
+rerun command listing each packaged bundle; it needs no original input directory.
+Browser tar archives preserve the directory layout; extract before verification
+or rerunning.
 
 ## Signed bundles — `optcoil-material-dataset/v2`
 
@@ -128,10 +147,11 @@ that propagate into run records.
 `data_class` and `limitations` are how measured customer data stays
 distinguishable from modeled or synthetic data in every downstream artifact.
 
-After authoring, `dataset-bundle` reports the CSV's SHA-256 — paste it into the
-case's `material.csv_sha256` (the workbench case builder does this
-automatically for embedded datasets and accepts a pasted hash for external
-ones), then run a `material-validate`-equivalent check by loading it.
+When editing case JSON directly, set each binding's `csv_sha256` to the validated
+CSV hash. The workbench builder fills the base binding automatically for embedded
+data and for an imported metadata/CSV pair; loading a pair into an existing case
+requires its id and computed hash to match a declared binding. Validate the inputs
+before calculating.
 
 ## Operating domain
 

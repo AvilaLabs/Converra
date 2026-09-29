@@ -44,7 +44,7 @@ use crate::{
     coupled::{
         CandidateResult, CoupledOptions, DatasetIdentity, LimitingPoint, MaterialRuntimes,
         MonotonicityAuditRecord, PointCounts, aggregate_status, evaluate_candidate_point,
-        resolve_datasets, run_coupled_case_with_datasets_ticked_cancellable, spec_runtime,
+        resolve_datasets_map, run_coupled_case_with_datasets_ticked_cancellable, spec_runtime,
     },
     field::{RuntimeInfo, runtime_info},
     hash,
@@ -1001,6 +1001,37 @@ pub fn run_coupled_search_case_with_dataset_progress(
     cancel: &AtomicBool,
     progress: Option<&SearchProgress>,
 ) -> Result<CoupledSearchRunRecord, RunError> {
+    let supplied: BTreeMap<String, MaterialDataset> = dataset
+        .into_iter()
+        .map(|dataset| (dataset.metadata.id.clone(), dataset))
+        .collect();
+    run_coupled_search_case_with_datasets_progress(case_json, options, &supplied, cancel, progress)
+}
+
+/// Multi-binding form of [`run_coupled_search_case_with_dataset_progress`].
+/// `datasets` is keyed by each supplied dataset's actual `metadata.id`.
+/// Every supplied id must be declared by the case, map keys must match
+/// metadata ids, and every base/spec binding is checked against its pinned
+/// dataset id and CSV hash. Omitted bindings may resolve from the embedded
+/// registry; missing non-embedded bindings fail before candidate evaluation.
+pub fn run_coupled_search_case_with_datasets(
+    case_json: &str,
+    options: &CoupledSearchOptions,
+    datasets: &BTreeMap<String, MaterialDataset>,
+    cancel: &AtomicBool,
+) -> Result<CoupledSearchRunRecord, RunError> {
+    run_coupled_search_case_with_datasets_progress(case_json, options, datasets, cancel, None)
+}
+
+/// Progress-reporting multi-binding form of
+/// [`run_coupled_search_case_with_datasets`].
+pub fn run_coupled_search_case_with_datasets_progress(
+    case_json: &str,
+    options: &CoupledSearchOptions,
+    supplied: &BTreeMap<String, MaterialDataset>,
+    cancel: &AtomicBool,
+    progress: Option<&SearchProgress>,
+) -> Result<CoupledSearchRunRecord, RunError> {
     let started = Instant::now();
     let started_unix_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -1014,9 +1045,14 @@ pub fn run_coupled_search_case_with_dataset_progress(
     // declared id wins, otherwise the embedded registry. A supplied
     // dataset no binding declares is rejected outright — a stray supply
     // must never silently fall back to embedded bytes.
-    let supplied: Vec<MaterialDataset> = dataset.into_iter().collect();
     let bindings = search.material_bindings();
-    for d in &supplied {
+    for (key, d) in supplied {
+        if key != &d.metadata.id {
+            return Err(RunError::Invalid(format!(
+                "supplied dataset map key '{}' does not match metadata id '{}'",
+                key, d.metadata.id
+            )));
+        }
         if !bindings.iter().any(|(_, m)| m.dataset_id == d.metadata.id) {
             return Err(RunError::Invalid(format!(
                 "supplied dataset '{}' is not declared by any material binding",
@@ -1024,7 +1060,7 @@ pub fn run_coupled_search_case_with_dataset_progress(
             )));
         }
     }
-    let datasets = resolve_datasets(bindings.iter().map(|&(_, m)| m), &supplied)?;
+    let datasets = resolve_datasets_map(bindings.iter().map(|&(_, m)| m), supplied)?;
     search.validate_against_dataset_map(&datasets)?;
     let critical_state_strip =
         search.limits.self_field_correction.as_deref() == Some("critical_state_strip");
@@ -6900,6 +6936,108 @@ pub(crate) mod tests {
             .get("cheap")
             .expect("graded record reports the spec's own audit");
         assert_eq!(spec_audit.status, Status::Pass);
+    }
+
+    #[test]
+    fn external_dataset_map_binds_base_and_graded_spec_without_substitution() {
+        // Attributed embedded reference measurements, explicitly converted
+        // to 1x synthetic software fixtures. These are not customer data or
+        // customer evidence; scaling gives each binding a distinct external
+        // identity while retaining the source attribution in metadata.
+        let base = MaterialDataset::embedded_by_id("robinson-superpower-ap-v3")
+            .unwrap()
+            .scaled_ic(1.0)
+            .unwrap();
+        let spec = MaterialDataset::embedded_by_id("robinson-shanghai-hflt-v3")
+            .unwrap()
+            .scaled_ic(1.0)
+            .unwrap();
+        let mut value: serde_json::Value =
+            serde_json::from_str(&reduced_graded_case_json("[4]", 10.0, 0.5)).unwrap();
+        value["id"] = "external-two-dataset-software-fixture".into();
+        value["provenance"] = "Attributed reference measurements, 1x synthetic software fixture only; not customer evidence.".into();
+        value["material"]["dataset_id"] = base.metadata.id.clone().into();
+        value["material"]["csv_sha256"] = base.metadata.csv_sha256.clone().into();
+        value["tape_specs"]["cheap"]["material"]["dataset_id"] = spec.metadata.id.clone().into();
+        value["tape_specs"]["cheap"]["material"]["csv_sha256"] =
+            spec.metadata.csv_sha256.clone().into();
+        value["tape_specs"]["cheap"]["material"]["monotonicity_tolerance"] = 0.025.into();
+        let case_json = serde_json::to_string(&value).unwrap();
+        let case = CoupledSearchCase::from_json(&case_json).unwrap();
+        let datasets = BTreeMap::from([
+            (base.metadata.id.clone(), base.clone()),
+            (spec.metadata.id.clone(), spec.clone()),
+        ]);
+
+        let preflight = crate::preflight::preflight_coupled_search_with_options(
+            &case,
+            Some(&datasets),
+            &CoupledSearchOptions::default(),
+        );
+        assert!(preflight.ready_to_run, "{preflight:#?}");
+        assert_eq!(preflight.datasets.len(), 2);
+        assert!(
+            preflight
+                .datasets
+                .iter()
+                .all(|item| item.identity_compatible == Some(true))
+        );
+
+        let record = run_coupled_search_case_with_datasets(
+            &case_json,
+            &CoupledSearchOptions::default(),
+            &datasets,
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+        let acceptance = crate::search_acceptance::assess(
+            &record.case,
+            &record.candidates,
+            record.baseline_index,
+            record.best_index,
+            &datasets,
+        )
+        .unwrap();
+        assert_eq!(acceptance.agreement_status, Status::Pass);
+
+        // A missing external dependency cannot fall back to another supplied
+        // dataset or to an unrelated embedded dataset.
+        let base_only = BTreeMap::from([(base.metadata.id.clone(), base.clone())]);
+        let missing = crate::preflight::preflight_coupled_search_with_options(
+            &case,
+            Some(&base_only),
+            &CoupledSearchOptions::default(),
+        );
+        assert!(!missing.ready_to_run);
+        assert!(
+            run_coupled_search_case_with_datasets(
+                &case_json,
+                &CoupledSearchOptions::default(),
+                &base_only,
+                &AtomicBool::new(false),
+            )
+            .is_err()
+        );
+
+        let mut wrong_hash: serde_json::Value = serde_json::from_str(&case_json).unwrap();
+        wrong_hash["tape_specs"]["cheap"]["material"]["csv_sha256"] = "0".repeat(64).into();
+        let wrong_json = serde_json::to_string(&wrong_hash).unwrap();
+        let wrong_case = CoupledSearchCase::from_json(&wrong_json).unwrap();
+        let wrong_preflight = crate::preflight::preflight_coupled_search_with_options(
+            &wrong_case,
+            Some(&datasets),
+            &CoupledSearchOptions::default(),
+        );
+        assert!(!wrong_preflight.ready_to_run);
+        assert!(
+            run_coupled_search_case_with_datasets(
+                &wrong_json,
+                &CoupledSearchOptions::default(),
+                &datasets,
+                &AtomicBool::new(false),
+            )
+            .is_err()
+        );
     }
 
     /// v13 schema: older records lacking the dataset-provenance fields

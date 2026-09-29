@@ -24,9 +24,10 @@ independent acceptance as the base run.
 
 The grid is the full product of the axes (≤ 64 points). Per axis:
 
-- **`ic_scale`** — multiplies every measured Ic in the dataset (values in
+- **`ic_scale`** — multiplies every Ic in the base material dataset (values in
   `(0, 4]`). The scaled table is a distinct, declared-synthetic identity —
-  it is never presented as measured data.
+  it is never presented as measured data. Explicit graded tape specifications
+  retain their own declared datasets.
 - **`temperature_k`** — replaces `operating.temperature_k`. Each value must
   stay strictly inside the dataset's nominal temperature span; a value
   outside fails that point as an error, it is not clamped or extrapolated.

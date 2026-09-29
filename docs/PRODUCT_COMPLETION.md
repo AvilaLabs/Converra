@@ -6,13 +6,19 @@ the external engineer validation gate.
 
 ## Implemented workflow
 
+The 2026-09-29 completion audit found and resolved a PC-05 gap: exported studies
+with multiple external material bindings could not rerun through the search
+frontends. Search, preflight, sensitivity, workbench revision/verification and the
+browser worker now carry every declared dependency. Export also preserves original
+bundle JSON bytes, because signed registries can pin the whole file hash.
+
 | Roadmap item | Implementation and evidence |
 | --- | --- |
 | PC-01 | Record-aware cost metrics; restricted scalar scenarios; reprice v2; graded ledger/BOM/report regression. |
 | PC-02 | Full JSON revision and duplication with validation and source protection; input differences; case round-trip and workbench state regressions. |
 | PC-03 | Small attributed measured-conductor startup case, explicit synthetic example, applicability sequence and geometry preview. |
 | PC-04 | Shared headless preflight in the CLI and workbench, dependency checks and sampling/work proxies. |
-| PC-05 | Bounded metadata/CSV intake and automatic hash binding; documented price categories and assumptions; packaged material bundles. |
+| PC-05 | Bounded metadata/CSV intake and automatic hash binding; documented price categories and assumptions; complete material maps and portable rerun commands; original supplied bundle bytes and issued embedded signatures retained. |
 | PC-06 | Shared decision summary and portable review package; artifact, identity and modeled cost verification, including tamper rejection. |
 | PC-07 | Previous results retained during replacement; cancellation in search and acceptance; independently recomputed baseline reuse. |
 | PC-08 | Headless first-study workflow through revision, cancellation, comparison, export and verification; native and wasm gates. External validation remains open. |
@@ -31,11 +37,23 @@ before/after measurement does not establish a general speed ranking.
 
 ## Verification gates
 
-On 2026-09-29, formatting, workspace Clippy, all 484 native tests and wasm
+On 2026-09-29, formatting, workspace Clippy, all 490 workspace tests and wasm
 compilation passed. The release CLI generated the first-study diagnostic record
 with unchanged costs and verdicts and checker v19. Diagnostic and graded review
 packages passed verification as directories and after independent extraction
 with Python's standard tar reader. The graded scalar-price request was refused.
+
+The additional release portability regression uses the OC-031 declared field
+map, its original candidate grid, and two unsigned software-fixture aliases of
+attributed low-field and model-extension CSVs. This is software evidence only.
+Its package contains the issued SuperPower AP bundle and both external sources.
+Directory and independently extracted tar verification pass; the package README's
+exact rerun command works with only the packaged input files. Costs, verdicts,
+case hash and conductor identities match the original run. Supplied bundle bytes
+are unchanged, the issued bundle passes the reference registry checks, and a
+missing dependency refuses the rerun without emitting a record. The checked
+release binary's SHA-256 is
+`a7f601d355d793361334a2744807c264582a16bda9dbe44d24f85b1acb874666`.
 
 Run from the repository root before each push:
 
@@ -57,12 +75,12 @@ physics implementation is not an independent physical validation. A browser
 compile check is not an observed interactive browser session; the revised UI
 also needs use and observation in the external session.
 
-The frontends currently accept one external dataset bundle per search, alongside
-embedded dependencies. Packages retain all referenced resolved bundles, but a
-case with multiple distinct external dependencies needs additional frontend
-support before it can be rerun there. Unsupported material queries retain their
-unresolved status. Structural, thermal, quench, manufacturing and full-width
-conductor qualification remain governed by the declared model scope.
+Each external base or tape-spec binding requires its exact dataset id and CSV
+hash; omitted embedded bindings resolve from the embedded store. Duplicate,
+undeclared, missing or mismatched supplied dependencies are refused. Unsupported
+material queries retain their unresolved status. Structural, thermal, quench,
+manufacturing and full-width conductor qualification remain governed by the
+declared model scope.
 
 ## Open external validation gate
 

@@ -17,7 +17,10 @@ use optcoil_search::{
     RunRecord, acceptance,
     bakeoff::{BakeoffRecord, run_bakeoff},
     bom::{BomRecord, bom_from_record},
-    coupled_search::{CoupledSearchOptions, CoupledSearchRunRecord, SearchProgress},
+    coupled_search::{
+        CoupledSearchOptions, CoupledSearchRunRecord, SearchProgress,
+        run_coupled_search_case_with_datasets_progress,
+    },
     gradereport::{GradingReport, grade_report_from_record},
     sensitivity::SensitivitySweepRecord,
     verify::{self, CheckLine},
@@ -25,9 +28,7 @@ use optcoil_search::{
 // Searches launch only on native builds — the browser refuses them
 // before these are referenced.
 #[cfg(not(target_arch = "wasm32"))]
-use optcoil_search::{
-    SearchOptions, coupled_search::run_coupled_search_case_with_dataset_progress, run_cancellable,
-};
+use optcoil_search::{SearchOptions, run_cancellable};
 #[cfg(not(target_arch = "wasm32"))]
 use std::{fs, thread, time::Instant};
 use std::{
@@ -109,7 +110,7 @@ enum JobResult {
     Calculated(Box<RunRecord>),
     SearchCompleted(Box<CoupledSearchRunRecord>),
     /// A material dataset bundle the user picked explicitly (coupled mode).
-    DatasetLoaded(Box<MaterialBundle>, PathBuf),
+    DatasetLoaded(Box<MaterialBundle>, PathBuf, Option<String>),
     Exported(PathBuf),
     /// A newly authored coupled-search case file — opened after writing.
     CaseWritten(PathBuf),
@@ -179,11 +180,13 @@ fn load_persisted() -> (Vec<PathBuf>, Option<PathBuf>) {
 }
 
 /// Where a coupled-search case's declared material dataset came from.
+#[derive(Clone)]
 enum DatasetOrigin {
     Embedded,
     File(PathBuf),
 }
 
+#[derive(Clone)]
 struct DatasetSource {
     dataset: MaterialDataset,
     origin: DatasetOrigin,
@@ -279,6 +282,10 @@ struct Workbench {
     /// The case's declared material dataset, resolved at open (embedded or
     /// a sibling bundle) or picked explicitly from the Materials page.
     search_dataset: Option<DatasetSource>,
+    /// Additional external sources used by graded tape-spec bindings,
+    /// keyed by their actual metadata dataset id. Embedded sources are
+    /// resolved by the search runner and need not be duplicated here.
+    search_spec_datasets: std::collections::BTreeMap<String, DatasetSource>,
     preflight: Option<optcoil_search::preflight::StudyPreflight>,
     /// The coupled-search case builder window, while open.
     author: Option<author::CaseDraft>,
@@ -369,6 +376,133 @@ struct Workbench {
 }
 
 impl Workbench {
+    fn resolved_search_datasets(&self) -> std::collections::BTreeMap<String, MaterialDataset> {
+        let mut datasets = std::collections::BTreeMap::new();
+        if let Some(source) = &self.search_dataset
+            && matches!(source.origin, DatasetOrigin::File(_))
+        {
+            datasets.insert(source.dataset.metadata.id.clone(), source.dataset.clone());
+        }
+        for (id, source) in &self.search_spec_datasets {
+            datasets.insert(id.clone(), source.dataset.clone());
+        }
+        datasets
+    }
+
+    fn dataset_source(&self, dataset_id: &str) -> Option<&DatasetSource> {
+        self.search_spec_datasets.get(dataset_id).or_else(|| {
+            self.search_dataset
+                .as_ref()
+                .filter(|source| source.dataset.metadata.id == dataset_id)
+        })
+    }
+
+    /// Retain only external sources whose dataset id and CSV hash still
+    /// satisfy a material binding in the accepted case, then discover
+    /// matching sibling bundles on native builds.
+    fn resolve_case_datasets(&mut self, case: &CoupledSearchCase, path: &Path) {
+        let bindings = case.material_bindings();
+        let is_matching = |source: &DatasetSource| {
+            let id = &source.dataset.metadata.id;
+            bindings.iter().any(|(_, material)| {
+                material.dataset_id == *id
+                    && material.csv_sha256 == source.dataset.metadata.csv_sha256
+            })
+        };
+        let mut candidates = std::mem::take(&mut self.search_spec_datasets);
+        if let Some(base) = self.search_dataset.take() {
+            let id = base.dataset.metadata.id.clone();
+            let preserve_external = candidates
+                .get(&id)
+                .is_some_and(|source| matches!(source.origin, DatasetOrigin::File(_)))
+                && matches!(base.origin, DatasetOrigin::Embedded);
+            if !preserve_external {
+                candidates.insert(id, base);
+            }
+        }
+        candidates.retain(|_, source| is_matching(source));
+
+        let mut sources = std::collections::BTreeMap::new();
+        let base_id = case.material.dataset_id.as_str();
+        let base = candidates
+            .remove(base_id)
+            .or_else(|| resolve_dataset(case, path));
+        for (_, material) in bindings {
+            let id = material.dataset_id.as_str();
+            if id == base_id || sources.contains_key(id) {
+                continue;
+            }
+            if let Some(source) = candidates.remove(id) {
+                sources.insert(id.to_owned(), source);
+                continue;
+            }
+            if MaterialDataset::embedded_by_id(id).is_ok() {
+                continue;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(dir) = path.parent() {
+                let mut found = None;
+                for candidate in [
+                    dir.join("datasets").join(format!("{id}.json")),
+                    dir.join(format!("{id}.json")),
+                ] {
+                    if let Ok(text) = fs::read_to_string(&candidate)
+                        && let Ok(bundle) = MaterialBundle::from_json(&text)
+                        && bundle.dataset.metadata.id == id
+                        && bundle.dataset.metadata.csv_sha256 == material.csv_sha256
+                    {
+                        found = Some(DatasetSource {
+                            dataset: bundle.dataset,
+                            origin: DatasetOrigin::File(candidate),
+                            attestation: bundle.attestation,
+                            bundle_json: Some(text),
+                        });
+                        break;
+                    }
+                }
+                if let Some(source) = found {
+                    sources.insert(id.to_owned(), source);
+                }
+            }
+        }
+        self.search_dataset = base;
+        self.search_spec_datasets = sources;
+    }
+
+    fn unresolved_dataset_bindings(&self) -> Vec<String> {
+        let Some(case) = &self.search_case else {
+            return Vec::new();
+        };
+        case.material_bindings()
+            .into_iter()
+            .filter_map(|(binding, material)| {
+                let cached = self.preflight.as_ref().and_then(|preflight| {
+                    preflight
+                        .datasets
+                        .iter()
+                        .find(|dataset| dataset.binding_id == binding)
+                });
+                let available = cached.map_or_else(
+                    || {
+                        self.dataset_source(&material.dataset_id)
+                            .is_some_and(|source| {
+                                source.dataset.metadata.csv_sha256 == material.csv_sha256
+                            })
+                            || MaterialDataset::embedded_by_id(&material.dataset_id).is_ok_and(
+                                |dataset| dataset.metadata.csv_sha256 == material.csv_sha256,
+                            )
+                    },
+                    |dataset| dataset.available && dataset.identity_compatible == Some(true),
+                );
+                if available {
+                    None
+                } else {
+                    Some(format!("{binding} → {}", material.dataset_id))
+                }
+            })
+            .collect()
+    }
+
     fn new(ctx: &egui::Context) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         brand::configure(ctx);
         let case = Case::demo()?;
@@ -382,6 +516,7 @@ impl Workbench {
             search_json: String::new(),
             package_after_search: false,
             search_dataset: None,
+            search_spec_datasets: std::collections::BTreeMap::new(),
             preflight: None,
             author: None,
             search_record: None,
@@ -505,10 +640,7 @@ impl Workbench {
 
     fn refresh_preflight(&mut self) {
         self.preflight = self.search_case.as_ref().map(|case| {
-            let mut datasets = std::collections::BTreeMap::new();
-            if let Some(source) = &self.search_dataset {
-                datasets.insert(source.dataset.metadata.id.clone(), source.dataset.clone());
-            }
+            let datasets = self.resolved_search_datasets();
             optcoil_search::preflight::preflight_coupled_search(
                 case,
                 Some(&datasets),
@@ -582,7 +714,7 @@ impl Workbench {
         &mut self,
         ctx: &egui::Context,
         json: String,
-        dataset: Option<MaterialDataset>,
+        datasets: std::collections::BTreeMap<String, MaterialDataset>,
     ) {
         use wasm_bindgen::JsCast as _;
         if self.worker.is_some() {
@@ -644,8 +776,7 @@ impl Workbench {
         web_worker.set_onerror(Some(onerror.as_ref().unchecked_ref()));
         let payload = serde_json::json!({
             "case_json": json,
-            "dataset_json": dataset
-                .and_then(|d| serde_json::to_string(&d).ok()),
+            "datasets_json": serde_json::to_string(&datasets).ok(),
         });
         if let Err(error) =
             web_worker.post_message(&wasm_bindgen::JsValue::from_str(&payload.to_string()))
@@ -755,29 +886,24 @@ impl Workbench {
                 if self.search_json.is_empty() {
                     return;
                 }
-                if self.search_dataset.is_none() {
+                let missing = self.unresolved_dataset_bindings();
+                if !missing.is_empty() {
                     self.message = (
                         true,
                         format!(
-                            "Declared dataset '{}' is not embedded — load a dataset bundle on the Materials page first.",
-                            self.search_case
-                                .as_ref()
-                                .map(|c| c.material.dataset_id.as_str())
-                                .unwrap_or("?")
+                            "Load the declared material dataset(s) before running: {}.",
+                            missing.join(", ")
                         ),
                     );
                     return;
                 }
                 let json = self.search_json.clone();
-                let dataset = self
-                    .search_dataset
-                    .as_ref()
-                    .map(|source| source.dataset.clone());
+                let datasets = self.resolved_search_datasets();
                 self.message = (
                     false,
                     "Searching in a browser worker — single-threaded, so a real grid takes a while; the page stays responsive…".into(),
                 );
-                self.launch_search_worker(ctx, json, dataset);
+                self.launch_search_worker(ctx, json, datasets);
             }
             return;
         }
@@ -788,23 +914,18 @@ impl Workbench {
                 return;
             }
             let json = self.search_json.clone();
-            if self.search_dataset.is_none() {
+            let missing = self.unresolved_dataset_bindings();
+            if !missing.is_empty() {
                 self.message = (
                     true,
                     format!(
-                        "Declared dataset '{}' is not embedded — load a dataset bundle on the Materials page first.",
-                        self.search_case
-                            .as_ref()
-                            .map(|c| c.material.dataset_id.as_str())
-                            .unwrap_or("?")
+                        "Load the declared material dataset(s) before running: {}.",
+                        missing.join(", ")
                     ),
                 );
                 return;
             }
-            let dataset = self
-                .search_dataset
-                .as_ref()
-                .map(|source| source.dataset.clone());
+            let datasets = self.resolved_search_datasets();
             self.message = (
                 false,
                 "Running coupled candidate search — every geometry is screened against the requirement…".into(),
@@ -812,10 +933,10 @@ impl Workbench {
             let progress = Arc::new(SearchProgress::new());
             self.search_progress = Some(progress.clone());
             self.launch(ctx, JobKind::Search, move |cancel| {
-                run_coupled_search_case_with_dataset_progress(
+                run_coupled_search_case_with_datasets_progress(
                     &json,
                     &CoupledSearchOptions { threads: None },
-                    dataset,
+                    &datasets,
                     &cancel,
                     Some(&progress),
                 )
@@ -977,10 +1098,22 @@ impl Workbench {
         };
         let case_json = self.case_json();
         let ctx = self.ctx.clone();
+        let bundles = self
+            .all_dataset_sources()
+            .into_values()
+            .filter_map(|source| source.bundle_json)
+            .collect::<Vec<_>>();
         self.launch(&ctx, JobKind::Verify, move |_| {
-            verify::verify_record_checks(&record_json, case_json.as_deref(), None, None, &[])
-                .map(JobResult::Verified)
-                .map_err(|e| e.to_string())
+            let bundle_refs = bundles.iter().map(String::as_str).collect::<Vec<_>>();
+            verify::verify_record_checks(
+                &record_json,
+                case_json.as_deref(),
+                None,
+                None,
+                &bundle_refs,
+            )
+            .map(JobResult::Verified)
+            .map_err(|e| e.to_string())
         });
     }
 
@@ -990,10 +1123,7 @@ impl Workbench {
         let Some(case_json) = self.case_json() else {
             return;
         };
-        let dataset = self
-            .search_dataset
-            .as_ref()
-            .map(|source| source.dataset.clone());
+        let datasets = self.resolved_search_datasets();
         let spec = serde_json::json!({
             "schema": "optcoil-sensitivity/v3",
             "id": "workbench-margin-frontier",
@@ -1005,11 +1135,11 @@ impl Workbench {
         });
         let ctx = self.ctx.clone();
         self.launch(&ctx, JobKind::Sweep, move |cancel| {
-            optcoil_search::sensitivity::run_sensitivity_sweep(
+            optcoil_search::sensitivity::run_sensitivity_sweep_with_datasets(
                 &case_json,
                 &spec.to_string(),
                 &CoupledSearchOptions { threads: None },
-                dataset,
+                &datasets,
                 &cancel,
             )
             .map(|r| JobResult::SweepDone(Box::new(r)))
@@ -1321,7 +1451,7 @@ impl Workbench {
             };
             let text = fs::read_to_string(&path).map_err(|e| e.to_string())?;
             let bundle = MaterialBundle::from_json(&text).map_err(|e| e.to_string())?;
-            Ok(JobResult::DatasetLoaded(Box::new(bundle), path))
+            Ok(JobResult::DatasetLoaded(Box::new(bundle), path, Some(text)))
         });
     }
 
@@ -1348,7 +1478,12 @@ impl Workbench {
                 &csv_bytes,
             )
             .map_err(|e| e.to_string())?;
-            Ok(JobResult::DatasetLoaded(Box::new(bundle), metadata))
+            let bundle_json = bundle.to_json().ok();
+            Ok(JobResult::DatasetLoaded(
+                Box::new(bundle),
+                metadata,
+                bundle_json,
+            ))
         });
     }
 
@@ -1366,9 +1501,11 @@ impl Workbench {
             let metadata = String::from_utf8(metadata).map_err(|e| e.to_string())?;
             let bundle = optcoil_model::dataset_intake::material_bundle_from_pair(&metadata, &csv)
                 .map_err(|e| e.to_string())?;
+            let bundle_json = bundle.to_json().ok();
             Ok(JobResult::DatasetLoaded(
                 Box::new(bundle),
                 PathBuf::from(name),
+                bundle_json,
             ))
         });
     }
@@ -1379,11 +1516,12 @@ impl Workbench {
             let Some((name, bytes)) = web::pick_bytes(&["json"]).await? else {
                 return Ok(JobResult::Dismissed);
             };
-            let bundle = MaterialBundle::from_json(&String::from_utf8_lossy(&bytes))
-                .map_err(|e| e.to_string())?;
+            let text = String::from_utf8(bytes).map_err(|e| e.to_string())?;
+            let bundle = MaterialBundle::from_json(&text).map_err(|e| e.to_string())?;
             Ok(JobResult::DatasetLoaded(
                 Box::new(bundle),
                 PathBuf::from(name),
+                Some(text),
             ))
         });
     }
@@ -1595,20 +1733,33 @@ impl Workbench {
         if self.search_record.is_none() {
             return Err("Run a study before exporting a review package.".into());
         }
-        let mut bundles = Vec::new();
-        if let Some(text) = self
-            .search_dataset
-            .as_ref()
-            .and_then(|source| source.bundle_json.as_deref())
-        {
-            bundles.push(MaterialBundle::from_json(text).map_err(|e| e.to_string())?);
-        }
-        optcoil_search::review::review_package(
+        let bundles = self
+            .all_dataset_sources()
+            .into_values()
+            .filter_map(|source| source.bundle_json)
+            .collect::<Vec<_>>();
+        let bundle_refs = bundles.iter().map(String::as_str).collect::<Vec<_>>();
+        optcoil_search::review::review_package_with_bundle_json(
             &self.search_record_json,
             (!self.search_json.is_empty()).then_some(self.search_json.as_str()),
-            &bundles,
+            &bundle_refs,
         )
         .map_err(|e| e.to_string())
+    }
+
+    fn all_dataset_sources(&self) -> std::collections::BTreeMap<String, DatasetSource> {
+        let mut sources = self.search_spec_datasets.clone();
+        if let Some(source) = &self.search_dataset {
+            let id = source.dataset.metadata.id.clone();
+            let keep_loaded = sources
+                .get(&id)
+                .is_some_and(|current| matches!(current.origin, DatasetOrigin::File(_)))
+                && matches!(source.origin, DatasetOrigin::Embedded);
+            if !keep_loaded {
+                sources.insert(id, source.clone());
+            }
+        }
+        sources
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -1736,6 +1887,7 @@ impl Workbench {
                 self.search_case = None;
                 self.search_json.clear();
                 self.search_dataset = None;
+                self.search_spec_datasets.clear();
                 self.search_record = None;
                 self.selected_module = 0;
                 self.module_filter.clear();
@@ -1758,11 +1910,7 @@ impl Workbench {
                 }
                 let auto_start = self.queue_active;
                 let (case, json) = *data;
-                let previous_dataset = self
-                    .search_dataset
-                    .take()
-                    .filter(|source| case.validate_against_dataset(&source.dataset).is_ok());
-                self.search_dataset = previous_dataset.or_else(|| resolve_dataset(&case, &path));
+                self.resolve_case_datasets(&case, &path);
                 self.search_case = Some(case);
                 self.search_json = json;
                 if let Some(previous) = self.search_record.take() {
@@ -1817,11 +1965,8 @@ impl Workbench {
                     .is_some_and(|record| record.case_sha256.trim_start_matches("sha256:") == hash);
                 if matches {
                     self.search_json = json;
-                    if let Some(case) = &self.search_case {
-                        let previous = self.search_dataset.take().filter(|source| {
-                            case.validate_against_dataset(&source.dataset).is_ok()
-                        });
-                        self.search_dataset = previous.or_else(|| resolve_dataset(case, &path));
+                    if let Some(case) = self.search_case.clone() {
+                        self.resolve_case_datasets(&case, &path);
                     }
                     self.path = Some(path);
                     self.message = (false, "Original case attached and its byte hash verified. The completed result is retained; rerun and review export are available.".into());
@@ -1837,6 +1982,7 @@ impl Workbench {
                 self.search_case = Some(record.case.clone());
                 self.search_json.clear();
                 self.search_dataset = None;
+                self.search_spec_datasets.clear();
                 self.record = None;
                 self.path = Some(path);
                 self.selected_candidate = 0;
@@ -1943,14 +2089,35 @@ impl Workbench {
                 self.plot_revision += 1;
                 self.results_reveal_start = Some(Instant::now());
             }
-            Ok(JobResult::DatasetLoaded(bundle, path)) => {
+            Ok(JobResult::DatasetLoaded(bundle, path, raw_bundle_json)) => {
                 let bundle = *bundle;
-                let verdict = self
-                    .search_case
-                    .as_ref()
-                    .map(|case| case.validate_against_dataset(&bundle.dataset));
-                match verdict {
-                    Some(Ok(())) => {
+                let binding = self.search_case.as_ref().and_then(|case| {
+                    case.material_bindings().into_iter().find(|(_, material)| {
+                        material.dataset_id == bundle.dataset.metadata.id
+                            && material.csv_sha256 == bundle.dataset.metadata.csv_sha256
+                    })
+                });
+                match (self.search_case.as_ref(), binding) {
+                    (Some(_), Some((binding_id, _))) => {
+                        let dataset_id = bundle.dataset.metadata.id.clone();
+                        if let Some(existing) =
+                            self.search_spec_datasets.get(&dataset_id).or_else(|| {
+                                self.search_dataset
+                                    .as_ref()
+                                    .filter(|source| source.dataset.metadata.id == dataset_id)
+                            })
+                            && (existing.dataset.metadata.csv_sha256
+                                != bundle.dataset.metadata.csv_sha256)
+                        {
+                            self.message = (
+                                true,
+                                format!(
+                                    "Dataset rejected — '{}' is already bound to a different CSV identity.",
+                                    dataset_id
+                                ),
+                            );
+                            return;
+                        }
                         let signed = bundle
                             .attestation
                             .as_ref()
@@ -1965,18 +2132,36 @@ impl Workbench {
                                 signed
                             ),
                         );
-                        let bundle_json = bundle.to_json().ok();
-                        self.search_dataset = Some(DatasetSource {
+                        let bundle_json = raw_bundle_json.or_else(|| bundle.to_json().ok());
+                        let source = DatasetSource {
                             bundle_json,
                             dataset: bundle.dataset,
                             origin: DatasetOrigin::File(path),
                             attestation: bundle.attestation,
-                        });
+                        };
+                        if binding_id == optcoil_model::coupled_search::BASE_TAPE_SPEC_ID {
+                            self.search_dataset = Some(source);
+                        } else {
+                            self.search_spec_datasets.insert(dataset_id, source);
+                        }
                     }
-                    Some(Err(e)) => {
-                        self.message = (true, format!("Dataset rejected — {e}"));
+                    (Some(case), None) => {
+                        let expected = case
+                            .material_bindings()
+                            .into_iter()
+                            .map(|(id, material)| {
+                                format!("{id}: {} / {}", material.dataset_id, material.csv_sha256)
+                            })
+                            .collect::<Vec<_>>()
+                            .join("; ");
+                        self.message = (
+                            true,
+                            format!(
+                                "Dataset rejected — id/hash is not declared by this case. Required: {expected}"
+                            ),
+                        );
                     }
-                    None => {
+                    (None, _) => {
                         self.message = (
                             true,
                             "No coupled-search case open — nothing to bind the dataset to.".into(),

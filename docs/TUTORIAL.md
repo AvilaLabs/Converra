@@ -54,6 +54,9 @@ The builder and Materials view accept a dataset bundle or two files: attributed
 metadata JSON followed by canonical measurement CSV. The CSV hash is computed
 when metadata omits it or declares null; an existing mismatched hash is rejected.
 This does not infer units, attribution or validity from arbitrary spreadsheets.
+For a graded case, load every external dependency shown on Materials. Each source
+must match its declared id and CSV hash. The workbench retains matching sources
+when you revise the case and uses all of them in searches and margin sweeps.
 See [datasets](DATASETS.md) for canonical columns and required provenance.
 
 Document a price category and its source or assumptions. Placeholder prices,
@@ -77,6 +80,9 @@ cargo run --release -- verify-package runs/first-study-review
 A saved record alone cannot recreate the original case bytes. Use **Attach
 original case** in Reports to bind the source file by its recorded SHA-256 before
 exporting a rerunnable package. External conductor bundles must also be available.
+The package README includes a rerun command with repeated `--dataset-bundle`
+flags for all dependencies. Run it from the package directory after extracting
+an archive; the original input directory is not required.
 
 Verification checks hashes, identities and modeled ledger arithmetic. Cost
 recomputation is separate from search; its shared physics is not independent

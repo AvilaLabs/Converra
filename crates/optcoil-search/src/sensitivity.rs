@@ -13,7 +13,7 @@
 //! `case_json` stores the mutated case verbatim — so a scaled dataset can
 //! never be mistaken for the base measurements.
 
-use std::sync::atomic::AtomicBool;
+use std::{collections::BTreeMap, sync::atomic::AtomicBool};
 
 use crate::time::{Instant, SystemTime, UNIX_EPOCH};
 
@@ -29,7 +29,7 @@ use optcoil_model::{
 
 use crate::{
     RunError,
-    coupled_search::{CoupledSearchOptions, run_coupled_search_case_with_dataset},
+    coupled_search::{CoupledSearchOptions, run_coupled_search_case_with_datasets},
     field::{RuntimeInfo, runtime_info},
 };
 
@@ -106,13 +106,30 @@ fn hash(bytes: &[u8]) -> String {
 
 /// Run every full-factorial point of `spec_json` over `case_json`.
 /// `dataset` follows the same rule as
-/// [`run_coupled_search_case_with_dataset`]: when `Some`, it replaces the
+/// [`crate::coupled_search::run_coupled_search_case_with_dataset`]: when `Some`, it replaces the
 /// embedded lookup and must match the case's declared identity.
 pub fn run_sensitivity_sweep(
     case_json: &str,
     spec_json: &str,
     options: &CoupledSearchOptions,
     dataset: Option<MaterialDataset>,
+    cancel: &AtomicBool,
+) -> Result<SensitivitySweepRecord, RunError> {
+    let datasets = dataset
+        .map(|d| BTreeMap::from([(d.metadata.id.clone(), d)]))
+        .unwrap_or_default();
+    run_sensitivity_sweep_with_datasets(case_json, spec_json, options, &datasets, cancel)
+}
+
+/// Run a sweep with every externally supplied material binding retained.
+/// Each declared dataset resolves independently, and each point receives all
+/// its bound dependencies, including explicit specs that retain their own data
+/// when the base dataset receives an `ic_scale` perturbation.
+pub fn run_sensitivity_sweep_with_datasets(
+    case_json: &str,
+    spec_json: &str,
+    options: &CoupledSearchOptions,
+    supplied_datasets: &BTreeMap<String, MaterialDataset>,
     cancel: &AtomicBool,
 ) -> Result<SensitivitySweepRecord, RunError> {
     let started = Instant::now();
@@ -139,11 +156,23 @@ pub fn run_sensitivity_sweep(
         Some(t) => t,
         None => base_case.execution.max_threads,
     };
-    let base_dataset = match dataset {
-        Some(dataset) => dataset,
-        None => MaterialDataset::embedded_by_id(&base_case.material.dataset_id)?,
-    };
-    base_case.validate_against_dataset(&base_dataset)?;
+    let bindings = base_case.material_bindings();
+    for id in supplied_datasets.keys() {
+        if !bindings
+            .iter()
+            .any(|(_, binding)| &binding.dataset_id == id)
+        {
+            return Err(RunError::Invalid(format!(
+                "supplied dataset '{id}' is not declared by any material binding"
+            )));
+        }
+    }
+    let base_datasets = crate::coupled::resolve_datasets_map(
+        bindings.iter().map(|&(_, binding)| binding),
+        supplied_datasets,
+    )?;
+    base_case.validate_against_dataset_map(&base_datasets)?;
+    let base_dataset = &base_datasets[&base_case.material.dataset_id];
 
     // Full-factorial index space over the spec's axes, in spec order.
     let combos: Vec<Vec<(usize, f64)>> = {
@@ -206,6 +235,14 @@ pub fn run_sensitivity_sweep(
         // Serialize once — every outcome below stores it verbatim.
         let mutated_json =
             serde_json::to_string(&case).map_err(|e| RunError::Invalid(e.to_string()))?;
+        let mut point_datasets = base_datasets.clone();
+        point_datasets.insert(ds.metadata.id.clone(), ds.clone());
+        let point_bindings = case.material_bindings();
+        point_datasets.retain(|id, _| {
+            point_bindings
+                .iter()
+                .any(|(_, binding)| &binding.dataset_id == id)
+        });
         let point = match mutation_failed {
             Some(error) => SensitivityPoint {
                 values,
@@ -224,10 +261,10 @@ pub fn run_sensitivity_sweep(
                 elapsed_ms: point_started.elapsed().as_secs_f64() * 1000.0,
             },
             None => {
-                match run_coupled_search_case_with_dataset(
+                match run_coupled_search_case_with_datasets(
                     &mutated_json,
                     options,
-                    Some(ds.clone()),
+                    &point_datasets,
                     cancel,
                 ) {
                     Ok(record) => {
@@ -297,7 +334,7 @@ pub fn run_sensitivity_sweep(
         points,
         limitations: vec![
             "Each point reruns the same screening model under one declared perturbation; a sweep is a set of named what-ifs, not an uncertainty distribution.".into(),
-            "ic_scale points run on a re-hashed scaled copy of the dataset — the scaled CSV is synthetic, bound by the point's dataset_csv_sha256 and mutated case_sha256.".into(),
+            "ic_scale points run on a re-hashed scaled copy of the base material dataset — the scaled CSV is synthetic, bound by the point's dataset_csv_sha256 and mutated case_sha256. Explicit tape specifications retain their declared datasets.".into(),
             "Points whose mutated case is invalid (e.g. a temperature outside the dataset span) are recorded with an error and NotEvaluated verdicts rather than discarding the sweep.".into(),
             "requirement_b_target_t points each ask whether the declared winding space can verifiably meet that target field; the response need not be monotone (dataset floors can leave lower targets INCONCLUSIVE), so a certified ceiling is the largest declared value whose search_status is PASS — declared-grid resolution, not a bisected or continuous bound.".into(),
             "utilization_limit points each ask what the declared capacity margin costs: a tighter gate can remove the cheapest passing geometry outright, so the cost-vs-margin frontier can step rather than slope. The axis perturbs the declared screening bound only — it does not change what the tape measured.".into(),
@@ -309,6 +346,72 @@ pub fn run_sensitivity_sweep(
 mod tests {
     use super::*;
     use std::sync::atomic::AtomicBool;
+
+    #[test]
+    fn external_spec_survives_base_scaling_and_missing_binding_is_rejected() {
+        // Distinct attributed measurements, explicitly transformed into
+        // synthetic software fixtures. This checks dependency plumbing,
+        // not a customer design or physical qualification.
+        let base = MaterialDataset::embedded_by_id("robinson-superpower-ap-v3")
+            .unwrap()
+            .scaled_ic(1.0)
+            .unwrap();
+        let spec_dataset = MaterialDataset::embedded_by_id("robinson-shanghai-hflt-v3")
+            .unwrap()
+            .scaled_ic(1.0)
+            .unwrap();
+        let mut value: serde_json::Value = serde_json::from_str(
+            &crate::coupled_search::tests::reduced_graded_case_json("[4]", 10.0, 0.5),
+        )
+        .unwrap();
+        value["provenance"] = "Synthetic multi-binding dependency regression from attributed measurements; not customer validation.".into();
+        value["material"]["dataset_id"] = base.metadata.id.clone().into();
+        value["material"]["csv_sha256"] = base.metadata.csv_sha256.clone().into();
+        value["tape_specs"]["cheap"]["material"]["dataset_id"] =
+            spec_dataset.metadata.id.clone().into();
+        value["tape_specs"]["cheap"]["material"]["csv_sha256"] =
+            spec_dataset.metadata.csv_sha256.clone().into();
+        value["tape_specs"]["cheap"]["material"]["monotonicity_tolerance"] = 0.025.into();
+        let case_json = serde_json::to_string(&value).unwrap();
+        let datasets = BTreeMap::from([
+            (base.metadata.id.clone(), base.clone()),
+            (spec_dataset.metadata.id.clone(), spec_dataset.clone()),
+        ]);
+        let spec = r#"{"schema":"optcoil-sensitivity/v3","id":"external-regression",
+            "provenance":"Software dependency regression, not physical validation",
+            "axes":[{"kind":"utilization_limit","values":[0.8]},
+                    {"kind":"ic_scale","values":[1.0,0.9]}]}"#;
+        let record = run_sensitivity_sweep_with_datasets(
+            &case_json,
+            spec,
+            &CoupledSearchOptions::default(),
+            &datasets,
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+        assert_eq!(record.points.len(), 2);
+        for point in &record.points {
+            assert!(point.error.is_none(), "{:?}", point.error);
+            let mutated: CoupledSearchCase =
+                CoupledSearchCase::from_json(&point.case_json).unwrap();
+            assert_ne!(mutated.material.dataset_id, base.metadata.id);
+            assert_eq!(
+                mutated.tape_specs.unwrap()["cheap"].material.dataset_id,
+                spec_dataset.metadata.id
+            );
+        }
+        let missing = BTreeMap::from([(base.metadata.id.clone(), base)]);
+        assert!(
+            run_sensitivity_sweep_with_datasets(
+                &case_json,
+                spec,
+                &CoupledSearchOptions::default(),
+                &missing,
+                &AtomicBool::new(false),
+            )
+            .is_err()
+        );
+    }
 
     fn reduced_case_json() -> String {
         // Mirrors coupled_search's reduced fixture: tiny choices, trivial

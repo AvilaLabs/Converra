@@ -92,6 +92,11 @@ Export a portable package with `optcoil review-package runs/design.json benchmar
 
 Use `optcoil --help` or `cargo run -- --help` to explore commands for field evaluation, material queries, sensitivity sweeps, dataset comparison, grading reports, and repricing. Keep your own cases and material files in ignored `customer-data/`, and generated records in ignored `runs/`.
 
+For studies with multiple external conductor datasets, repeat `--dataset-bundle`
+for each base or graded tape dependency in `preflight`, `coupled-search` and
+`sensitivity`. The workbench Materials view accepts each matching source, and
+exported review packages include all dependencies and their rerun command.
+
 See [product completion evidence](docs/PRODUCT_COMPLETION.md) for the supported
 workflow, verification gates and open external engineer validation milestone.
 

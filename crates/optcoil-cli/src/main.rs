@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     error::Error,
     fs,
     path::{Path, PathBuf},
@@ -30,7 +31,7 @@ use optcoil_search::{
     coupled_refine::{CoupledRefineOptions, CoupledRefineRunRecord, run_oc008},
     coupled_search::{
         CoupledSearchOptions, CoupledSearchRunRecord, SearchProgress,
-        run_coupled_search_case_with_dataset_progress, run_oc007,
+        run_coupled_search_case_with_datasets_progress, run_oc007,
     },
     field::{FieldOptions, FieldRunRecord, run_field_case, run_oc002},
     kernel_crosscheck::run_kernel_crosscheck,
@@ -413,13 +414,11 @@ struct CoupledSearchArgs {
     /// embedded acceptance recomputation.
     #[arg(long, short)]
     output: Option<PathBuf>,
-    /// Supply a customer material dataset as a single-file bundle
-    /// (optcoil-material-dataset/v1, see `dataset-bundle`). The case's
-    /// declared material.dataset_id and material.csv_sha256 must match the
-    /// bundle exactly — a mismatched dataset is rejected, never silently
-    /// substituted.
+    /// Supply a material dataset bundle (repeat for base and graded tape
+    /// dependencies). Each bundle id must match one declared binding and
+    /// its pinned CSV hash. Omitted embedded datasets resolve from registry.
     #[arg(long, conflicts_with_all = ["metadata", "csv"])]
-    dataset_bundle: Option<PathBuf>,
+    dataset_bundle: Vec<PathBuf>,
     /// Customer dataset as a metadata/CSV pair (same validation as
     /// material-inspect). Both paths must be given together.
     #[arg(long, requires = "csv")]
@@ -437,19 +436,29 @@ impl CoupledSearchArgs {
         }
     }
 
-    fn dataset(&self) -> Result<Option<MaterialDataset>, Box<dyn Error>> {
-        if let Some(bundle) = &self.dataset_bundle {
-            return Ok(Some(MaterialDataset::from_bundle_json(
-                &fs::read_to_string(bundle)?,
-            )?));
+    fn datasets(&self) -> Result<BTreeMap<String, MaterialDataset>, Box<dyn Error>> {
+        let mut datasets = BTreeMap::new();
+        for bundle in &self.dataset_bundle {
+            let dataset = MaterialDataset::from_bundle_json(&fs::read_to_string(bundle)?)?;
+            insert_dataset(&mut datasets, dataset)?;
         }
         if let (Some(metadata), Some(csv)) = (&self.metadata, &self.csv) {
-            return Ok(Some(MaterialDataset::from_csv(
-                &fs::read_to_string(metadata)?,
-                &fs::read(csv)?,
-            )?));
+            insert_dataset(
+                &mut datasets,
+                MaterialDataset::from_csv(&fs::read_to_string(metadata)?, &fs::read(csv)?)?,
+            )?;
         }
-        Ok(None)
+        Ok(datasets)
+    }
+
+    /// Coupled-refine has a single-dataset API, so it rejects multiple
+    /// external datasets explicitly rather than silently dropping any.
+    fn dataset(&self) -> Result<Option<MaterialDataset>, Box<dyn Error>> {
+        if self.dataset_bundle.len() + usize::from(self.metadata.is_some()) > 1 {
+            return Err("coupled-refine accepts only one external dataset; use coupled-search, preflight, or sensitivity for multiple bindings".into());
+        }
+        let mut datasets = self.datasets()?;
+        Ok(datasets.pop_first().map(|(_, dataset)| dataset))
     }
 
     fn refine_options(&self) -> CoupledRefineOptions {
@@ -457,6 +466,17 @@ impl CoupledSearchArgs {
             threads: self.threads,
         }
     }
+}
+
+fn insert_dataset(
+    datasets: &mut BTreeMap<String, MaterialDataset>,
+    dataset: MaterialDataset,
+) -> Result<(), Box<dyn Error>> {
+    let id = dataset.metadata.id.clone();
+    if datasets.insert(id.clone(), dataset).is_some() {
+        return Err(format!("duplicate dataset bundle id '{id}'").into());
+    }
+    Ok(())
 }
 
 /// Bake-off args — a leaner CoupledSearchArgs: no --dataset-* flags (the
@@ -772,12 +792,8 @@ fn execute(cli: Cli) -> Result<(), Box<dyn Error>> {
         }
         Command::CoupledSearch { case, args } => {
             let json = fs::read_to_string(case)?;
-            let dataset = args.dataset()?;
+            let dataset_map = args.datasets()?;
             let parsed = optcoil_model::coupled_search::CoupledSearchCase::from_json(&json)?;
-            let mut dataset_map = std::collections::BTreeMap::new();
-            if let Some(dataset) = &dataset {
-                dataset_map.insert(dataset.metadata.id.clone(), dataset.clone());
-            }
             let preflight = optcoil_search::preflight::preflight_coupled_search_with_options(
                 &parsed,
                 Some(&dataset_map),
@@ -836,10 +852,10 @@ fn execute(cli: Cli) -> Result<(), Box<dyn Error>> {
                     }
                 })
             };
-            let record = run_coupled_search_case_with_dataset_progress(
+            let record = run_coupled_search_case_with_datasets_progress(
                 &json,
                 &args.options(),
-                dataset,
+                &dataset_map,
                 &AtomicBool::new(false),
                 Some(progress.as_ref()),
             );
@@ -852,10 +868,7 @@ fn execute(cli: Cli) -> Result<(), Box<dyn Error>> {
             let case = optcoil_model::coupled_search::CoupledSearchCase::from_json(
                 &fs::read_to_string(case)?,
             )?;
-            let mut datasets = std::collections::BTreeMap::new();
-            if let Some(dataset) = args.dataset()? {
-                datasets.insert(dataset.metadata.id.clone(), dataset);
-            }
+            let datasets = args.datasets()?;
             let preflight = optcoil_search::preflight::preflight_coupled_search_with_options(
                 &case,
                 Some(&datasets),
@@ -899,15 +912,16 @@ fn execute(cli: Cli) -> Result<(), Box<dyn Error>> {
         } => {
             let record_json = fs::read_to_string(record)?;
             let case_json = fs::read_to_string(case)?;
-            let bundles = dataset_bundle
+            let bundle_texts = dataset_bundle
                 .iter()
-                .map(|path| {
-                    MaterialBundle::from_json(&fs::read_to_string(path)?)
-                        .map_err(Box::<dyn Error>::from)
-                })
-                .collect::<Result<Vec<_>, Box<dyn Error>>>()?;
-            let artifacts =
-                optcoil_search::review::review_package(&record_json, Some(&case_json), &bundles)?;
+                .map(fs::read_to_string)
+                .collect::<Result<Vec<_>, _>>()?;
+            let bundle_refs: Vec<&str> = bundle_texts.iter().map(String::as_str).collect();
+            let artifacts = optcoil_search::review::review_package_with_bundle_json(
+                &record_json,
+                Some(&case_json),
+                &bundle_refs,
+            )?;
             if archive {
                 use std::io::Write;
                 let bytes = optcoil_search::review::review_package_tar(&artifacts)?;
@@ -948,11 +962,12 @@ fn execute(cli: Cli) -> Result<(), Box<dyn Error>> {
         Command::Sensitivity { case, spec, args } => {
             let json = fs::read_to_string(case)?;
             let spec_json = fs::read_to_string(spec)?;
-            let record = optcoil_search::sensitivity::run_sensitivity_sweep(
+            let datasets = args.datasets()?;
+            let record = optcoil_search::sensitivity::run_sensitivity_sweep_with_datasets(
                 &json,
                 &spec_json,
                 &args.options(),
-                args.dataset()?,
+                &datasets,
                 &std::sync::atomic::AtomicBool::new(false),
             )?;
             if let Some(path) = &args.output {
@@ -2333,4 +2348,71 @@ fn execute_dataset(command: DatasetCommand) -> Result<(), Box<dyn Error>> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod coupled_dataset_args_tests {
+    use super::*;
+
+    #[test]
+    fn coupled_search_and_preflight_accept_repeated_dataset_bundles() {
+        for command in ["coupled-search", "preflight"] {
+            let cli = Cli::try_parse_from([
+                "optcoil",
+                command,
+                "case.json",
+                "--dataset-bundle",
+                "base.json",
+                "--dataset-bundle",
+                "graded.json",
+            ])
+            .unwrap();
+            let args = match cli.command {
+                Command::CoupledSearch { args, .. } | Command::Preflight { args, .. } => args,
+                _ => unreachable!(),
+            };
+            assert_eq!(args.dataset_bundle.len(), 2);
+        }
+
+        let cli = Cli::try_parse_from([
+            "optcoil",
+            "sensitivity",
+            "case.json",
+            "sweep.json",
+            "--dataset-bundle",
+            "base.json",
+            "--dataset-bundle",
+            "graded.json",
+        ])
+        .unwrap();
+        let args = match cli.command {
+            Command::Sensitivity { args, .. } => args,
+            _ => unreachable!(),
+        };
+        assert_eq!(args.dataset_bundle.len(), 2);
+    }
+
+    #[test]
+    fn single_dataset_shared_command_rejects_multiple_bundles_before_loading() {
+        let cli = Cli::try_parse_from([
+            "optcoil",
+            "coupled-refine",
+            "case.json",
+            "--dataset-bundle",
+            "base.json",
+            "--dataset-bundle",
+            "graded.json",
+        ])
+        .unwrap();
+        let args = match cli.command {
+            Command::CoupledRefine { args, .. } => args,
+            _ => unreachable!(),
+        };
+        assert!(
+            args.dataset()
+                .unwrap_err()
+                .to_string()
+                .contains("only one external dataset")
+        );
+    }
 }

@@ -124,17 +124,21 @@ fn run_search(request: &serde_json::Value) -> Result<String, String> {
         .get("case_json")
         .and_then(|v| v.as_str())
         .ok_or("worker request lacks case_json")?;
-    let dataset: Option<optcoil_model::material::MaterialDataset> = request
-        .get("dataset_json")
-        .and_then(|v| v.as_str())
-        .map(serde_json::from_str)
-        .transpose()
-        .map_err(|e| format!("worker dataset parse: {e}"))?;
+    let datasets: std::collections::BTreeMap<String, optcoil_model::material::MaterialDataset> =
+        if let Some(value) = request.get("datasets_json").and_then(|v| v.as_str()) {
+            serde_json::from_str(value).map_err(|e| format!("worker datasets parse: {e}"))?
+        } else if let Some(value) = request.get("dataset_json").and_then(|v| v.as_str()) {
+            let dataset: optcoil_model::material::MaterialDataset =
+                serde_json::from_str(value).map_err(|e| format!("worker dataset parse: {e}"))?;
+            [(dataset.metadata.id.clone(), dataset)].into()
+        } else {
+            std::collections::BTreeMap::new()
+        };
     let cancel = std::sync::atomic::AtomicBool::new(false);
-    let record = optcoil_search::coupled_search::run_coupled_search_case_with_dataset_progress(
+    let record = optcoil_search::coupled_search::run_coupled_search_case_with_datasets_progress(
         case_json,
         &optcoil_search::coupled_search::CoupledSearchOptions { threads: Some(1) },
-        dataset,
+        &datasets,
         &cancel,
         None,
     )
