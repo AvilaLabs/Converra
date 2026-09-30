@@ -413,6 +413,17 @@ pub struct CaseDraft {
     /// schema declaration survives revisions, including fields unknown to
     /// the guided builder.
     advanced_json: Option<String>,
+    /// Parsed source document for selective, lossless structured edits.
+    /// We patch only the paths exposed below, preserving every other key.
+    revision_value: Option<serde_json::Value>,
+    revision_turns: String,
+    revision_tapes: String,
+    revision_strands: String,
+    revision_strands_explicit: bool,
+    revision_baseline_specs: String,
+    revision_json_invalid: bool,
+    revision_dirty: bool,
+    material_choices: Vec<(String, String)>,
     /// One runtime-checked bracket per pancake (tapes) count.
     brackets: Vec<[u32; 3]>,
     monotonicity_check: bool,
@@ -609,6 +620,18 @@ impl Default for CaseDraft {
             // ~3840/tapes — checked at run time, not trusted.
             guided_step: None,
             advanced_json: None,
+            revision_value: None,
+            revision_turns: String::new(),
+            revision_tapes: String::new(),
+            revision_strands: String::new(),
+            revision_strands_explicit: false,
+            revision_baseline_specs: String::new(),
+            revision_json_invalid: false,
+            revision_dirty: false,
+            material_choices: DATASET_CHOICES
+                .iter()
+                .filter_map(|id| MaterialDataset::embedded_by_id(id).ok().map(|d| (id.to_string(), d.metadata.csv_sha256)))
+                .collect(),
             brackets: vec![[4, 100, 800], [6, 100, 640], [8, 100, 480], [12, 100, 320]],
             monotonicity_check: true,
             use_manufacturing: true,
@@ -632,33 +655,354 @@ impl Default for CaseDraft {
 impl CaseDraft {
     /// Open a validated loaded case in the lossless advanced JSON editor.
     pub fn revision(json: &str) -> Result<Self, String> {
-        CoupledSearchCase::from_json(json).map_err(|e| e.to_string())?;
-        Ok(Self {
+        let case = CoupledSearchCase::from_json(json).map_err(|e| e.to_string())?;
+        let value: serde_json::Value = serde_json::from_str(json).map_err(|e| e.to_string())?;
+        let mut draft = Self {
             advanced_json: Some(json.to_owned()),
+            revision_turns: array_as_text(&value, &["choices", "turns_along_normal"]),
+            revision_tapes: array_as_text(&value, &["choices", "tapes_along_width"]),
+            revision_strands: if json_path(&value, &["choices", "strands_parallel"]).is_some() {
+                array_as_text(&value, &["choices", "strands_parallel"])
+            } else {
+                "1".into()
+            },
+            revision_strands_explicit: json_path(&value, &["choices", "strands_parallel"])
+                .is_some(),
+            revision_baseline_specs: string_array_as_text(&value, &["baseline", "tape_spec_ids"]),
+            revision_value: Some(value),
             ..Self::default()
-        })
+        };
+        draft.id = case.id;
+        draft.provenance = case.provenance;
+        Ok(draft)
     }
 
-    /// Start an explicit duplicate with all declarations retained. The
-    /// duplicated identity is clearly marked and provenance records the
-    /// source case; the editor lets the author adjust either before saving.
-    pub fn duplicate(case: &CoupledSearchCase) -> Result<Self, String> {
-        let mut value = serde_json::to_value(case).map_err(|e| e.to_string())?;
-        let object = value
-            .as_object_mut()
-            .ok_or_else(|| "serialized case is not a JSON object".to_owned())?;
-        let source_id = case.id.trim();
-        let duplicate_id = format!("{source_id}-copy");
-        object.insert("id".into(), serde_json::Value::String(duplicate_id));
-        object.insert(
-            "provenance".into(),
-            serde_json::Value::String(format!(
-                "{}\nDuplicated from case `{source_id}`; review this copy's identity and provenance.",
-                case.provenance.trim_end()
-            )),
-        );
-        let json = serde_json::to_string_pretty(&value).map_err(|e| e.to_string())?;
-        Self::revision(&json)
+    pub fn set_material_choices(&mut self, choices: Vec<(String, String)>) {
+        let mut unique = std::collections::BTreeMap::new();
+        for (id, sha) in self.material_choices.drain(..).chain(choices) {
+            unique.insert(id, sha);
+        }
+        self.material_choices = unique.into_iter().collect();
+    }
+
+    /// Duplicate from the exact source document so declarations unknown to
+    /// the current typed schema survive as well.
+    pub fn duplicate_json(json: &str) -> Result<Self, String> {
+        let mut draft = Self::revision(json)?;
+        let value = draft.revision_value.as_mut().expect("revision value");
+        let source_id = value["id"].as_str().unwrap_or("case").to_owned();
+        value["id"] = serde_json::Value::String(format!("{source_id}-copy"));
+        let provenance = value["provenance"].as_str().unwrap_or_default();
+        value["provenance"] = serde_json::Value::String(format!(
+            "{}\nDuplicated from case `{source_id}`; review this copy's identity and provenance.",
+            provenance.trim_end()
+        ));
+        draft.sync_revision_json()?;
+        Ok(draft)
+    }
+
+    fn sync_revision_json(&mut self) -> Result<(), String> {
+        if let Some(value) = &self.revision_value {
+            self.advanced_json =
+                Some(serde_json::to_string_pretty(value).map_err(|e| e.to_string())?);
+        }
+        Ok(())
+    }
+
+    fn revision_controls(&mut self, ui: &mut egui::Ui) {
+        if self.revision_json_invalid {
+            ui.colored_label(status_red(), "Advanced JSON does not validate against the case schema. Correct it before using structured controls.");
+            return;
+        }
+        let material_choices = self.material_choices.clone();
+        let Some(value) = self.revision_value.as_mut() else {
+            return;
+        };
+        ui.label(RichText::new("Decision inputs").strong().color(brand::BLUE));
+        ui.small("These controls patch only the fields shown. Grading, field maps, path3d, schema and policy declarations remain in the source document.");
+        let mut changed = false;
+        form_section_with_open(ui, "Identity", false, |ui| {
+            changed |= ui.text_edit_singleline(&mut self.id).changed();
+            ui.small("Case id");
+            changed |= ui
+                .add(
+                    egui::TextEdit::multiline(&mut self.provenance)
+                        .desired_width(f32::INFINITY)
+                        .desired_rows(2),
+                )
+                .changed();
+            ui.small("Provenance");
+        });
+        form_section(ui, "Requirement", |ui| {
+            changed |= value_float(
+                ui,
+                value,
+                &["requirement", "b_target_t"],
+                "Target field (T)",
+            );
+            changed |= value_float(
+                ui,
+                value,
+                &["requirement", "tolerance_fraction"],
+                "Tolerance fraction",
+            );
+            if let Some(probe) = value
+                .pointer_mut("/requirement/bore_probe_m")
+                .and_then(serde_json::Value::as_array_mut)
+            {
+                ui.label("Bore probe (m)");
+                for (i, label) in ["x", "y", "z"].iter().enumerate() {
+                    if let Some(mut x) = probe.get(i).and_then(serde_json::Value::as_f64) {
+                        let value_changed = ui
+                            .horizontal(|ui| {
+                                ui.label(*label);
+                                ui.add(egui::DragValue::new(&mut x).speed(0.001)).changed()
+                            })
+                            .inner;
+                        if value_changed {
+                            changed = true;
+                            probe[i] = serde_json::Number::from_f64(x)
+                                .map(Into::into)
+                                .unwrap_or(serde_json::Value::Null);
+                        }
+                    }
+                }
+            }
+            changed |= value_float(
+                ui,
+                value,
+                &["requirement", "good_field_region", "half_extents_m", "0"],
+                "Region half width x (m)",
+            );
+            changed |= value_float(
+                ui,
+                value,
+                &["requirement", "good_field_region", "half_extents_m", "1"],
+                "Region half width y (m)",
+            );
+            changed |= value_float(
+                ui,
+                value,
+                &["requirement", "good_field_region", "half_extents_m", "2"],
+                "Region half width z (m)",
+            );
+        });
+        form_section(ui, "Fixed geometry", |ui| {
+            let editable_racetrack = value
+                .get("field_map")
+                .is_none_or(serde_json::Value::is_null)
+                && value.get("path").is_none_or(serde_json::Value::is_null)
+                && value.get("path3d").is_none_or(serde_json::Value::is_null)
+                && value.pointer("/choices/bend_radius_m").is_none()
+                && value.pointer("/choices/straight_half_length_m").is_none();
+            if editable_racetrack
+                && value
+                    .get("fixed_geometry")
+                    .and_then(serde_json::Value::as_object)
+                    .is_some_and(|g| g.contains_key("bend_radius_m"))
+            {
+                changed |= value_float(
+                    ui,
+                    value,
+                    &["fixed_geometry", "straight_half_length_m"],
+                    "Straight half length (m)",
+                );
+                changed |= value_float(
+                    ui,
+                    value,
+                    &["fixed_geometry", "bend_radius_m"],
+                    "Bend radius (m)",
+                );
+                changed |= value_float(
+                    ui,
+                    value,
+                    &["fixed_geometry", "radial_pitch_m"],
+                    "Radial pitch (m)",
+                );
+            } else {
+                ui.small("Geometry is controlled by a path, field map or declared search axis. These dimensions are not effective inputs for this case.");
+            }
+        });
+        form_section(ui, "Pack choices and baseline", |ui| {
+            changed |= ui.text_edit_singleline(&mut self.revision_turns).changed();
+            ui.label("Turns along normal (comma separated)");
+            changed |= ui.text_edit_singleline(&mut self.revision_tapes).changed();
+            ui.label("Tapes along width (comma separated)");
+            let strands_changed = ui
+                .text_edit_singleline(&mut self.revision_strands)
+                .changed();
+            changed |= strands_changed;
+            self.revision_strands_explicit |= strands_changed;
+            ui.label("Parallel strands (comma separated)");
+            if json_path(value, &["baseline", "tape_spec_ids"]).is_some() {
+                changed |= ui
+                    .text_edit_singleline(&mut self.revision_baseline_specs)
+                    .changed();
+                ui.label("Baseline tape spec per grading region");
+            }
+            for (key, label) in [
+                ("turns_along_normal", "Baseline turns"),
+                ("tapes_along_width", "Baseline tapes"),
+                ("strands_parallel", "Baseline strands"),
+            ] {
+                changed |= value_u64(ui, value, &["baseline", key], label);
+            }
+        });
+        form_section(ui, "Material, prices and limits", |ui| {
+            changed |= value_float(
+                ui,
+                value,
+                &["operating", "temperature_k"],
+                "Operating temperature (K)",
+            );
+            changed |= value_float(
+                ui,
+                value,
+                &["operating", "electric_field_criterion_v_per_m"],
+                "Electric field criterion (V/m)",
+            );
+            changed |= value_float(
+                ui,
+                value,
+                &["fixed_geometry", "tape_width_m"],
+                "Tape width (m)",
+            );
+            changed |= value_float(
+                ui,
+                value,
+                &["fixed_geometry", "pack_radial_width_m"],
+                "Pack radial width (m)",
+            );
+            changed |= value_float(
+                ui,
+                value,
+                &["fixed_geometry", "pack_axial_height_m"],
+                "Pack axial height (m)",
+            );
+            changed |= value_material_binding(
+                ui,
+                value,
+                &["material"],
+                "Base conductor dataset",
+                &material_choices,
+            );
+            changed |= value_float(
+                ui,
+                value,
+                &["cost", "price_usd_per_m"],
+                "Base tape price (USD/m)",
+            );
+            changed |= value_float(ui, value, &["cost", "scrap_fraction"], "Scrap fraction");
+            changed |= value_float(
+                ui,
+                value,
+                &["cost", "assembly_cost_per_pancake_usd"],
+                "Assembly (USD/pancake)",
+            );
+            changed |= value_float(ui, value, &["cost", "joint_cost_usd"], "Joint cost (USD)");
+            changed |= value_choice(
+                ui,
+                value,
+                &["cost", "price_source"],
+                "Base price source",
+                &["synthetic", "estimated", "published", "quoted"],
+            );
+            for (key, label) in [
+                (
+                    "max_along_current_field_fraction",
+                    "Max along-current field fraction",
+                ),
+                ("max_self_field_ratio", "Max self-field ratio"),
+                (
+                    "interpolation_overprediction_budget",
+                    "Interpolation overprediction budget",
+                ),
+                ("utilization_limit", "Utilization limit"),
+            ] {
+                changed |= value_float(ui, value, &["limits", key], label);
+            }
+            ui.small(
+                "Tape bindings and their per-spec prices are shown below when grading is declared.",
+            );
+            if let Some(specs) = value
+                .get_mut("tape_specs")
+                .and_then(serde_json::Value::as_object_mut)
+            {
+                for (id, spec) in specs {
+                    let id = id.clone();
+                    ui.collapsing(format!("{id} binding and price"), |ui| {
+                        changed |= value_float_in(ui, spec, "price_usd_per_m", "Price (USD/m)");
+                        changed |= value_choice_in(
+                            ui,
+                            spec,
+                            "price_source",
+                            "Price source",
+                            &["synthetic", "estimated", "published", "quoted"],
+                        );
+                        changed |= value_material_binding(
+                            ui,
+                            spec,
+                            &["material"],
+                            "Conductor dataset",
+                            &material_choices,
+                        );
+                    });
+                }
+            }
+        });
+        form_section(ui, "Execution", |ui| {
+            changed |= value_u64(ui, value, &["execution", "max_threads"], "Maximum threads");
+        });
+        if changed {
+            self.revision_dirty = true;
+            if let Some(obj) = value.as_object_mut() {
+                obj.insert("id".into(), self.id.clone().into());
+                obj.insert("provenance".into(), self.provenance.clone().into());
+            }
+            let patch_existing = |value: &mut serde_json::Value, path: &[&str], text: &str| {
+                if json_path(value, path).is_some() {
+                    patch_array(value, path, text)
+                } else {
+                    Ok(())
+                }
+            };
+            if let Err(error) = patch_existing(
+                value,
+                &["choices", "turns_along_normal"],
+                &self.revision_turns,
+            )
+            .and_then(|_| {
+                patch_existing(
+                    value,
+                    &["choices", "tapes_along_width"],
+                    &self.revision_tapes,
+                )
+            })
+            .and_then(|_| {
+                let path = &["choices", "strands_parallel"];
+                if json_path(value, path).is_some() || self.revision_strands_explicit {
+                    patch_array(value, path, &self.revision_strands)
+                } else {
+                    Ok(())
+                }
+            })
+            .and_then(|_| {
+                if json_path(value, &["baseline", "tape_spec_ids"]).is_some() {
+                    patch_string_array(
+                        value,
+                        &["baseline", "tape_spec_ids"],
+                        &self.revision_baseline_specs,
+                    )
+                } else {
+                    Ok(())
+                }
+            }) {
+                self.error = Some(error);
+            } else {
+                self.error = None;
+                let _ = self.sync_revision_json();
+            }
+        }
     }
 
     /// Guided authoring: the evidence-grade defaults plus a step-by-step
@@ -1172,6 +1516,7 @@ impl CaseDraft {
             "New coupled-search case"
         };
         egui::Window::new(title)
+            .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
             .default_size([720.0, 620.0])
             .min_size([380.0, 320.0])
             .resizable(true)
@@ -1546,6 +1891,78 @@ impl CaseDraft {
     /// Build + round-trip + schema-validate; on success returns the case
     /// and its canonical JSON for the caller to write.
     fn try_save(&mut self) -> Option<(CoupledSearchCase, String)> {
+        if self.revision_json_invalid || self.error.is_some() {
+            return None;
+        }
+        if self.revision_dirty {
+            let mut value = self.revision_value.clone()?;
+            if let Some(object) = value.as_object_mut() {
+                object.insert("id".into(), self.id.clone().into());
+                object.insert("provenance".into(), self.provenance.clone().into());
+            }
+            let patch_choices =
+                |value: &mut serde_json::Value, path: &[&str], text: &str| -> Result<(), String> {
+                    if json_path(value, path).is_some() {
+                        patch_array(value, path, text)
+                    } else {
+                        Ok(())
+                    }
+                };
+            let patched = patch_choices(
+                &mut value,
+                &["choices", "turns_along_normal"],
+                &self.revision_turns,
+            )
+            .and_then(|_| {
+                patch_choices(
+                    &mut value,
+                    &["choices", "tapes_along_width"],
+                    &self.revision_tapes,
+                )
+            })
+            .and_then(|_| {
+                let path = &["choices", "strands_parallel"];
+                if json_path(&value, path).is_some() || self.revision_strands_explicit {
+                    patch_array(&mut value, path, &self.revision_strands)
+                } else {
+                    Ok(())
+                }
+            })
+            .and_then(|_| {
+                if json_path(&value, &["baseline", "tape_spec_ids"]).is_some() {
+                    patch_string_array(
+                        &mut value,
+                        &["baseline", "tape_spec_ids"],
+                        &self.revision_baseline_specs,
+                    )
+                } else {
+                    Ok(())
+                }
+            });
+            if let Err(error) = patched {
+                self.error = Some(error);
+                return None;
+            }
+            let json = match serde_json::to_string_pretty(&value) {
+                Ok(json) => json,
+                Err(error) => {
+                    self.error = Some(error.to_string());
+                    return None;
+                }
+            };
+            match CoupledSearchCase::from_json(&json) {
+                Ok(case) => {
+                    self.revision_value = Some(value);
+                    self.advanced_json = Some(json.clone());
+                    self.error = None;
+                    return Some((case, json));
+                }
+                Err(error) => {
+                    self.error = Some(error.to_string());
+                    return None;
+                }
+            }
+        }
         if let Some(json) = self.advanced_json.as_ref() {
             match CoupledSearchCase::from_json(json) {
                 Ok(case) => {
@@ -2238,28 +2655,64 @@ impl CaseDraft {
 
     fn body(&mut self, ui: &mut egui::Ui, save: &mut Option<(CoupledSearchCase, String)>) {
         if self.advanced_json.is_some() {
+            self.revision_controls(ui);
+            ui.add_space(8.0);
             ui.colored_label(
                 brand::MUTED,
-                "Edit the complete case JSON. This preserves the loaded schema and every supported declaration, including grading, field maps, path3d, and policy blocks. Save validates the full case before accepting the revision.",
+                "Advanced JSON remains available for every schema declaration.",
             );
-            ui.add_space(8.0);
             let mut accept = false;
             let mut cancel = false;
-            {
-                let json = self.advanced_json.as_mut().expect("checked above");
-                egui::ScrollArea::vertical()
-                    .max_height(360.0)
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        ui.add(
-                            egui::TextEdit::multiline(json)
-                                .font(egui::TextStyle::Monospace)
-                                .code_editor()
-                                .desired_rows(20)
-                                .desired_width(f32::INFINITY),
-                        );
-                    });
-            }
+            egui::CollapsingHeader::new("Advanced JSON")
+                .default_open(false)
+                .show(ui, |ui| {
+                    let json = self.advanced_json.as_mut().expect("checked above");
+                    let text_changed = egui::ScrollArea::vertical()
+                        .max_height(300.0)
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            ui.add(
+                                egui::TextEdit::multiline(json)
+                                    .font(egui::TextStyle::Monospace)
+                                    .code_editor()
+                                    .desired_rows(20)
+                                    .desired_width(f32::INFINITY),
+                            )
+                            .changed()
+                        })
+                        .inner;
+                    if text_changed {
+                        self.revision_dirty = true;
+                        match CoupledSearchCase::from_json(json) {
+                            Ok(case) => {
+                                if let Ok(value) = serde_json::from_str::<serde_json::Value>(json) {
+                                    self.revision_turns =
+                                        array_as_text(&value, &["choices", "turns_along_normal"]);
+                                    self.revision_tapes =
+                                        array_as_text(&value, &["choices", "tapes_along_width"]);
+                                    self.revision_strands =
+                                        array_as_text(&value, &["choices", "strands_parallel"]);
+                                    self.revision_strands_explicit =
+                                        json_path(&value, &["choices", "strands_parallel"])
+                                            .is_some();
+                                    self.revision_baseline_specs = string_array_as_text(
+                                        &value,
+                                        &["baseline", "tape_spec_ids"],
+                                    );
+                                    self.revision_value = Some(value);
+                                }
+                                self.id = case.id;
+                                self.provenance = case.provenance;
+                                self.revision_json_invalid = false;
+                                self.error = None;
+                            }
+                            Err(error) => {
+                                self.revision_json_invalid = true;
+                                self.error = Some(error.to_string());
+                            }
+                        }
+                    }
+                });
             if let Some(error) = self.error.as_deref()
                 && error != "__closed__"
             {
@@ -3695,25 +4148,310 @@ fn section(ui: &mut egui::Ui, name: &str, add: impl FnOnce(&mut egui::Ui)) {
 /// run) stay open; advanced blocks arrive collapsed. egui remembers
 /// the open state per name, so a user's arrangement persists.
 fn form_section(ui: &mut egui::Ui, name: &str, add: impl FnOnce(&mut egui::Ui)) {
-    const CORE: &[&str] = &[
-        "Identity",
-        "Requirement",
-        "Fixed geometry",
-        "Search choices",
-        "Operating point",
-        "Material dataset",
-        "Cost basis",
-        "Baseline",
-        "Execution",
-    ];
+    form_section_with_open(
+        ui,
+        name,
+        [
+            "Identity",
+            "Requirement",
+            "Fixed geometry",
+            "Search choices",
+            "Operating point",
+            "Material dataset",
+            "Cost basis",
+            "Baseline",
+            "Execution",
+        ]
+        .contains(&name),
+        add,
+    );
+}
+
+fn form_section_with_open(
+    ui: &mut egui::Ui,
+    name: &str,
+    default_open: bool,
+    add: impl FnOnce(&mut egui::Ui),
+) {
     egui::CollapsingHeader::new(RichText::new(name).strong().color(brand::BLUE))
         .id_salt(name)
-        .default_open(CORE.contains(&name))
+        .default_open(default_open)
         .show(ui, |ui| {
             ui.add_space(2.0);
             add(ui);
             ui.add_space(10.0);
         });
+}
+
+fn json_path_mut<'a>(
+    value: &'a mut serde_json::Value,
+    path: &[&str],
+) -> Option<&'a mut serde_json::Value> {
+    let mut current = value;
+    for part in path {
+        current = if let Ok(index) = part.parse::<usize>() {
+            current.as_array_mut()?.get_mut(index)?
+        } else {
+            current.as_object_mut()?.get_mut(*part)?
+        };
+    }
+    Some(current)
+}
+
+fn value_float(
+    ui: &mut egui::Ui,
+    value: &mut serde_json::Value,
+    path: &[&str],
+    label: &str,
+) -> bool {
+    let Some(mut number) = json_path(value, path).and_then(serde_json::Value::as_f64) else {
+        return false;
+    };
+    let speed = (number.abs() * 0.01).max(1e-12);
+    let changed = ui
+        .horizontal_wrapped(|ui| {
+            ui.add_sized([170.0, 16.0], egui::Label::new(label));
+            ui.add(
+                egui::DragValue::new(&mut number)
+                    .speed(speed)
+                    .custom_formatter(|value, _| format_revision_number(value)),
+            )
+            .changed()
+        })
+        .inner;
+    if changed && let Some(slot) = json_path_mut(value, path) {
+        *slot = serde_json::Number::from_f64(number)
+            .map(Into::into)
+            .unwrap_or(serde_json::Value::Null);
+    }
+    changed
+}
+
+fn value_float_in(
+    ui: &mut egui::Ui,
+    value: &mut serde_json::Value,
+    key: &str,
+    label: &str,
+) -> bool {
+    let Some(mut number) = value.get(key).and_then(serde_json::Value::as_f64) else {
+        return false;
+    };
+    let speed = (number.abs() * 0.01).max(1e-12);
+    let changed = ui
+        .horizontal_wrapped(|ui| {
+            ui.add_sized([170.0, 16.0], egui::Label::new(label));
+            ui.add(
+                egui::DragValue::new(&mut number)
+                    .speed(speed)
+                    .custom_formatter(|value, _| format_revision_number(value)),
+            )
+            .changed()
+        })
+        .inner;
+    if changed {
+        value[key] = serde_json::Number::from_f64(number)
+            .map(Into::into)
+            .unwrap_or(serde_json::Value::Null);
+    }
+    changed
+}
+
+fn format_revision_number(value: f64) -> String {
+    if value != 0.0 && (value.abs() < 1e-3 || value.abs() >= 1e6) {
+        format!("{value:.4e}")
+    } else {
+        let mut text = format!("{value:.6}");
+        while text.contains('.') && text.ends_with('0') {
+            text.pop();
+        }
+        if text.ends_with('.') {
+            text.pop();
+        }
+        text
+    }
+}
+
+fn value_u64(ui: &mut egui::Ui, value: &mut serde_json::Value, path: &[&str], label: &str) -> bool {
+    let Some(mut number) = json_path(value, path).and_then(serde_json::Value::as_u64) else {
+        return false;
+    };
+    let changed = ui
+        .horizontal_wrapped(|ui| {
+            ui.add_sized([170.0, 16.0], egui::Label::new(label));
+            ui.add(egui::DragValue::new(&mut number).range(1..=u32::MAX as u64))
+                .changed()
+        })
+        .inner;
+    if changed && let Some(slot) = json_path_mut(value, path) {
+        *slot = number.into();
+    }
+    changed
+}
+
+fn value_material_binding(
+    ui: &mut egui::Ui,
+    value: &mut serde_json::Value,
+    path: &[&str],
+    label: &str,
+    choices: &[(String, String)],
+) -> bool {
+    let Some(binding) = json_path_mut(value, path).and_then(serde_json::Value::as_object_mut)
+    else {
+        return false;
+    };
+    let current = binding
+        .get("dataset_id")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("unknown dataset")
+        .to_owned();
+    let mut changed = false;
+    ui.horizontal_wrapped(|ui| {
+        ui.add_sized([170.0, 16.0], egui::Label::new(label));
+        egui::ComboBox::from_id_salt(("material-binding", path.join("."), label))
+            .selected_text(current.clone())
+            .show_ui(ui, |ui| {
+                for (id, sha) in choices {
+                    if ui.selectable_label(current == *id, id).clicked() {
+                        binding.insert("dataset_id".into(), id.clone().into());
+                        binding.insert("csv_sha256".into(), sha.clone().into());
+                        changed = true;
+                    }
+                }
+            });
+        if let Some((_, sha)) = choices.iter().find(|(id, _)| id == &current) {
+            ui.weak(format!("CSV {}…", sha.chars().take(12).collect::<String>()));
+        }
+    });
+    changed
+}
+
+fn value_choice(
+    ui: &mut egui::Ui,
+    value: &mut serde_json::Value,
+    path: &[&str],
+    label: &str,
+    choices: &[&str],
+) -> bool {
+    let Some(slot) = json_path_mut(value, path) else {
+        return false;
+    };
+    let current = slot.as_str().unwrap_or("unspecified").to_owned();
+    let mut selected = current.clone();
+    let mut changed = false;
+    ui.horizontal_wrapped(|ui| {
+        ui.add_sized([170.0, 16.0], egui::Label::new(label));
+        egui::ComboBox::from_id_salt(("json-choice", path.join("."), label))
+            .selected_text(&selected)
+            .show_ui(ui, |ui| {
+                for choice in choices {
+                    if ui
+                        .selectable_value(&mut selected, (*choice).to_owned(), *choice)
+                        .changed()
+                    {
+                        changed = true;
+                    }
+                }
+            });
+    });
+    if changed {
+        *slot = selected.into();
+    }
+    changed
+}
+
+fn value_choice_in(
+    ui: &mut egui::Ui,
+    value: &mut serde_json::Value,
+    key: &str,
+    label: &str,
+    choices: &[&str],
+) -> bool {
+    value_choice(ui, value, &[key], label, choices)
+}
+
+fn array_as_text(value: &serde_json::Value, path: &[&str]) -> String {
+    json_path(value, path)
+        .and_then(serde_json::Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .map(|v| v.to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
+        .unwrap_or_default()
+}
+
+fn string_array_as_text(value: &serde_json::Value, path: &[&str]) -> String {
+    json_path(value, path)
+        .and_then(serde_json::Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
+        .unwrap_or_default()
+}
+
+fn json_path<'a>(value: &'a serde_json::Value, path: &[&str]) -> Option<&'a serde_json::Value> {
+    let mut current = value;
+    for part in path {
+        current = if let Ok(index) = part.parse::<usize>() {
+            current.as_array()?.get(index)?
+        } else {
+            current.get(*part)?
+        };
+    }
+    Some(current)
+}
+
+fn patch_array(value: &mut serde_json::Value, path: &[&str], source: &str) -> Result<(), String> {
+    let mut values = Vec::new();
+    for token in source.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+        let parsed = token.parse::<u64>().map_err(|_| {
+            format!("Expected comma-separated whole numbers; `{token}` is invalid.")
+        })?;
+        values.push(serde_json::Value::from(parsed));
+    }
+    if values.is_empty() {
+        return Err("Enter at least one value in each pack choice list.".into());
+    }
+    let Some(target) = json_path_mut(value, path) else {
+        if let Some((leaf, parent_path)) = path.split_last()
+            && let Some(parent) = json_path_mut(value, parent_path)
+            && let Some(object) = parent.as_object_mut()
+        {
+            object.insert((*leaf).to_owned(), serde_json::Value::Array(values));
+            return Ok(());
+        }
+        return Err(format!("Source document has no {} field.", path.join(".")));
+    };
+    *target = serde_json::Value::Array(values);
+    Ok(())
+}
+
+fn patch_string_array(
+    value: &mut serde_json::Value,
+    path: &[&str],
+    source: &str,
+) -> Result<(), String> {
+    let items = source
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| serde_json::Value::String(s.to_owned()))
+        .collect::<Vec<_>>();
+    if items.is_empty() {
+        return Err("Enter one baseline tape spec per grading region.".into());
+    }
+    let Some(target) = json_path_mut(value, path) else {
+        return Err(format!("Source document has no {} field.", path.join(".")));
+    };
+    *target = serde_json::Value::Array(items);
+    Ok(())
 }
 
 fn field<R>(ui: &mut egui::Ui, label: &str, add: impl FnOnce(&mut egui::Ui) -> R) {
@@ -3924,10 +4662,78 @@ mod tests {
     }
 
     #[test]
+    fn structured_revision_patches_only_selected_paths_for_graded_and_path3d_cases() {
+        let graded_source = benchmark("oc-020.json");
+        let mut graded = CaseDraft::revision(&graded_source).expect("graded case");
+        graded.revision_value.as_mut().unwrap()["operating"]["temperature_k"] = 29.0.into();
+        graded.revision_value.as_mut().unwrap()["cost"]["price_usd_per_m"] = 31.0.into();
+        graded.revision_value.as_mut().unwrap()["baseline"]["tapes_along_width"] = 3.into();
+        graded.revision_tapes = "3, 6".into();
+        graded.revision_dirty = true;
+        let (graded_case, graded_json) = graded.try_save().expect("valid structured revision");
+        let graded_saved: serde_json::Value = serde_json::from_str(&graded_json).unwrap();
+        let graded_original: serde_json::Value = serde_json::from_str(&graded_source).unwrap();
+        assert_eq!(graded_case.operating.temperature_k, 29.0);
+        assert_eq!(
+            graded_saved["choices"]["tapes_along_width"],
+            serde_json::json!([3, 6])
+        );
+        assert_eq!(graded_saved["grading"], graded_original["grading"]);
+        assert_eq!(graded_saved["tape_specs"], graded_original["tape_specs"]);
+        assert_eq!(graded_saved["material"], graded_original["material"]);
+
+        let helix_source = benchmark("oc-031-helix-layer.json");
+        let mut helix = CaseDraft::revision(&helix_source).expect("path3d case");
+        if json_path(
+            helix.revision_value.as_ref().unwrap(),
+            &["choices", "strands_parallel"],
+        )
+        .is_none()
+        {
+            assert_eq!(helix.revision_strands, "1");
+            assert!(!helix.revision_strands_explicit);
+        }
+        helix.revision_value.as_mut().unwrap()["operating"]["temperature_k"] = 18.0.into();
+        helix.revision_dirty = true;
+        let (_, helix_json) = helix.try_save().expect("valid path3d revision");
+        let helix_saved: serde_json::Value = serde_json::from_str(&helix_json).unwrap();
+        let helix_original: serde_json::Value = serde_json::from_str(&helix_source).unwrap();
+        assert_eq!(
+            helix_saved["fixed_geometry"]["path3d"],
+            helix_original["fixed_geometry"]["path3d"]
+        );
+        assert_eq!(helix_saved["field_map"], helix_original["field_map"]);
+        assert_eq!(helix_saved["grading"], helix_original["grading"]);
+    }
+
+    #[test]
+    fn revision_numeric_display_keeps_tiny_values_visible() {
+        assert_eq!(format_revision_number(1e-9), "1.0000e-9");
+        assert_eq!(format_revision_number(0.0001), "1.0000e-4");
+        assert_eq!(format_revision_number(0.01), "0.01");
+        assert_eq!(format_revision_number(0.0), "0");
+    }
+
+    #[test]
+    fn malformed_structured_pack_list_cannot_silently_save_stale_json() {
+        let source = benchmark("oc-020.json");
+        let mut draft = CaseDraft::revision(&source).unwrap();
+        draft.revision_tapes = "2, invalid".into();
+        draft.revision_dirty = true;
+        assert!(draft.try_save().is_none());
+        assert!(
+            draft
+                .error
+                .as_deref()
+                .is_some_and(|e| e.contains("whole numbers"))
+        );
+    }
+
+    #[test]
     fn invalid_revision_is_rejected_and_duplicate_retains_declarations() {
         let source = benchmark("oc-031-helix-layer.json");
         let case = CoupledSearchCase::from_json(&source).expect("valid fixture");
-        let mut duplicate = CaseDraft::duplicate(&case).expect("duplicate editor");
+        let mut duplicate = CaseDraft::duplicate_json(&source).expect("duplicate editor");
         let (copy, json) = duplicate.try_save().expect("duplicate validates");
         assert_ne!(copy.id, case.id);
         assert_eq!(copy.schema, case.schema);

@@ -8,6 +8,7 @@ use optcoil_model::{
 };
 use optcoil_physics::tape_capacity_a;
 use optcoil_search::coupled_search::CoupledSearchRunRecord;
+use optcoil_search::study::FollowUpAxis;
 use optcoil_search::verify;
 
 mod metrics;
@@ -55,7 +56,479 @@ fn shown_lifecycle(
 
 const COST_LABELS: [&str; 4] = ["Conductor", "Scrap", "Assembly", "Joints"];
 
+fn search_map_axis(
+    declared: Option<&[f64]>,
+    resolved: impl Iterator<Item = Option<f64>>,
+) -> Vec<f64> {
+    if let Some(values) = declared {
+        return values.to_vec();
+    }
+    let mut values = resolved.flatten().collect::<Vec<_>>();
+    values.sort_by(f64::total_cmp);
+    values.dedup_by(|left, right| left.to_bits() == right.to_bits());
+    values
+}
+
+fn finite(value: f64, decimals: usize) -> String {
+    if value.is_finite() {
+        format!("{value:.decimals$}")
+    } else {
+        "—".into()
+    }
+}
+
 impl Workbench {
+    pub(super) fn study(&mut self, ui: &mut egui::Ui) {
+        title(
+            ui,
+            "Engineering study workspace",
+            "Keep case variants, source bundles, run records and decision comparisons together.",
+        );
+        ui.horizontal_wrapped(|ui| {
+            if ui
+                .add_enabled(self.worker.is_none(), egui::Button::new("Open workspace…"))
+                .clicked()
+            {
+                self.open_study_workspace(ui.ctx());
+            }
+            if ui
+                .add_enabled(
+                    self.worker.is_none() && !self.study_workspace.variants.is_empty(),
+                    egui::Button::new("Save workspace…"),
+                )
+                .clicked()
+            {
+                self.save_study_workspace(ui.ctx());
+            }
+            if ui
+                .add_enabled(
+                    self.search_case.is_some() && self.worker.is_none(),
+                    egui::Button::new("Add current case"),
+                )
+                .clicked()
+            {
+                self.register_active_variant();
+                self.refresh_study_summary();
+            }
+            ui.label("Workspace name");
+            ui.add_enabled(
+                self.worker.is_none(),
+                egui::TextEdit::singleline(&mut self.study_workspace.name).desired_width(220.0),
+            );
+        });
+        ui.add_space(8.0);
+        if ui.available_width() < 850.0 {
+            self.study_variants(ui);
+            ui.separator();
+            self.study_diagnosis(ui);
+        } else {
+            ui.columns(2, |columns| {
+                self.study_variants(&mut columns[0]);
+                self.study_diagnosis(&mut columns[1]);
+            });
+        }
+    }
+
+    fn study_variants(&mut self, ui: &mut egui::Ui) {
+        ui.heading("Named variants");
+        #[cfg(target_arch = "wasm32")]
+        if let Some(id) = self.study_variant_id.as_ref()
+            && let Ok(variant) = self.study_workspace.variant(id)
+            && variant.options.threads != Some(1)
+        {
+            ui.colored_label(
+                brand::MUTED,
+                format!(
+                    "This variant declares {:?} threads; browser runs use one thread.",
+                    variant.options.threads
+                ),
+            );
+            if ui.add_enabled(self.worker.is_none(), egui::Button::new("Apply browser one-thread override"))
+                    .on_hover_text("Changes the executable options and therefore the exact input key; saved results remain historical.")
+                    .clicked()
+                {
+                    self.apply_browser_thread_override();
+                }
+        }
+        if self.study_workspace.variants.is_empty() {
+            ui.label("Open a coupled search case or add the current case to begin.");
+        }
+        let mut chosen_variant = None;
+        for variant in &mut self.study_workspace.variants {
+            ui.horizontal_wrapped(|ui| {
+                let selected = self.study_variant_id.as_deref() == Some(variant.id.as_str());
+                let variant_label = if variant.id.chars().count() > 20 {
+                    format!("{}…", variant.id.chars().take(19).collect::<String>())
+                } else {
+                    variant.id.clone()
+                };
+                if ui
+                    .add_enabled(
+                        self.worker.is_none(),
+                        egui::Button::selectable(selected, variant_label),
+                    )
+                    .on_hover_text(&variant.id)
+                    .clicked()
+                {
+                    chosen_variant = Some(variant.id.clone());
+                }
+                let name_width = ui.available_width().clamp(90.0, 180.0);
+                ui.add_enabled(
+                    self.worker.is_none(),
+                    egui::TextEdit::singleline(&mut variant.name).desired_width(name_width),
+                );
+                ui.label(format!("{} result(s)", variant.results.len()));
+            });
+        }
+        if let Some(id) = chosen_variant
+            && self.study_variant_id.as_deref() != Some(id.as_str())
+        {
+            self.study_variant_id = Some(id.clone());
+            let _ = self.study_workspace.select_variant(&id);
+            self.study_summary = None;
+            self.study_diff = None;
+            self.study_compare_summary = None;
+            self.activate_study_variant(id);
+        }
+        ui.horizontal_wrapped(|ui| {
+            if let Some(id) = self.study_variant_id.clone()
+                && ui
+                    .add_enabled(
+                        self.worker.is_none(),
+                        egui::Button::new("Duplicate variant"),
+                    )
+                    .clicked()
+            {
+                match self.study_workspace.duplicate_variant(
+                    &id,
+                    format!(
+                        "{} copy",
+                        self.study_workspace
+                            .variant(&id)
+                            .map_or("Variant", |v| v.name.as_str())
+                    ),
+                ) {
+                    Ok(new_id) => {
+                        self.study_variant_id = Some(new_id.clone());
+                        let _ = self.study_workspace.select_variant(&new_id);
+                        self.activate_study_variant(new_id);
+                    }
+                    Err(error) => self.message = (true, error.to_string()),
+                }
+            }
+            if ui
+                .add_enabled(
+                    self.worker.is_none() && self.study_workspace.variants.len() > 1,
+                    egui::Button::new("Compare inputs and results"),
+                )
+                .clicked()
+                && let (Some(left), Some(right)) = (
+                    self.study_compare_left.clone(),
+                    self.study_compare_right.clone(),
+                )
+            {
+                self.request_study_diff(left.clone(), right.clone());
+            }
+        });
+        ui.add_space(12.0);
+        ui.heading("Compare variants");
+        let ids = self
+            .study_workspace
+            .variants
+            .iter()
+            .map(|v| v.id.clone())
+            .collect::<Vec<_>>();
+        ui.add_enabled_ui(self.worker.is_none(), |ui| {
+            egui::ComboBox::from_label("Left input / result")
+                .selected_text(
+                    self.study_compare_left
+                        .as_deref()
+                        .unwrap_or("Choose variant"),
+                )
+                .show_ui(ui, |ui| {
+                    for id in &ids {
+                        ui.selectable_value(&mut self.study_compare_left, Some(id.clone()), id);
+                    }
+                });
+            egui::ComboBox::from_label("Right input / result")
+                .selected_text(
+                    self.study_compare_right
+                        .as_deref()
+                        .unwrap_or("Choose variant"),
+                )
+                .show_ui(ui, |ui| {
+                    for id in &ids {
+                        ui.selectable_value(&mut self.study_compare_right, Some(id.clone()), id);
+                    }
+                });
+        });
+        if let Some(diff) = &self.study_diff {
+            ui.label(format!("{} changed input(s)", diff.changes.len()));
+            for change in diff.changes.iter().take(24) {
+                let before = change.before.as_ref().map_or("∅".into(), |v| v.to_string());
+                let after = change.after.as_ref().map_or("∅".into(), |v| v.to_string());
+                ui.label(
+                    RichText::new(format!("{}: {} → {}", change.pointer, before, after))
+                        .monospace()
+                        .size(12.0),
+                );
+            }
+            if diff.changes.len() > 24 {
+                ui.small("Showing first 24 paths.");
+            }
+            if let Some(comparison) = &diff.result_comparison {
+                ui.group(|ui| {
+                    ui.strong("Result deltas");
+                    ui.label(format!(
+                        "Run status: {} → {} · selected: {} → {}",
+                        status_label(comparison.left_status),
+                        status_label(comparison.right_status),
+                        status_label(comparison.left_selected_status),
+                        status_label(comparison.right_selected_status)
+                    ));
+                    ui.label(format!(
+                        "Candidate cost: {} → {} · change {}",
+                        comparison
+                            .left_cost_usd
+                            .map_or("—".into(), |v| format!("${v:.2}")),
+                        comparison
+                            .right_cost_usd
+                            .map_or("—".into(), |v| format!("${v:.2}")),
+                        comparison
+                            .cost_change_usd
+                            .map_or("—".into(), |v| format!("{:+.2} USD", v))
+                    ));
+                    ui.label(format!(
+                        "Utilization: {} → {} · change {}",
+                        comparison
+                            .left_utilization
+                            .map_or("—".into(), |v| format!("{:.1}%", v * 100.0)),
+                        comparison
+                            .right_utilization
+                            .map_or("—".into(), |v| format!("{:.1}%", v * 100.0)),
+                        comparison
+                            .utilization_change
+                            .map_or("—".into(), |v| format!("{:+.1} pp", v * 100.0))
+                    ));
+                    ui.label(format!(
+                        "Limiting location: {} → {}",
+                        comparison.left_limiting_location.as_deref().unwrap_or("—"),
+                        comparison.right_limiting_location.as_deref().unwrap_or("—")
+                    ));
+                });
+            }
+        }
+        if let Some((left, right)) = &self.study_compare_summary {
+            ui.separator();
+            ui.heading("Latest current-binding decisions");
+            for summary in [left, right] {
+                let decision = summary.latest_decision.as_ref();
+                ui.group(|ui| {
+                    ui.strong(&summary.variant_name);
+                    ui.label(format!(
+                        "{} current result(s) · {} total result(s)",
+                        summary.current_binding_result_ids.len(),
+                        summary.result_count
+                    ));
+                    if let Some(decision) = decision {
+                        ui.label(format!(
+                            "{} · baseline ${:.2} · candidate {}",
+                            status_label(decision.selected_status),
+                            decision.baseline_total_usd,
+                            decision
+                                .selected_total_usd
+                                .map_or("not selected".into(), |v| format!("${v:.2}"))
+                        ));
+                        ui.label(format!(
+                            "{}% utilization limit",
+                            decision.utilization_limit * 100.0
+                        ));
+                        if let Some(location) = &decision.limiting_location {
+                            ui.small(format!("Limiting location: {location}"));
+                        }
+                    } else {
+                        ui.small("No result currently bound to these exact inputs.");
+                    }
+                });
+            }
+        }
+    }
+
+    fn study_diagnosis(&mut self, ui: &mut egui::Ui) {
+        ui.heading("Constraint diagnosis");
+        if let Some(summary) = &self.study_summary {
+            ui.small(format!(
+                "Case identity {}",
+                summary.case_sha256.chars().take(12).collect::<String>()
+            ));
+            if let Some(decision) = &summary.latest_decision {
+                ui.group(|ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label("Search status:");
+                        if let Some(status) = summary.latest_search_status {
+                            ui.colored_label(status_color(status), status_label(status));
+                        } else {
+                            ui.label("unavailable");
+                        }
+                        ui.label("Selected candidate:");
+                        if decision.selected_candidate_index.is_some() {
+                            ui.colored_label(
+                                status_color(decision.selected_status),
+                                status_label(decision.selected_status),
+                            );
+                        } else {
+                            ui.label("none");
+                        }
+                    });
+                    ui.label(format!(
+                        "Baseline ${:.2} · candidate {}",
+                        decision.baseline_total_usd,
+                        decision
+                            .selected_total_usd
+                            .map_or("not selected".into(), |v| format!("${v:.2}"))
+                    ));
+                    ui.label(format!(
+                        "{} current result(s) / {} retained",
+                        summary.current_binding_result_ids.len(),
+                        summary.result_count
+                    ));
+                    for gate in decision.unresolved_gates.iter().take(8) {
+                        ui.colored_label(brand::MUTED, gate);
+                    }
+                });
+            } else {
+                ui.label("No exact-input result yet. Run this variant to produce a current decision summary.");
+            }
+            for issue in &summary.diagnosis.issues {
+                ui.group(|ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.colored_label(status_color(issue.status), status_label(issue.status));
+                        ui.strong(&issue.code);
+                    });
+                    ui.label(&issue.message);
+                    if let Some(pointer) = &issue.input_pointer {
+                        ui.small(format!("Input: {pointer}"));
+                    }
+                    if let Some(limit) = &issue.observed_limit {
+                        ui.small(format!("Observed / limit: {limit}"));
+                    }
+                    if let Some(gap) = &issue.data_gap {
+                        ui.small(format!("Data gap: {gap}"));
+                    }
+                });
+            }
+            if !summary.diagnosis.engineering_acceptance_claim {
+                ui.colored_label(brand::MUTED, "Diagnosis organizes declared and evaluated constraints; it does not establish engineering acceptance.");
+            }
+        } else if self.study_variant_id.is_some() {
+            ui.label(if self.worker.is_some() {
+                "Building a cached study summary…"
+            } else {
+                "Select Refresh to inspect the selected variant."
+            });
+            if ui
+                .add_enabled(
+                    self.worker.is_none(),
+                    egui::Button::new("Refresh diagnosis"),
+                )
+                .clicked()
+            {
+                self.refresh_study_summary();
+            }
+        }
+        ui.add_space(12.0);
+        ui.heading("Follow-up experiment");
+        ui.small("Proposals change one declared pack-choice axis. Requirement, numerical gates and limits remain fixed; every proposal starts uncalculated.");
+        if let Some(id) = self.study_variant_id.clone() {
+            if let Some(summary) = &self.study_summary {
+                let axes = &summary.diagnosis.follow_up_axes;
+                let choices = [
+                    ("Extend tape-count choices", FollowUpAxis::TapesAlongWidth),
+                    (
+                        "Extend parallel-strand choices",
+                        FollowUpAxis::StrandsParallel,
+                    ),
+                ];
+                let mut available = 0;
+                for (label, axis) in choices {
+                    if axes.contains(&axis) {
+                        available += 1;
+                        if ui
+                            .add_enabled(self.worker.is_none(), egui::Button::new(label))
+                            .clicked()
+                        {
+                            match self.study_workspace.propose_followup(&id, axis) {
+                                Ok(proposal) => self.study_follow_up = Some(proposal),
+                                Err(error) => self.message = (true, error.to_string()),
+                            }
+                        }
+                    }
+                }
+                if available == 0 {
+                    ui.small("No declared pack-choice axis is eligible for this case.");
+                }
+            } else {
+                ui.small("Load the selected variant's diagnosis before proposing follow-up axes.");
+            }
+        }
+        if let Some(proposal) = self.study_follow_up.clone() {
+            ui.group(|ui| {
+                let axis_name = match proposal.axis {
+                    FollowUpAxis::TapesAlongWidth => "tape-count",
+                    FollowUpAxis::StrandsParallel => "parallel-strand-count",
+                };
+                ui.strong(format!("Explicit {axis_name} experiment · not calculated"));
+                ui.label(&proposal.rationale);
+                let preflight = &proposal.preflight;
+                ui.label(format!(
+                    "{} · {} candidates · primary points ≤ {} · refined points ≤ {}",
+                    if preflight.ready_to_run {
+                        "Ready to run"
+                    } else {
+                        "Needs input/dependency fixes"
+                    },
+                    preflight.workload.candidate_count,
+                    preflight.workload.primary_point_upper_estimate,
+                    preflight.workload.refined_point_upper_estimate
+                ));
+                ui.small(&preflight.workload.estimate_label);
+                for error in &preflight.errors {
+                    ui.colored_label(egui::Color32::RED, &error.message);
+                    if let Some(correction) = &error.correction {
+                        ui.small(correction);
+                    }
+                }
+                ui.label(format!(
+                    "{} changed input path(s)",
+                    proposal.changed_inputs.len()
+                ));
+                for change in proposal.changed_inputs.iter().take(8) {
+                    let before = change.before.as_ref().map_or("∅".into(), |v| v.to_string());
+                    let after = change.after.as_ref().map_or("∅".into(), |v| v.to_string());
+                    ui.small(
+                        RichText::new(format!("{}: {} → {}", change.pointer, before, after))
+                            .monospace(),
+                    );
+                }
+                ui.label(format!(
+                    "Requirements changed: {} · numerical gates changed: {} · limits changed: {}",
+                    proposal.requirements_changed,
+                    proposal.numerical_gates_changed,
+                    proposal.limits_changed
+                ));
+                if ui
+                    .add_enabled(
+                        self.worker.is_none() && preflight.ready_to_run,
+                        egui::Button::new("Create variant and run experiment"),
+                    )
+                    .clicked()
+                {
+                    self.create_study_follow_up(proposal.clone());
+                }
+            });
+        }
+    }
+
     pub(super) fn overview(&mut self, ui: &mut egui::Ui) {
         title(
             ui,
@@ -949,11 +1422,11 @@ impl Workbench {
             ui.horizontal_wrapped(|ui| {
                 ui.strong("Selected optimum:");
                 ui.label(format!(
-                    "{} × {}{} · I_op {:.1} A · {}",
+                    "{} × {}{} · I_op {} A · {}",
                     candidate.geometry.turns_along_normal,
                     candidate.geometry.tapes_along_width,
                     strands_suffix(candidate.geometry.strands_parallel),
-                    candidate.operating_current_a,
+                    finite(candidate.operating_current_a, 1),
                     usd(shown_total(
                         record,
                         &candidate.cost,
@@ -1201,21 +1674,20 @@ impl Workbench {
             // v21 geometry axes: when a dimension is a search axis the map
             // needs a slice selector per axis; resolved candidate dims key
             // the lookup so every declared geometry lands in a cell.
-            let bends: Vec<f64> = case
-                .choices
-                .bend_radius_m
-                .clone()
-                .unwrap_or_else(|| case.fixed_geometry.bend_radius_m.into_iter().collect());
-            let straights: Vec<f64> =
-                case.choices
-                    .straight_half_length_m
-                    .clone()
-                    .unwrap_or_else(|| {
-                        case.fixed_geometry
-                            .straight_half_length_m
-                            .into_iter()
-                            .collect()
-                    });
+            let bends = search_map_axis(
+                case.choices.bend_radius_m.as_deref(),
+                record
+                    .candidates
+                    .iter()
+                    .map(|candidate| candidate.geometry.bend_radius_m),
+            );
+            let straights = search_map_axis(
+                case.choices.straight_half_length_m.as_deref(),
+                record
+                    .candidates
+                    .iter()
+                    .map(|candidate| candidate.geometry.straight_half_length_m),
+            );
             let mut bend_sel = self.map_bend.min(bends.len().saturating_sub(1));
             let mut straight_sel = self.map_straight.min(straights.len().saturating_sub(1));
             let bend = bends.get(bend_sel).copied();
@@ -1341,7 +1813,7 @@ impl Workbench {
                                         "{t}×{w} · {strand} strands — {}",
                                         status_label(status)
                                     ));
-                                    ui.label(format!("I_op {iop:.1} A · {}", usd(total)));
+                                    ui.label(format!("I_op {} A · {}", finite(iop, 1), usd(total)));
                                     if is_base {
                                         ui.label("declared baseline");
                                     }
@@ -1391,7 +1863,7 @@ impl Workbench {
             .column(Column::initial(95.0).at_least(70.0))
             .column(Column::remainder().at_least(90.0))
             .column(Column::initial(36.0).at_least(30.0))
-            .min_scrolled_height(0.0)
+            .min_scrolled_height(64.0)
             .max_scroll_height(320.0)
             .header(25.0, |mut header| {
                 for label in [
@@ -1435,7 +1907,7 @@ impl Workbench {
                         ));
                     });
                     row.col(|ui| {
-                        ui.label(format!("{:.1}", candidate.operating_current_a));
+                        ui.label(finite(candidate.operating_current_a, 1));
                     });
                     row.col(|ui| {
                         ui.label(usd(shown_total(
@@ -2642,8 +3114,8 @@ impl Workbench {
                         ),
                         (
                             "I_op",
-                            format!("{:.1} A", other.operating_current_a),
-                            format!("{:.1} A", candidate.operating_current_a),
+                            format!("{} A", finite(other.operating_current_a, 1)),
+                            format!("{} A", finite(candidate.operating_current_a, 1)),
                         ),
                     ];
                     if dg.bend_radius_m.is_some() || cg.bend_radius_m.is_some() {
@@ -2697,8 +3169,9 @@ impl Workbench {
         ui.strong("Operating point");
         for text in [
             format!(
-                "I_op: {:.1} A ({:.0} A·turns)",
-                candidate.operating_current_a, candidate.ampere_turns_a
+                "I_op: {} A ({} A·turns)",
+                finite(candidate.operating_current_a, 1),
+                finite(candidate.ampere_turns_a, 0)
             ),
             format!(
                 "pack: {:.3} m radial × {:.3} m axial",
@@ -2884,7 +3357,7 @@ impl Workbench {
                     u,
                     format!(
                         "I_op {:.0} A at {:.0}% of allowed",
-                        candidate.operating_current_a,
+                        finite(candidate.operating_current_a, 1),
                         u * 100.0
                     ),
                 ));

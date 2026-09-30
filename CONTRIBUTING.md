@@ -20,7 +20,7 @@ Validate inputs before numerical work. Reject malformed identities, unsupported 
 
 New physics needs reference cases appropriate to the claimed operating regime. Use independent expected results, meaningful conservation/symmetry checks and numerical tolerances. Do not validate a formula solely by repeating it in its test. Benchmark a competitive baseline under unchanged requirements, and include all modeled manufacturing costs.
 
-Change the relevant implementation identity when numerical or interpretation behavior changes. Run identity currently covers the normalized parsed case, search options, package version and model/checker/search identities. It does not fingerprint uncommitted source, hardware or toolchain; preserve the source revision and lockfile alongside serious benchmark results. No cache uses these hashes yet.
+Change the relevant implementation identity when numerical or interpretation behavior changes. Run identity covers the exact supplied case bytes, search options, package version, model/checker identities and the recorded implementation fingerprint. Preserve the source revision, lockfile and runtime context alongside serious benchmark results. These identities do not prove correctness. `StudyEngineSession` reuses only results calculated and verified by that running process, keyed by exact case and bundle bytes, execution options and engine identities. Imported records and reopened workspaces never populate its cache.
 
 Before finishing changes:
 

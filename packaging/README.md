@@ -1,6 +1,7 @@
 # Packaging & releases
 
-`Converra` (the egui workbench) and `optcoil` (the headless CLI) are built
+`Converra` (the egui workbench), `optcoil` (the headless CLI) and `optcoil-mcp`
+(the local stdio MCP server) are built
 and packaged by `.github/workflows/release.yml` on every `v*` tag:
 
 ```bash
@@ -11,10 +12,14 @@ Artifacts attached to the GitHub Release:
 
 | Artifact | Contents |
 |---|---|
-| `converra-macos-arm64.zip` | `Converra.app` (Apple Silicon) + `optcoil` CLI tarball |
-| `converra-macos-x64.zip` | `Converra.app` (Intel) + `optcoil` CLI tarball |
-| `converra-windows-x64.zip` | `Converra.exe` + `optcoil.exe` |
-| `converra-linux-x64.tar.gz` | `Converra` + `optcoil` |
+| `converra-macos-arm64.zip` | `Converra.app` (Apple Silicon); separate `-cli.tar.gz` contains `optcoil` and `optcoil-mcp` |
+| `converra-macos-x64.zip` | `Converra.app` (Intel); separate `-cli.tar.gz` contains `optcoil` and `optcoil-mcp` |
+| `converra-windows-x64.zip` | `Converra.exe`, `optcoil.exe`, `optcoil-mcp.exe` |
+| `converra-linux-x64.tar.gz` | `Converra`, `optcoil`, `optcoil-mcp` |
+
+The MCP server is included starting with the next tagged release. Existing v0.1.0
+archives predate it; build it from source as described in the
+[MCP guide](../crates/optcoil-mcp/README.md).
 
 The `.app` bundle is assembled by `packaging/make-app.sh` (Info.plist +
 `icon.icns` generated from the bundled logo via `sips`/`iconutil`). The
@@ -26,8 +31,9 @@ Windows `.exe` icon is embedded at compile time by `embed-resource` via
 With no secrets configured, the workflow produces **unsigned** artifacts —
 they run, but Windows SmartScreen warns and macOS Gatekeeper refuses
 double-clicked `.app`s (right-click → Open works; not great for customers).
-Add the secrets below and the same workflow signs and notarizes — nothing
-else changes.
+The secrets below enable Windows executable signing and macOS app signing and
+notarization. On macOS these steps cover `Converra.app`; the separate headless
+archive containing `optcoil` and `optcoil-mcp` remains unsigned and unnotarized.
 
 ### macOS (Apple Developer Program, $99/yr)
 

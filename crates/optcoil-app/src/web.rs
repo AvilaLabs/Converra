@@ -7,6 +7,7 @@
 
 #![cfg(target_arch = "wasm32")]
 
+use std::cell::RefCell;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
 
@@ -112,11 +113,62 @@ fn run_request(text: &str) -> String {
             }
             Err(error) => serde_json::json!({"status": "err", "error": error}).to_string(),
         },
+        "study-search" => match run_study_search(&request) {
+            Ok((workspace, record, cache_hit)) => serde_json::json!({"status":"study_ok", "workspace_json":workspace, "record":record, "cache_hit":cache_hit}).to_string(),
+            Err(error) => serde_json::json!({"status":"err", "error":error}).to_string(),
+        },
         _ => match run_search(&request) {
             Ok(record) => serde_json::json!({"status": "ok", "record": record}).to_string(),
             Err(error) => serde_json::json!({"status": "err", "error": error}).to_string(),
         },
     }
+}
+
+thread_local! {
+    static STUDY_ENGINE_SESSION: RefCell<optcoil_search::study::StudyEngineSession> = RefCell::new(Default::default());
+}
+
+fn run_study_search(request: &serde_json::Value) -> Result<(String, String, bool), String> {
+    let workspace_json = request
+        .get("workspace_json")
+        .and_then(|v| v.as_str())
+        .ok_or("study worker request lacks workspace_json")?;
+    let variant_id = request
+        .get("variant_id")
+        .and_then(|v| v.as_str())
+        .ok_or("study worker request lacks variant_id")?;
+    let mut workspace = optcoil_search::study::StudyWorkspace::from_json(workspace_json)
+        .map_err(|e| e.to_string())?;
+    let (result_id, cache_hit) = STUDY_ENGINE_SESSION
+        .with(|session| {
+            let mut session = session.borrow_mut();
+            let cache_hit = workspace
+                .variant(variant_id)
+                .ok()
+                .and_then(|variant| session.cached_result(variant).ok())
+                .flatten()
+                .is_some();
+            session
+                .run_variant_with(
+                    &mut workspace,
+                    variant_id,
+                    &std::sync::atomic::AtomicBool::new(false),
+                    None,
+                )
+                .map(|result_id| (result_id, cache_hit))
+        })
+        .map_err(|e| e.to_string())?;
+    let record = workspace
+        .variant(variant_id)
+        .map_err(|e| e.to_string())?
+        .results
+        .iter()
+        .find(|result| result.id == result_id)
+        .ok_or("study runner returned no attached result")?
+        .record_json
+        .clone();
+    let saved = workspace.to_json().map_err(|e| e.to_string())?;
+    Ok((saved, record, cache_hit))
 }
 
 fn run_search(request: &serde_json::Value) -> Result<String, String> {
@@ -200,6 +252,11 @@ pub fn converra_search_worker_main() {
 #[wasm_bindgen(start)]
 pub async fn start_web() -> Result<(), JsValue> {
     console_error_panic_hook::set_once();
+    // The same wasm module is loaded by the page and its calculation worker.
+    // Only the page owns a canvas; worker.js installs its message handler.
+    if js_sys::global().is_instance_of::<web_sys::DedicatedWorkerGlobalScope>() {
+        return Ok(());
+    }
     let document = web_sys::window()
         .and_then(|window| window.document())
         .ok_or_else(|| JsValue::from_str("no window/document"))?;

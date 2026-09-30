@@ -382,10 +382,31 @@ pub fn verify_record_checks(
         ),
     );
 
+    // Undefined field/current diagnostics are retained as null on candidates
+    // whose requirement failed before screening. They are never numerical
+    // evidence and must not appear on an evaluated or passing candidate.
+    let quantities_ok = record.candidates.iter().all(|candidate| {
+        let values = [
+            candidate.unit_bore_bz_t_per_ampere_turn,
+            candidate.bore_refinement_change_t,
+            candidate.ampere_turns_a,
+            candidate.operating_current_a,
+        ];
+        values.iter().all(|value| value.is_finite())
+            || (candidate.status == Status::Fail
+                && candidate.requirement_status == Status::Fail
+                && candidate.screening.is_none())
+    });
+    push(
+        "candidate.quantity_availability",
+        if quantities_ok { Outcome::Pass } else { Outcome::Fail },
+        "Undefined quantities are permitted only on failed requirements without evaluated screening; they establish no field or current value.".into(),
+    );
+
     // --- Ledger arithmetic (independent of physics) ---
     // Recompute each candidate's full ledger through the same cost function
-    // the producer used — geometry from the record, per-region spec pricing
-    // from the case — and compare all fields. On graded cases the ledger is
+    // the producer used: geometry from the record, per-region spec pricing
+    // from the case, comparing all fields. On graded cases the ledger is
     // the per-turn price-weighted sum, so this also verifies the recorded
     // tape_spec_ids assignment drove the recorded cost.
     let mut bad = Vec::new();

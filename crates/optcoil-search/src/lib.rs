@@ -31,6 +31,7 @@ pub mod review;
 pub mod search_acceptance;
 pub mod sensitivity;
 pub mod sizing;
+pub mod study;
 pub mod verify;
 
 use std::{

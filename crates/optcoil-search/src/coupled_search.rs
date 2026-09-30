@@ -159,7 +159,9 @@ pub const COUPLED_SEARCH_MODEL_ID: &str = "exhaustive-coupled-cost-search-over-p
 /// reported optimum differs by construction when the walk promotes a
 /// later candidate, and `acceptance.fallback_attempts` records the
 /// cheaper candidates that could not be substantiated.
-pub const COUPLED_SEARCH_CHECKER_ID: &str = "coupled-search-per-candidate-screening-and-cost/v22";
+/// Run schema v26 preserves undefined failed-candidate diagnostics as JSON null;
+/// the artifact verifier rejects missing quantities on evaluated candidates.
+pub const COUPLED_SEARCH_CHECKER_ID: &str = "coupled-search-per-candidate-screening-and-cost/v23";
 
 /// Runtime override: may only lower the case's own declared
 /// `execution.max_threads` (contract §8 D7).
@@ -508,7 +510,9 @@ pub struct SearchCandidateResult {
     pub geometry: CandidateGeometry,
     /// Unit `B_z` at the bare bore probe, always evaluated; under schema v3
     /// `NI` is instead solved on `good_field.min_unit_bz_t_per_ampere_turn`.
+    #[serde(deserialize_with = "deserialize_nullable_quantity")]
     pub unit_bore_bz_t_per_ampere_turn: f64,
+    #[serde(deserialize_with = "deserialize_nullable_quantity")]
     pub bore_refinement_change_t: f64,
     /// `Some` only when the case declares `good_field_region` (schema v3).
     /// `None` also when the pack is degenerate (inner bend radius <= 0):
@@ -545,7 +549,9 @@ pub struct SearchCandidateResult {
     /// probes at both quadrature orders plus, under schema v3, the
     /// good-field-region lattice. Included in the run's kernel total.
     pub requirement_kernel_evaluations: u64,
+    #[serde(deserialize_with = "deserialize_nullable_quantity")]
     pub ampere_turns_a: f64,
+    #[serde(deserialize_with = "deserialize_nullable_quantity")]
     pub operating_current_a: f64,
     /// PASS iff the bore-probe refinement gate passed, the good-field
     /// lattice (when declared) passed its own refinement gate, the region
@@ -647,6 +653,18 @@ pub struct SearchCandidateResult {
     /// point plan never ran reports `Status::NotEvaluated`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub screens: Option<CandidateScreens>,
+}
+
+// Unevaluable failed candidates have no field/current quantity. Rust retains
+// the historical NaN sentinel internally; serde serializes it as JSON null.
+// Decode that null losslessly so a completed mixed valid/invalid search remains
+// inspectable. verify_record_checks separately guards quantity availability;
+// null must never establish a quantity or a passing evaluated candidate.
+fn deserialize_nullable_quantity<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Ok(Option::<f64>::deserialize(deserializer)?.unwrap_or(f64::NAN))
 }
 
 /// Screen model identities recorded on each screen result.
@@ -1514,7 +1532,7 @@ pub fn run_coupled_search_case_with_datasets_progress(
         // acceptance walk re-verified after the first optimum failed
         // §9.4 (checker v18; absent when the walk never ran, defaulted
         // on older records).
-        schema: "optcoil-coupled-search-run/v25".into(),
+        schema: "optcoil-coupled-search-run/v26".into(),
         optcoil_version: env!("CARGO_PKG_VERSION").into(),
         coupled_search_model_id: COUPLED_SEARCH_MODEL_ID.into(),
         coupled_search_checker_id: COUPLED_SEARCH_CHECKER_ID.into(),
@@ -4527,7 +4545,7 @@ pub(crate) mod tests {
         });
         let case_json = serde_json::to_string(&v7).unwrap();
         let record = run_coupled_search_case(&case_json, &CoupledSearchOptions::default()).unwrap();
-        assert_eq!(record.schema, "optcoil-coupled-search-run/v25");
+        assert_eq!(record.schema, "optcoil-coupled-search-run/v26");
         let cand = record
             .candidates
             .iter()
@@ -4634,7 +4652,7 @@ pub(crate) mod tests {
         )
         .unwrap();
         assert_eq!(record.case.schema, "optcoil-coupled-search/v12");
-        assert_eq!(record.schema, "optcoil-coupled-search-run/v25");
+        assert_eq!(record.schema, "optcoil-coupled-search-run/v26");
         let cand = record
             .candidates
             .iter()
@@ -5401,7 +5419,7 @@ pub(crate) mod tests {
             record.acceptance.baseline.region_agreement_status,
             Status::Pass
         );
-        assert_eq!(record.schema, "optcoil-coupled-search-run/v25");
+        assert_eq!(record.schema, "optcoil-coupled-search-run/v26");
     }
 
     fn v5_reduced_case_json() -> String {
@@ -5427,7 +5445,7 @@ pub(crate) mod tests {
         let record =
             run_coupled_search_case(&v5_reduced_case_json(), &CoupledSearchOptions::default())
                 .unwrap();
-        assert_eq!(record.schema, "optcoil-coupled-search-run/v25");
+        assert_eq!(record.schema, "optcoil-coupled-search-run/v26");
         assert_eq!(record.case.schema, "optcoil-coupled-search/v5");
         let mut saw_transport_ratio = false;
         for candidate in &record.candidates {
@@ -6326,7 +6344,7 @@ pub(crate) mod tests {
             &CoupledSearchOptions::default(),
         )
         .unwrap();
-        assert_eq!(record.schema, "optcoil-coupled-search-run/v25");
+        assert_eq!(record.schema, "optcoil-coupled-search-run/v26");
         assert_eq!(record.case.schema, "optcoil-coupled-search/v19");
         assert_eq!(record.candidates.len(), 1);
         let candidate = &record.candidates[0];
@@ -6396,7 +6414,7 @@ pub(crate) mod tests {
             &CoupledSearchOptions::default(),
         )
         .unwrap();
-        assert_eq!(record.schema, "optcoil-coupled-search-run/v25");
+        assert_eq!(record.schema, "optcoil-coupled-search-run/v26");
         assert_eq!(record.case.schema, "optcoil-coupled-search/v9");
         assert_eq!(record.candidates.len(), 2);
         for candidate in &record.candidates {
@@ -6865,7 +6883,7 @@ pub(crate) mod tests {
             &CoupledSearchOptions::default(),
         )
         .unwrap();
-        assert_eq!(record.schema, "optcoil-coupled-search-run/v25");
+        assert_eq!(record.schema, "optcoil-coupled-search-run/v26");
         assert_eq!(record.case.schema, "optcoil-coupled-search/v10");
         // 1 geometry x 4 assignments.
         assert_eq!(record.candidates.len(), 4);
@@ -7303,7 +7321,7 @@ pub(crate) mod tests {
             &CoupledSearchOptions::default(),
         )
         .unwrap();
-        assert_eq!(record.schema, "optcoil-coupled-search-run/v25");
+        assert_eq!(record.schema, "optcoil-coupled-search-run/v26");
         assert_eq!(record.case.schema, "optcoil-coupled-search/v13");
         let fm = record.field_map.as_ref().expect("map provenance recorded");
         assert_eq!(fm.map.reference_ampere_turns_a, 1.0e6);
@@ -7547,7 +7565,7 @@ pub(crate) mod tests {
         let record =
             run_coupled_search_case(&v15_reduced_case_json(), &CoupledSearchOptions::default())
                 .unwrap();
-        assert_eq!(record.schema, "optcoil-coupled-search-run/v25");
+        assert_eq!(record.schema, "optcoil-coupled-search-run/v26");
         let cand = record
             .candidates
             .iter()
@@ -7629,7 +7647,7 @@ pub(crate) mod tests {
         let record =
             run_coupled_search_case(&v16_reduced_case_json(), &CoupledSearchOptions::default())
                 .unwrap();
-        assert_eq!(record.schema, "optcoil-coupled-search-run/v25");
+        assert_eq!(record.schema, "optcoil-coupled-search-run/v26");
         let cand = record
             .candidates
             .iter()
@@ -8244,7 +8262,7 @@ pub(crate) mod tests {
         let record =
             run_coupled_search_case(&v18_reduced_case_json(), &CoupledSearchOptions::default())
                 .unwrap();
-        assert_eq!(record.schema, "optcoil-coupled-search-run/v25");
+        assert_eq!(record.schema, "optcoil-coupled-search-run/v26");
         // Every screened candidate records the transient screen; at
         // least one starts the dump already sharing (its high-
         // utilization points' capacity at T0 = 30 K sits below demand).

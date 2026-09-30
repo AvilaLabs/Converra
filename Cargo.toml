@@ -7,6 +7,7 @@ members = [
     "crates/optcoil-cli",
     "crates/optcoil-app",
     "crates/optcoil-py",
+    "crates/optcoil-mcp",
 ]
 default-members = ["crates/optcoil-cli"]
 resolver = "3"
@@ -38,6 +39,9 @@ optcoil-model = { path = "crates/optcoil-model" }
 optcoil-physics = { path = "crates/optcoil-physics" }
 optcoil-search = { path = "crates/optcoil-search" }
 optcoil-adapters = { path = "crates/optcoil-adapters" }
+rmcp = { version = "=3.5.0", default-features = false, features = ["server", "transport-io", "macros", "schemars"] }
+schemars = "1.0"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

@@ -110,6 +110,89 @@ an external engineer can complete and review; **fastest** means total time from
 existing inputs to a defensible decision at matched fidelity; **most accurate**
 means correct constraint and economic decisions within a validated input domain.
 
+## Engineering decision workspace — September 2026
+
+**Implemented software scope:** deliver a polished GUI and local MCP interface that
+let engineers and AI agents create, revise, evaluate, explain, compare, save,
+and export supported HTS winding studies through one shared, reproducible
+workflow. The first audience is magnet engineers and HTS researchers evaluating
+existing winding designs using declared conductor evidence, field models and
+prices. External engineer validation remains the separate open PC-08 gate above;
+it is not an acceptance condition for this software extension.
+
+### EW-01 — Structured GUI revision
+
+- [x] Revise and duplicate supported loaded studies using controls for routine
+  requirements, operating points, winding/pack choices, material bindings,
+  prices, declared limits and execution settings without JSON editing.
+- [x] Preserve the original schema, grading, field maps, non-planar paths and
+  every declaration outside the edited controls. Clearly identify unavailable
+  controls; validate edits before accepting them and preserve prior work on
+  cancellation or errors. Retain an advanced editor for exceptional declarations.
+
+### EW-02 — Persistent alternatives and shared study operations
+
+- [x] Define a versioned, dependency-carrying study workspace with named
+  alternatives, exact source case/dataset bytes, completed results and input
+  comparisons. GUI and MCP use the same headless operations.
+- [x] Save, reopen, revise, duplicate and compare multiple alternatives without
+  losing data dependencies or attributing an old result to revised inputs.
+- [x] Verify imported results and exported review artifacts; reject corrupted,
+  incompatible and missing dependencies with actionable errors.
+
+### EW-03 — Explain constraints and test the next change
+
+- [x] Share structured diagnoses: the specific failed or unresolved check,
+  relevant input, limiting location, observed quantity, declared bound and
+  missing evidence where available. Distinguish numerical, physical-screening,
+  coverage and unperformed-work issues.
+- [x] Offer explicit follow-up experiments with visible changed inputs and
+  workload estimates. Preserve requirements, screening limits and numerical
+  gates unless the engineer explicitly edits them; recommendations do not
+  claim improvement before a new calculation establishes it.
+- [x] Run, retain and compare follow-up results against their source study,
+  preserving PASS, FAIL, INCONCLUSIVE and NOT_EVALUATED and the selection's
+  original authority.
+
+### EW-04 — Responsive work and measured reuse
+
+- [x] Reuse only completed results for exactly matching source inputs,
+  datasets, execution options and engine identity. Imported artifacts are
+  viewable evidence, not automatically trusted executable cache entries.
+- [x] Keep the GUI responsive during calculations and communicate progress,
+  cancellation and the relationship between previous results and active inputs.
+- [x] Measure cold calculation and repeated-work latency on fixed attributed
+  software fixtures; confirm equivalent costs/verdicts and invalidation after
+  material, physics, price or execution changes. Record measured scope honestly.
+
+### EW-05 — Local MCP for AI agents
+
+- [x] Provide a local stdio MCP server using the official Rust SDK with typed,
+  discoverable study, dataset, preflight, search/sensitivity, progress/cancel,
+  explanation, comparison, verification and review-export operations.
+- [x] Return compact structured summaries and expose detailed records/artifacts
+  separately. Enforce bounded inputs, computation and jobs; preserve source
+  identities and verdict meanings and protect workspace file boundaries.
+- [x] Exercise the real protocol with a client, including discovery, errors,
+  completed and cancelled jobs, multiple material dependencies, export and
+  numerical parity with equivalent headless/CLI studies.
+
+### EW-06 — GUI quality and complete workflow verification
+
+- [x] Use clear units, contextual errors, consistent existing visual components,
+  keyboard navigation and layouts that remain usable at smaller window sizes.
+- [x] Inspect the actual interface and retain screenshots/workflow evidence for
+  completed, failed and inconclusive studies, invalid input, cancellation, named
+  comparisons, follow-up calculations and saved-workspace reopening.
+- [x] Run the complete formatting, workspace Clippy/tests and browser compilation
+  gates. Every pushed SHA must pass GitHub CI; retain delivery links and accurately
+  document completed capabilities, remaining limitations and performance evidence.
+
+Implementation and verification scope are recorded in the
+[workspace guide](docs/ENGINEERING_WORKSPACE.md) and
+[verification evidence](docs/ENGINEERING_WORKSPACE_EVIDENCE.md).
+The separate PC-08 external validation gate remains open.
+
 ## Domain coverage (the real frontier)
 
 - **Wider measured domains.** Embedded datasets currently cover

@@ -1,0 +1,30 @@
+[package]
+name = "optcoil-mcp"
+description = "Local stdio MCP interface for Converra engineering studies"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "optcoil-mcp"
+path = "src/main.rs"
+
+[dependencies]
+optcoil-model.workspace = true
+optcoil-search.workspace = true
+rmcp.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+rmcp = { workspace = true, features = ["client", "transport-child-process"] }
+tokio = { workspace = true, features = ["process"] }
+
+[lints]
+workspace = true

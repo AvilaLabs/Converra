@@ -10,7 +10,7 @@
 
 Converra helps magnet engineers and researchers compare coil designs against a fixed specification. It searches winding-pack geometry and REBCO conductor choices, screens candidates against declared requirements, and produces a design record with modeled costs, material provenance, constraint checks, and unresolved engineering limits.
 
-Use the desktop workbench to explore designs, the CLI to run reproducible studies, or the Python bindings to integrate the engine into your own workflow. All calculations run locally through the same Rust engine.
+Use the desktop workbench to explore designs, the CLI to run reproducible studies, the local MCP server for AI agents, or the Python bindings to integrate the engine into your own workflow. All calculations run locally through the same Rust engine.
 
 [Download](https://github.com/AvilaLabs/Converra/releases/latest) · [Try in your browser](https://converra.avilalabs.org) · [Quick start](#quick-start) · [Documentation](#documentation) · [Contributing](CONTRIBUTING.md)
 
@@ -24,6 +24,7 @@ Use the desktop workbench to explore designs, the CLI to run reproducible studie
 - **Compare conductors and grading.** Evaluate material datasets and product options, or assign different conductor specifications to winding regions. Embedded REBCO data includes measured characterizations and explicitly labeled model fits; you can also load your own datasets.
 - **Screen operating limits.** Couple magnetic-field evaluation to critical-current data at sampled tape positions and orientations, with declared utilization, bend, and first-order mechanical limits. Optional screens cover thermal margin, AC loss, and quench bounds. Unsupported material queries produce an explicit unresolved result.
 - **Explore tradeoffs.** Run sensitivity sweeps, compare vendor options, and reprice completed studies with documented price provenance.
+- **Keep an engineering study together.** Name and revise variants, retain their exact source data and historical results, compare decisions, and calculate explicit follow-up experiments in the GUI or through MCP.
 - **Export design evidence.** Save JSON run records, standalone HTML reports, conductor bills of materials, and procurement summaries with piece and splice schedules when declared by the case.
 - **Check the result.** A separate acceptance path recomputes costs and screening checks, including a finer sampling plan where declared. Offline verification checks input hashes and ledger arithmetic; signed dataset bundles support provenance verification.
 
@@ -42,9 +43,12 @@ Prebuilt desktop and CLI binaries are available from [GitHub Releases](https://g
 
 Extract the archive and launch `Converra` on Windows/Linux or `Converra.app` on macOS. No Rust installation is needed for these builds. The command-line executable is named `optcoil` (`optcoil.exe` on Windows).
 
-The workbench starts with a small attributed measured-conductor study and explicitly illustrative prices. Review **Applicability and work estimate**, run, inspect the decision, then **Revise** or **Duplicate** and export a **Review package**. **File → Examples** also offers the synthetic allocation reference. The guided builder authors supported racetrack and helix cases; the advanced revision editor preserves complete case JSON, including graded, field-map and non-planar declarations. Linux desktop use requires a graphical session and graphics drivers.
+The workbench starts with a small attributed measured-conductor study and explicitly illustrative prices. Review **Applicability and work estimate**, run, inspect the decision, then **Revise** or **Duplicate** and export a **Review package**. **Engineering study** keeps named variants, diagnoses, comparisons and saved workspaces together. **File → Examples** also offers the synthetic allocation reference. The guided builder authors supported racetrack and helix cases; loaded cases have structured controls for routine revisions and an advanced JSON editor for other declarations. Linux desktop use requires a graphical session and graphics drivers.
 
 ### Build from source
+
+The engineering workspace and MCP extension are available in the current source.
+Existing release archives and the hosted browser build are updated separately.
 
 Install [Rust with rustup](https://rustup.rs/), then clone the repository. The pinned toolchain is Rust **1.95.0**.
 
@@ -99,6 +103,23 @@ exported review packages include all dependencies and their rerun command.
 
 See [product completion evidence](docs/PRODUCT_COMPLETION.md) for the supported
 workflow, verification gates and open external engineer validation milestone.
+
+### Use Converra from an AI agent
+
+Build the local stdio server:
+
+```bash
+cargo build --release -p optcoil-mcp
+```
+
+Configure your MCP client to launch the resulting `optcoil-mcp` executable with
+`--workspace-dir` and an absolute path to a dedicated study directory. The server
+offers typed study operations, cancellable search and sensitivity jobs, compact
+decisions and resources for full records. It shares the GUI's workspace format;
+no hosted account or remote desktop connection is required.
+
+See [MCP setup and tool workflow](crates/optcoil-mcp/README.md) and
+[engineering study workspaces](docs/ENGINEERING_WORKSPACE.md).
 
 ### Use the Python bindings
 
@@ -165,6 +186,7 @@ These results describe the individual benchmark cases. Dollar savings depend on 
 | [Sensitivity studies](docs/SENSITIVITY.md) · [Dataset comparisons](docs/BAKEOFF.md) | Operating-point sweeps and conductor/product comparisons. |
 | [Grading reports](docs/GRADING.md) · [Bills of materials](docs/BOM.md) | Regional conductor choices and modeled procurement outputs. |
 | [Python bindings](crates/optcoil-py/README.md) · [Packaging](packaging/README.md) | Python integration and desktop/CLI distribution. |
+| [Engineering workspace](docs/ENGINEERING_WORKSPACE.md) · [Local MCP](crates/optcoil-mcp/README.md) | Named variants, saved evidence, follow-up studies and AI agent integration. |
 | [Roadmap](ROADMAP.md) · [Changelog](CHANGELOG.md) | Planned work and release history. |
 
 ## Contributing

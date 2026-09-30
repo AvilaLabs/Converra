@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased — engineering decision workspace
+
+- Shared versioned study workspaces carry named variants, exact input and dataset
+  bytes, historical result dependencies, structured diagnoses and decision diffs.
+- Loaded-case GUI revisions use unit-labelled controls while preserving other
+  declarations; explicit follow-up experiments keep requirements and limits fixed.
+- Local `optcoil-mcp` stdio server uses the official Rust SDK, with typed tools,
+  bounded background jobs, cancellation, resources and portable review exports.
+- Exact-input reuse is limited to completed, verified calculations in the running
+  engine session. Reopened and imported evidence remains outside that cache.
+- Failed candidates with undefined pre-screen current or field quantities now
+  round-trip as JSON `null`. The verifier rejects undefined quantities on evaluated
+  candidates. Run schema advances to v26 and search checker identity to v23;
+  numerical kernels and engineering gates are unchanged.
+
 ## Unreleased — complete supported study workflow
 
 - Measured-conductor startup study with explicit illustrative prices, shared

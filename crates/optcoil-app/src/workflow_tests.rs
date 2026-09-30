@@ -1,4 +1,5 @@
 use super::*;
+use optcoil_search::study::FollowUpAxis;
 use std::sync::atomic::AtomicBool;
 
 fn wait_for_idle(app: &mut Workbench, ctx: &egui::Context) {
@@ -89,6 +90,7 @@ fn measured_case_search_revision_and_review_workflow() {
     // A replacement run starts while the prior completed record remains
     // available. Cancel its worker after checking this transition, then
     // drain the cancellation result without using a GUI or file dialog.
+    wait_for_idle(&mut app, &ctx); // finish the cached study-summary worker first
     app.start(&ctx);
     assert!(
         app.worker.is_some(),
@@ -114,6 +116,7 @@ fn measured_case_search_revision_and_review_workflow() {
         first_record_id
     );
 
+    wait_for_idle(&mut app, &ctx); // let the replacement's cached summary finish before Verify
     app.verify_now();
     wait_for_idle(&mut app, &ctx);
     assert!(app.verify_checks.is_some(), "{}", app.message.1);
@@ -216,6 +219,179 @@ fn loaded_fixture_bundle(bundle: MaterialBundle, name: &str) -> JobResult {
 }
 
 #[test]
+fn gui_study_workspace_round_trips_named_variants_and_preserves_followup_inputs() {
+    // Keep the declared candidate product small enough that adding one
+    // tape-count choice remains inside the engine's 64-candidate gate.
+    let mut source_case: serde_json::Value =
+        serde_json::from_str(include_str!("../../../benchmarks/coupled/oc-020.json")).unwrap();
+    source_case["choices"]["turns_along_normal"] = serde_json::json!([120, 160]);
+    source_case["choices"]["tapes_along_width"] = serde_json::json!([3, 4]);
+    let source = serde_json::to_string_pretty(&source_case).unwrap();
+    let case = CoupledSearchCase::from_json(&source).expect("graded benchmark case");
+    let ctx = egui::Context::default();
+    let mut app = Workbench::new(&ctx).expect("headless workbench");
+    app.search_case = Some(case);
+    app.search_json = source.clone();
+    app.study_workspace = StudyWorkspace::new("graded decision study");
+    app.study_session = StudyEngineSession::default();
+    app.register_active_variant();
+    let base_id = app
+        .study_variant_id
+        .clone()
+        .expect("registered case variant");
+    assert_eq!(
+        app.study_workspace.variant(&base_id).unwrap().case_json,
+        source
+    );
+
+    let followup = app
+        .study_workspace
+        .propose_followup(&base_id, FollowUpAxis::TapesAlongWidth)
+        .unwrap();
+    assert!(!followup.calculated);
+    assert!(
+        !followup.requirements_changed
+            && !followup.numerical_gates_changed
+            && !followup.limits_changed
+    );
+    let proposed: serde_json::Value = serde_json::from_str(&followup.proposed_case_json).unwrap();
+    let original: serde_json::Value = serde_json::from_str(&source).unwrap();
+    for key in ["requirement", "material", "tape_specs", "grading", "limits"] {
+        assert_eq!(proposed[key], original[key], "follow-up altered {key}");
+    }
+
+    let variant_id = app
+        .study_workspace
+        .add_variant(
+            "tape-count follow-up",
+            followup.proposed_case_json,
+            Vec::new(),
+            CoupledSearchOptions { threads: Some(2) },
+        )
+        .unwrap();
+    let before_key =
+        optcoil_search::study::exact_input_key(app.study_workspace.variant(&base_id).unwrap())
+            .unwrap();
+    let after_key =
+        optcoil_search::study::exact_input_key(app.study_workspace.variant(&variant_id).unwrap())
+            .unwrap();
+    assert_ne!(
+        before_key, after_key,
+        "follow-up inputs must miss the live exact-input cache"
+    );
+
+    let json = app.study_workspace.to_json().unwrap();
+    let reopened = StudyWorkspace::from_json(&json).unwrap();
+    assert_eq!(reopened.variants.len(), 2);
+    assert_eq!(reopened.variant(&base_id).unwrap().case_json, source);
+    assert_eq!(
+        reopened.variant(&variant_id).unwrap().case_json,
+        app.study_workspace.variant(&variant_id).unwrap().case_json
+    );
+}
+
+#[test]
+fn accepted_followup_variant_runs_without_a_second_manual_run() {
+    let ctx = egui::Context::default();
+    let mut app = Workbench::new(&ctx).expect("headless workbench");
+    wait_for_idle(&mut app, &ctx);
+
+    // Keep the measured, attributed first-study fixture and all of its
+    // numerical gates, but bound the run to four candidates. The two-turn
+    // baseline remains declared, and the follow-up adds one tape choice.
+    let mut case: serde_json::Value =
+        serde_json::from_str(include_str!("../../../benchmarks/coupled/first-study.json")).unwrap();
+    case["choices"]["turns_along_normal"] = serde_json::json!([1, 2]);
+    case["baseline"]["turns_along_normal"] = serde_json::json!(2);
+    let case_json = serde_json::to_string_pretty(&case).unwrap();
+    let loaded = load_project_json(case_json, PathBuf::from("bounded-first-study.json"))
+        .expect("bounded attributed measured case remains valid");
+    app.apply_result(&ctx, Ok(loaded));
+    wait_for_idle(&mut app, &ctx);
+
+    let base_id = app
+        .study_variant_id
+        .clone()
+        .expect("bounded case was registered as a study variant");
+    app.study_workspace
+        .variant_mut(&base_id)
+        .unwrap()
+        .options
+        .threads = Some(2);
+
+    let proposal = app
+        .study_workspace
+        .propose_followup(&base_id, FollowUpAxis::TapesAlongWidth)
+        .expect("bounded measured fixture supports a tape-count follow-up");
+    assert!(
+        proposal.preflight.ready_to_run,
+        "{:?}",
+        proposal.preflight.errors
+    );
+    assert!(proposal.preflight.workload.candidate_count <= 4);
+
+    // This is the same accepted action used by the Study page button. The
+    // activation callback must continue directly into the search worker.
+    app.create_study_follow_up(proposal);
+    assert!(
+        app.study_summary.is_none(),
+        "a new input must not display the source variant's verdict"
+    );
+    let followup_id = app
+        .study_variant_id
+        .clone()
+        .expect("follow-up variant selected immediately");
+    assert!(app.worker.is_some(), "variant activation should be queued");
+    wait_for_idle(&mut app, &ctx);
+
+    let variant = app.study_workspace.variant(&followup_id).unwrap();
+    assert_eq!(
+        variant.results.len(),
+        1,
+        "accepted follow-up should finish a search"
+    );
+    let record = app
+        .search_record
+        .as_ref()
+        .expect("completed result is visible");
+    assert_eq!(record.case.id, "first-study-measured-racetrack");
+    let proposed = CoupledSearchCase::from_json(&variant.case_json).unwrap();
+    assert_eq!(
+        record.case.choices.tapes_along_width,
+        proposed.choices.tapes_along_width
+    );
+
+    // Activating the retained variant restores its exact current result for
+    // the Results page without seeding the process-local calculation cache.
+    app.study_session = StudyEngineSession::default();
+    app.activate_study_variant(followup_id.clone());
+    wait_for_idle(&mut app, &ctx);
+    assert!(
+        app.search_record.is_some(),
+        "activation should restore saved evidence"
+    );
+    let active = app.study_workspace.variant(&followup_id).unwrap().clone();
+    assert!(app.study_session.cached_result(&active).unwrap().is_none());
+
+    // Reopening the serialized workspace follows the same exact-binding
+    // restoration path and still leaves the live cache empty.
+    let reopened = StudyWorkspace::from_json(&app.study_workspace.to_json().unwrap()).unwrap();
+    app.apply_result(
+        &ctx,
+        Ok(JobResult::WorkspaceLoaded(
+            Box::new(reopened),
+            PathBuf::from("bounded-followup.study.json"),
+        )),
+    );
+    assert!(
+        app.search_record.is_some(),
+        "workspace open should restore saved evidence"
+    );
+    let active = app.study_workspace.variant(&followup_id).unwrap().clone();
+    assert!(app.study_session.cached_result(&active).unwrap().is_none());
+}
+
+#[test]
 fn graded_field_map_workflow_keeps_all_external_spec_bundles() {
     let ctx = egui::Context::default();
     let mut app = Workbench::new(&ctx).expect("headless workbench");
@@ -265,10 +441,17 @@ fn graded_field_map_workflow_keeps_all_external_spec_bundles() {
         "external spec dependencies must be unresolved before loading their bundles"
     );
     assert_eq!(app.unresolved_dataset_bindings().len(), 2);
+    wait_for_idle(&mut app, &ctx); // loading the case schedules its cached diagnosis
     app.start(&ctx);
     assert!(
         app.worker.is_none(),
-        "missing dependencies must gate search"
+        "missing dependencies must gate search; preflight={:?}, unresolved={:?}, message={:?}",
+        app.preflight.as_ref().map(|p| (
+            p.ready_to_run,
+            p.errors.iter().map(|e| e.code.clone()).collect::<Vec<_>>()
+        )),
+        app.unresolved_dataset_bindings(),
+        app.message
     );
     assert!(app.message.0, "missing dependencies should be explained");
 
@@ -364,6 +547,7 @@ fn graded_field_map_workflow_keeps_all_external_spec_bundles() {
     );
     assert!(app.unresolved_dataset_bindings().is_empty());
 
+    wait_for_idle(&mut app, &ctx);
     app.start(&ctx);
     wait_for_idle(&mut app, &ctx);
     assert!(app.search_record.is_some(), "{}", app.message.1);

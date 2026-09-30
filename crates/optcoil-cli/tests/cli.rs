@@ -848,7 +848,7 @@ fn coupled_search_cli_runs_on_a_reduced_case_and_protects_saved_evidence() {
         .output()
         .unwrap();
     let stdout: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(stdout["schema"], "optcoil-coupled-search-run/v25");
+    assert_eq!(stdout["schema"], "optcoil-coupled-search-run/v26");
     assert_eq!(stdout["candidates"].as_array().unwrap().len(), 2);
     assert_eq!(stdout["baseline_index"], 1); // 60-turn geometry is index 1
     let bytes = fs::read(&output_path).unwrap();

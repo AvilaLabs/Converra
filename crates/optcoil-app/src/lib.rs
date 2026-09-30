@@ -17,12 +17,10 @@ use optcoil_search::{
     RunRecord, acceptance,
     bakeoff::{BakeoffRecord, run_bakeoff},
     bom::{BomRecord, bom_from_record},
-    coupled_search::{
-        CoupledSearchOptions, CoupledSearchRunRecord, SearchProgress,
-        run_coupled_search_case_with_datasets_progress,
-    },
+    coupled_search::{CoupledSearchOptions, CoupledSearchRunRecord, SearchProgress},
     gradereport::{GradingReport, grade_report_from_record},
     sensitivity::SensitivitySweepRecord,
+    study::{StudyEngineSession, StudyWorkspace},
     verify::{self, CheckLine},
 };
 // Searches launch only on native builds — the browser refuses them
@@ -72,7 +70,7 @@ pub fn run_native() -> eframe::Result {
     )
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Hash, Debug)]
 enum Page {
     Overview,
     Materials,
@@ -81,6 +79,7 @@ enum Page {
     /// BOM, margin frontier, vendor bake-off, integrity verify.
     Reports,
     Integrations,
+    Study,
 }
 #[derive(Clone, Copy, PartialEq)]
 // Some variants exist only for the native build — searches, queue and
@@ -95,6 +94,7 @@ enum JobKind {
     Bakeoff,
     Profile,
     Queue,
+    Workspace,
 }
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 enum JobResult {
@@ -109,6 +109,16 @@ enum JobResult {
     SourceCaseLoaded(String, PathBuf),
     Calculated(Box<RunRecord>),
     SearchCompleted(Box<CoupledSearchRunRecord>),
+    StudySearchCompleted(
+        Box<(
+            StudyWorkspace,
+            StudyEngineSession,
+            bool,
+            Result<CoupledSearchRunRecord, String>,
+        )>,
+    ),
+    #[cfg(target_arch = "wasm32")]
+    BrowserStudySearchCompleted(Box<(StudyWorkspace, CoupledSearchRunRecord, bool)>),
     /// A material dataset bundle the user picked explicitly (coupled mode).
     DatasetLoaded(Box<MaterialBundle>, PathBuf, Option<String>),
     Exported(PathBuf),
@@ -131,6 +141,17 @@ enum JobResult {
     Queued(Vec<PathBuf>),
     /// A save path chosen for the pending viewport screenshot.
     ScreenshotPathPicked(PathBuf),
+    WorkspaceLoaded(Box<StudyWorkspace>, PathBuf),
+    WorkspaceWritten(PathBuf),
+    StudySummaryReady(Box<optcoil_search::study::StudySummary>),
+    StudyCompareReady(
+        Box<(
+            optcoil_search::study::StudyDiff,
+            optcoil_search::study::StudySummary,
+            optcoil_search::study::StudySummary,
+        )>,
+    ),
+    StudyVariantLoaded(Box<(String, String, Vec<String>)>),
     Dismissed,
 }
 
@@ -289,9 +310,14 @@ struct Workbench {
     preflight: Option<optcoil_search::preflight::StudyPreflight>,
     /// The coupled-search case builder window, while open.
     author: Option<author::CaseDraft>,
+    edit_variant: Option<String>,
+    importing_workspace: bool,
+    launch_after_variant: bool,
     search_record: Option<CoupledSearchRunRecord>,
     selected_candidate: usize,
     worker: Option<Worker>,
+    #[cfg(target_arch = "wasm32")]
+    browser_search_worker: Option<web_sys::Worker>,
     /// Live field-evaluation progress for a running coupled search —
     /// shared with the worker; cleared when the job lands.
     search_progress: Option<Arc<SearchProgress>>,
@@ -355,6 +381,18 @@ struct Workbench {
     /// Serialized JSON of the loaded coupled-search record — BOM,
     /// gradereport and verify all re-parse the record artifact itself.
     search_record_json: String,
+    study_workspace: StudyWorkspace,
+    study_session: StudyEngineSession,
+    study_variant_id: Option<String>,
+    study_compare_left: Option<String>,
+    study_compare_right: Option<String>,
+    study_follow_up: Option<optcoil_search::study::FollowUpExperiment>,
+    study_summary: Option<optcoil_search::study::StudySummary>,
+    study_diff: Option<optcoil_search::study::StudyDiff>,
+    study_compare_summary: Option<(
+        optcoil_search::study::StudySummary,
+        optcoil_search::study::StudySummary,
+    )>,
     /// Decision artifacts derived from the loaded record — computed once
     /// on arrival, not per frame.
     bom_record: Option<BomRecord>,
@@ -395,6 +433,33 @@ impl Workbench {
                 .as_ref()
                 .filter(|source| source.dataset.metadata.id == dataset_id)
         })
+    }
+
+    fn install_workspace_bundles(&mut self, bundles: &[String]) {
+        let base_id = self
+            .search_case
+            .as_ref()
+            .map(|case| case.material.dataset_id.clone());
+        self.search_dataset = None;
+        self.search_spec_datasets.clear();
+        for json in bundles {
+            let Ok(bundle) = MaterialBundle::from_json(json) else {
+                continue;
+            };
+            let id = bundle.dataset.metadata.id.clone();
+            let source = DatasetSource {
+                dataset: bundle.dataset,
+                origin: DatasetOrigin::File(PathBuf::from(format!("workspace/{id}.json"))),
+                attestation: bundle.attestation,
+                bundle_json: Some(json.clone()),
+            };
+            if base_id.as_deref() == Some(id.as_str()) {
+                self.search_dataset = Some(source);
+            } else {
+                self.search_spec_datasets.insert(id, source);
+            }
+        }
+        self.refresh_preflight();
     }
 
     /// Retain only external sources whose dataset id and CSV hash still
@@ -519,9 +584,14 @@ impl Workbench {
             search_spec_datasets: std::collections::BTreeMap::new(),
             preflight: None,
             author: None,
+            edit_variant: None,
+            importing_workspace: false,
+            launch_after_variant: false,
             search_record: None,
             selected_candidate: 0,
             worker: None,
+            #[cfg(target_arch = "wasm32")]
+            browser_search_worker: None,
             search_progress: None,
             path: None,
             max_evaluations: 100_000,
@@ -552,6 +622,15 @@ impl Workbench {
             screenshot_target: None,
             ctx: ctx.clone(),
             search_record_json: String::new(),
+            study_workspace: StudyWorkspace::new("Engineering study"),
+            study_session: StudyEngineSession::default(),
+            study_variant_id: None,
+            study_compare_left: None,
+            study_compare_right: None,
+            study_follow_up: None,
+            study_summary: None,
+            study_diff: None,
+            study_compare_summary: None,
             bom_record: None,
             decision_summary: None,
             grade_report: None,
@@ -652,18 +731,89 @@ impl Workbench {
     }
 
     fn edit_case(&mut self, duplicate: bool) {
-        let Some(case) = self.search_case.as_ref() else {
+        let Some(_) = self.search_case.as_ref() else {
             return;
         };
         let draft = if duplicate {
-            author::CaseDraft::duplicate(case)
+            self.edit_variant = None;
+            author::CaseDraft::duplicate_json(&self.search_json)
         } else {
+            self.edit_variant = self.study_variant_id.clone();
             let json = self.case_json().unwrap_or_default();
             author::CaseDraft::revision(&json)
         };
         match draft {
-            Ok(draft) => self.author = Some(draft),
+            Ok(mut draft) => {
+                let cached_materials = self
+                    .all_dataset_sources()
+                    .into_values()
+                    .map(|source| {
+                        (
+                            source.dataset.metadata.id.clone(),
+                            source.dataset.metadata.csv_sha256.clone(),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                draft.set_material_choices(cached_materials);
+                self.author = Some(draft);
+            }
             Err(error) => self.message = (true, error),
+        }
+    }
+
+    /// Bind the current loaded case and its exact external bundle bytes to
+    /// the workspace. A revision updates its named variant while retaining
+    /// historical results; a new or duplicate case gets a new variant.
+    fn register_active_variant(&mut self) {
+        if self.importing_workspace {
+            return;
+        }
+        let Some(case_json) = self.case_json() else {
+            return;
+        };
+        let bundles = self
+            .all_dataset_sources()
+            .into_values()
+            .filter_map(|source| source.bundle_json)
+            .collect::<Vec<_>>();
+        let selected = self.edit_variant.take().or_else(|| {
+            self.study_workspace
+                .variants
+                .iter()
+                .find(|v| v.case_json == case_json && v.dataset_bundles == bundles)
+                .map(|v| v.id.clone())
+        });
+        if let Some(id) = selected
+            && self.study_workspace.variant(&id).is_ok()
+        {
+            let options = self
+                .study_workspace
+                .variant(&id)
+                .map(|v| v.options)
+                .unwrap_or_default();
+            if self
+                .study_workspace
+                .revise_variant(&id, case_json.clone(), bundles.clone(), options)
+                .is_ok()
+            {
+                self.study_variant_id = Some(id.clone());
+                let _ = self.study_workspace.select_variant(&id);
+                return;
+            }
+        }
+        let name = self
+            .search_case
+            .as_ref()
+            .map_or_else(|| "Study variant".into(), |case| case.id.clone());
+        if let Ok(id) = self.study_workspace.add_variant(
+            name,
+            case_json,
+            bundles.clone(),
+            CoupledSearchOptions {
+                threads: cfg!(target_arch = "wasm32").then_some(1),
+            },
+        ) {
+            self.study_variant_id = Some(id);
         }
     }
 
@@ -713,27 +863,31 @@ impl Workbench {
     fn launch_search_worker(
         &mut self,
         ctx: &egui::Context,
-        json: String,
-        datasets: std::collections::BTreeMap<String, MaterialDataset>,
+        workspace_json: String,
+        variant_id: String,
     ) {
         use wasm_bindgen::JsCast as _;
         if self.worker.is_some() {
             return;
         }
-        let options = web_sys::WorkerOptions::new();
-        options.set_type(web_sys::WorkerType::Module);
-        let web_worker = match web_sys::Worker::new_with_options("./worker.js", &options) {
-            Ok(w) => w,
-            Err(e) => {
-                self.message = (
-                    true,
-                    format!(
-                        "could not start the search worker ({:?}) — serve the built bundle, or use the desktop build",
-                        e
-                    ),
-                );
-                self.package_after_search = false;
-                return;
+        let web_worker = if let Some(worker) = self.browser_search_worker.take() {
+            worker
+        } else {
+            let options = web_sys::WorkerOptions::new();
+            options.set_type(web_sys::WorkerType::Module);
+            match web_sys::Worker::new_with_options("./worker.js", &options) {
+                Ok(w) => w,
+                Err(e) => {
+                    self.message = (
+                        true,
+                        format!(
+                            "could not start the search worker ({:?}) — serve the built bundle, or use the desktop build",
+                            e
+                        ),
+                    );
+                    self.package_after_search = false;
+                    return;
+                }
             }
         };
         let (sender, receiver) = mpsc::channel();
@@ -757,6 +911,20 @@ impl Workbench {
                                 .map_err(|e| e.to_string())?;
                                 Ok(JobResult::SearchCompleted(Box::new(record)))
                             }
+                            Some("study_ok") => {
+                                let workspace = optcoil_search::study::StudyWorkspace::from_json(
+                                    payload["workspace_json"].as_str().unwrap_or_default(),
+                                )
+                                .map_err(|e| e.to_string())?;
+                                let record = serde_json::from_str(
+                                    payload["record"].as_str().unwrap_or_default(),
+                                )
+                                .map_err(|e| e.to_string())?;
+                                let cache_hit = payload["cache_hit"].as_bool().unwrap_or(false);
+                                Ok(JobResult::BrowserStudySearchCompleted(Box::new((
+                                    workspace, record, cache_hit,
+                                ))))
+                            }
                             _ => Err(payload["error"]
                                 .as_str()
                                 .unwrap_or("worker error")
@@ -775,8 +943,9 @@ impl Workbench {
         ) as Box<dyn FnMut(_)>);
         web_worker.set_onerror(Some(onerror.as_ref().unchecked_ref()));
         let payload = serde_json::json!({
-            "case_json": json,
-            "datasets_json": serde_json::to_string(&datasets).ok(),
+            "kind": "study-search",
+            "workspace_json": workspace_json,
+            "variant_id": variant_id,
         });
         if let Err(error) =
             web_worker.post_message(&wasm_bindgen::JsValue::from_str(&payload.to_string()))
@@ -883,6 +1052,15 @@ impl Workbench {
         #[cfg(target_arch = "wasm32")]
         {
             if self.search_case.is_some() {
+                if let Some(id) = self.study_variant_id.as_ref()
+                    && self
+                        .study_workspace
+                        .variant(id)
+                        .is_ok_and(|variant| variant.options.threads != Some(1))
+                {
+                    self.message = (true, "Browser worker uses one thread. Review the explicit override on the Engineering study page before running this imported variant.".into());
+                    return;
+                }
                 if self.search_json.is_empty() {
                     return;
                 }
@@ -897,13 +1075,25 @@ impl Workbench {
                     );
                     return;
                 }
-                let json = self.search_json.clone();
-                let datasets = self.resolved_search_datasets();
+                let Some(variant_id) = self.study_variant_id.clone() else {
+                    self.message = (
+                        true,
+                        "The current case could not be bound to a study variant.".into(),
+                    );
+                    return;
+                };
+                let workspace_json = match self.study_workspace.to_json() {
+                    Ok(json) => json,
+                    Err(error) => {
+                        self.message = (true, format!("Could not serialize study inputs: {error}"));
+                        return;
+                    }
+                };
                 self.message = (
                     false,
                     "Searching in a browser worker — single-threaded, so a real grid takes a while; the page stays responsive…".into(),
                 );
-                self.launch_search_worker(ctx, json, datasets);
+                self.launch_search_worker(ctx, workspace_json, variant_id);
             }
             return;
         }
@@ -913,7 +1103,6 @@ impl Workbench {
                 // A record view has no source case bytes to hash and run.
                 return;
             }
-            let json = self.search_json.clone();
             let missing = self.unresolved_dataset_bindings();
             if !missing.is_empty() {
                 self.message = (
@@ -925,7 +1114,15 @@ impl Workbench {
                 );
                 return;
             }
-            let datasets = self.resolved_search_datasets();
+            let Some(variant_id) = self.study_variant_id.clone() else {
+                self.message = (
+                    true,
+                    "The current case could not be bound to a study variant.".into(),
+                );
+                return;
+            };
+            let mut workspace = self.study_workspace.clone();
+            let mut session = std::mem::take(&mut self.study_session);
             self.message = (
                 false,
                 "Running coupled candidate search — every geometry is screened against the requirement…".into(),
@@ -933,15 +1130,35 @@ impl Workbench {
             let progress = Arc::new(SearchProgress::new());
             self.search_progress = Some(progress.clone());
             self.launch(ctx, JobKind::Search, move |cancel| {
-                run_coupled_search_case_with_datasets_progress(
-                    &json,
-                    &CoupledSearchOptions { threads: None },
-                    &datasets,
-                    &cancel,
-                    Some(&progress),
-                )
-                .map(|r| JobResult::SearchCompleted(Box::new(r)))
-                .map_err(|e| e.to_string())
+                let cache_hit = workspace
+                    .variant(&variant_id)
+                    .ok()
+                    .and_then(|variant| session.cached_result(variant).ok())
+                    .flatten()
+                    .is_some();
+                let outcome = session
+                    .run_variant_with(&mut workspace, &variant_id, &cancel, Some(&progress))
+                    .map_err(|e| e.to_string())
+                    .and_then(|result_id| {
+                        workspace
+                            .variant(&variant_id)
+                            .map_err(|e| e.to_string())
+                            .and_then(|variant| {
+                                variant
+                                    .results
+                                    .iter()
+                                    .find(|result| result.id == result_id)
+                                    .ok_or_else(|| {
+                                        "Study runner returned no attached result.".to_owned()
+                                    })
+                            })
+                    })
+                    .and_then(|result| {
+                        serde_json::from_str(&result.record_json).map_err(|e| e.to_string())
+                    });
+                Ok(JobResult::StudySearchCompleted(Box::new((
+                    workspace, session, cache_hit, outcome,
+                ))))
             });
             return;
         }
@@ -1846,6 +2063,270 @@ impl Workbench {
         });
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
+    fn open_study_workspace(&mut self, ctx: &egui::Context) {
+        self.launch(ctx, JobKind::Workspace, move |_| {
+            let Some(path) = rfd::FileDialog::new()
+                .set_title("Open engineering study workspace")
+                .add_filter("Converra study workspace", &["json"])
+                .pick_file()
+            else {
+                return Ok(JobResult::Dismissed);
+            };
+            let json = fs::read_to_string(&path)
+                .map_err(|e| format!("Cannot open {}: {e}", path.display()))?;
+            let workspace = StudyWorkspace::from_json(&json).map_err(|e| e.to_string())?;
+            Ok(JobResult::WorkspaceLoaded(Box::new(workspace), path))
+        });
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn open_study_workspace(&mut self, ctx: &egui::Context) {
+        self.launch_wasm(ctx, JobKind::Workspace, async move {
+            let Some((name, bytes)) = web::pick_bytes(&["json"]).await? else {
+                return Ok(JobResult::Dismissed);
+            };
+            let json = String::from_utf8(bytes).map_err(|e| format!("Cannot read {name}: {e}"))?;
+            let workspace = StudyWorkspace::from_json(&json).map_err(|e| e.to_string())?;
+            Ok(JobResult::WorkspaceLoaded(
+                Box::new(workspace),
+                PathBuf::from(name),
+            ))
+        });
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn save_study_workspace(&mut self, ctx: &egui::Context) {
+        let workspace = self.study_workspace.clone();
+        self.launch(ctx, JobKind::Workspace, move |_| {
+            let json = workspace.to_json().map_err(|e| e.to_string())?;
+            let Some(path) = rfd::FileDialog::new()
+                .set_title("Save engineering study workspace")
+                .add_filter("Converra study workspace", &["json"])
+                .set_file_name("converra-study.json")
+                .save_file()
+            else {
+                return Ok(JobResult::Dismissed);
+            };
+            use std::io::Write;
+            let mut file = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&path)
+                .map_err(|e| {
+                    format!(
+                        "Save failed: {e}. Choose a new filename; the source is never overwritten."
+                    )
+                })?;
+            file.write_all(json.as_bytes())
+                .map_err(|e| format!("Save failed: {e}"))?;
+            Ok(JobResult::WorkspaceWritten(path))
+        });
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn save_study_workspace(&mut self, ctx: &egui::Context) {
+        let workspace = self.study_workspace.clone();
+        self.launch_wasm(ctx, JobKind::Workspace, async move {
+            let json = workspace.to_json().map_err(|e| e.to_string())?;
+            web::download_bytes("converra-study.json", json.as_bytes());
+            Ok(JobResult::WorkspaceWritten(PathBuf::from(
+                "converra-study.json",
+            )))
+        });
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn refresh_study_summary(&mut self) {
+        let Some(id) = self.study_variant_id.clone() else {
+            self.study_summary = None;
+            return;
+        };
+        let workspace = self.study_workspace.clone();
+        let ctx = self.ctx.clone();
+        self.launch(&ctx, JobKind::Workspace, move |_| {
+            workspace
+                .compact_summary(&id)
+                .map(|summary| JobResult::StudySummaryReady(Box::new(summary)))
+                .map_err(|e| e.to_string())
+        });
+    }
+
+    /// Show the latest retained result only when it belongs to this exact
+    /// variant input. Loading it into the UI does not populate the live
+    /// engine session cache; only a completed run can do that.
+    fn restore_current_study_result(&mut self, ctx: &egui::Context, id: &str) -> bool {
+        use sha2::{Digest, Sha256};
+
+        let Some(record) = self.study_workspace.variant(id).ok().and_then(|variant| {
+            let exact_key = optcoil_search::study::exact_input_key(variant).ok()?;
+            let case_sha = format!("{:x}", Sha256::digest(variant.case_json.as_bytes()));
+            variant
+                .results
+                .iter()
+                .enumerate()
+                .filter(|(_, result)| {
+                    result.exact_input_key == exact_key && result.case_sha256 == case_sha
+                })
+                .max_by_key(|(index, result)| (result.attached_unix_ms, *index))
+                .and_then(|(_, result)| serde_json::from_str(&result.record_json).ok())
+        }) else {
+            return false;
+        };
+
+        self.importing_workspace = true;
+        self.apply_result(ctx, Ok(JobResult::SearchCompleted(Box::new(record))));
+        self.importing_workspace = false;
+        true
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn request_study_diff(&mut self, left: String, right: String) {
+        let workspace = self.study_workspace.clone();
+        let ctx = self.ctx.clone();
+        self.launch(&ctx, JobKind::Workspace, move |_| {
+            let diff = workspace
+                .case_diff(&left, &right)
+                .map_err(|e| e.to_string())?;
+            let a = workspace
+                .compact_summary(&left)
+                .map_err(|e| e.to_string())?;
+            let b = workspace
+                .compact_summary(&right)
+                .map_err(|e| e.to_string())?;
+            Ok(JobResult::StudyCompareReady(Box::new((diff, a, b))))
+        });
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn request_study_diff(&mut self, left: String, right: String) {
+        let workspace = self.study_workspace.clone();
+        let ctx = self.ctx.clone();
+        self.launch_wasm(&ctx, JobKind::Workspace, async move {
+            let diff = workspace
+                .case_diff(&left, &right)
+                .map_err(|e| e.to_string())?;
+            let a = workspace
+                .compact_summary(&left)
+                .map_err(|e| e.to_string())?;
+            let b = workspace
+                .compact_summary(&right)
+                .map_err(|e| e.to_string())?;
+            Ok(JobResult::StudyCompareReady(Box::new((diff, a, b))))
+        });
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn activate_study_variant(&mut self, id: String) {
+        if self.worker.is_some() {
+            return;
+        }
+        let Ok(variant) = self.study_workspace.variant(&id) else {
+            return;
+        };
+        let case_json = variant.case_json.clone();
+        let bundles = variant.dataset_bundles.clone();
+        let ctx = self.ctx.clone();
+        self.launch(&ctx, JobKind::Workspace, move |_| {
+            CoupledSearchCase::from_json(&case_json).map_err(|e| e.to_string())?;
+            Ok(JobResult::StudyVariantLoaded(Box::new((
+                id, case_json, bundles,
+            ))))
+        });
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn activate_study_variant(&mut self, id: String) {
+        if self.worker.is_some() {
+            return;
+        }
+        let Ok(variant) = self.study_workspace.variant(&id) else {
+            return;
+        };
+        let case_json = variant.case_json.clone();
+        let bundles = variant.dataset_bundles.clone();
+        let ctx = self.ctx.clone();
+        self.launch_wasm(&ctx, JobKind::Workspace, async move {
+            CoupledSearchCase::from_json(&case_json).map_err(|e| e.to_string())?;
+            Ok(JobResult::StudyVariantLoaded(Box::new((
+                id, case_json, bundles,
+            ))))
+        });
+    }
+
+    fn create_study_follow_up(&mut self, experiment: optcoil_search::study::FollowUpExperiment) {
+        let Ok(source) = self
+            .study_workspace
+            .variant(&experiment.source_variant_id)
+            .cloned()
+        else {
+            return;
+        };
+        let name = format!("{} follow-up", source.name);
+        match self.study_workspace.add_variant(
+            name,
+            experiment.proposed_case_json.clone(),
+            source.dataset_bundles,
+            source.options,
+        ) {
+            Ok(id) => {
+                self.study_follow_up = None;
+                self.study_summary = None;
+                self.study_diff = None;
+                self.study_compare_summary = None;
+                self.study_variant_id = Some(id.clone());
+                let _ = self.study_workspace.select_variant(&id);
+                self.activate_study_variant(id);
+                self.launch_after_variant = true;
+                self.refresh_study_summary();
+            }
+            Err(error) => self.message = (true, error.to_string()),
+        }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn apply_browser_thread_override(&mut self) {
+        let Some(id) = self.study_variant_id.clone() else {
+            return;
+        };
+        let Ok(variant) = self.study_workspace.variant(&id).map(Clone::clone) else {
+            return;
+        };
+        let mut options = variant.options;
+        if options.threads == Some(1) {
+            return;
+        }
+        options.threads = Some(1);
+        match self.study_workspace.revise_variant(
+            &id,
+            variant.case_json,
+            variant.dataset_bundles,
+            options,
+        ) {
+            Ok(()) => {
+                self.message = (false, "Browser execution override applied: one thread. The changed options create a new exact-input identity; saved results remain historical.".into());
+                self.refresh_study_summary();
+            }
+            Err(error) => self.message = (true, error.to_string()),
+        }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn refresh_study_summary(&mut self) {
+        let Some(id) = self.study_variant_id.clone() else {
+            self.study_summary = None;
+            return;
+        };
+        let workspace = self.study_workspace.clone();
+        let ctx = self.ctx.clone();
+        self.launch_wasm(&ctx, JobKind::Workspace, async move {
+            workspace
+                .compact_summary(&id)
+                .map(|summary| JobResult::StudySummaryReady(Box::new(summary)))
+                .map_err(|e| e.to_string())
+        });
+    }
+
     /// Browser: the authored case downloads; it opens in-place too, the
     /// same as a saved-then-reopened file.
     #[cfg(target_arch = "wasm32")]
@@ -1867,6 +2348,20 @@ impl Workbench {
             Err(TryRecvError::Empty) => return,
             Err(TryRecvError::Disconnected) => Err("Background task stopped unexpectedly.".into()),
         };
+        #[cfg(target_arch = "wasm32")]
+        let keep_browser_worker = matches!(&result, Ok(JobResult::BrowserStudySearchCompleted(_)));
+        #[cfg(target_arch = "wasm32")]
+        if keep_browser_worker {
+            if let Some(worker) = self
+                .worker
+                .as_mut()
+                .and_then(|worker| worker.web_worker.take())
+            {
+                worker.set_onmessage(None);
+                worker.set_onerror(None);
+                self.browser_search_worker = Some(worker);
+            }
+        }
         self.worker = None;
         self.search_progress = None;
         self.apply_result(ctx, result);
@@ -1913,6 +2408,8 @@ impl Workbench {
                 self.resolve_case_datasets(&case, &path);
                 self.search_case = Some(case);
                 self.search_json = json;
+                self.study_summary = None;
+                self.register_active_variant();
                 if let Some(previous) = self.search_record.take() {
                     self.compare_record = Some(previous);
                 }
@@ -1954,6 +2451,8 @@ impl Workbench {
                 if auto_start {
                     let ctx = self.ctx.clone();
                     self.start(&ctx);
+                } else if !self.importing_workspace {
+                    self.refresh_study_summary();
                 }
             }
             Ok(JobResult::SourceCaseLoaded(json, path)) => {
@@ -2036,6 +2535,107 @@ impl Workbench {
                     // Chained pilot flow: the record is loaded and shown;
                     // the bundle prompt is the only decision left.
                     self.export_pilot_bundle(ctx);
+                }
+                if !self.importing_workspace {
+                    self.refresh_study_summary();
+                }
+            }
+            #[cfg(target_arch = "wasm32")]
+            Ok(JobResult::BrowserStudySearchCompleted(payload)) => {
+                let (workspace, record, cache_hit) = *payload;
+                self.study_workspace = workspace;
+                self.apply_result(ctx, Ok(JobResult::SearchCompleted(Box::new(record))));
+                if cache_hit {
+                    self.message = (false, "Reused the exact-input result cached by this live browser worker; no new calculation was run.".into());
+                }
+            }
+            Ok(JobResult::StudySearchCompleted(result)) => {
+                let (workspace, session, cache_hit, outcome) = *result;
+                self.study_workspace = workspace;
+                self.study_session = session;
+                match outcome {
+                    Ok(record) => {
+                        self.apply_result(ctx, Ok(JobResult::SearchCompleted(Box::new(record))));
+                        if cache_hit {
+                            self.message = (false, "Reused the exact-input result cached by this live engine session; no new calculation was run.".into());
+                        }
+                    }
+                    Err(error) => {
+                        let is_cancel = error.contains("cancelled");
+                        self.package_after_search = false;
+                        self.message = (!is_cancel, error);
+                    }
+                }
+            }
+            Ok(JobResult::StudySummaryReady(summary)) => {
+                self.study_summary = Some(*summary);
+            }
+            Ok(JobResult::StudyCompareReady(summaries)) => {
+                let (diff, left, right) = *summaries;
+                self.study_diff = Some(diff);
+                self.study_compare_summary = Some((left, right));
+            }
+            Ok(JobResult::WorkspaceLoaded(workspace, path)) => {
+                #[cfg(target_arch = "wasm32")]
+                if let Some(worker) = self.browser_search_worker.take() {
+                    worker.terminate();
+                }
+                self.study_workspace = *workspace;
+                self.study_session = StudyEngineSession::default();
+                let selected = self
+                    .study_workspace
+                    .selected_variant_id
+                    .clone()
+                    .or_else(|| self.study_workspace.variants.first().map(|v| v.id.clone()));
+                self.study_variant_id = selected.clone();
+                if let Some(id) = selected
+                    && let Ok(variant) = self.study_workspace.variant(&id)
+                {
+                    let case_json = variant.case_json.clone();
+                    let bundles = variant.dataset_bundles.clone();
+                    self.importing_workspace = true;
+                    self.apply_result(ctx, load_project_json(case_json, path.clone()));
+                    self.importing_workspace = false;
+                    self.install_workspace_bundles(&bundles);
+                    self.study_variant_id = Some(id.clone());
+                    let _ = self.study_workspace.select_variant(&id);
+                    self.page = Page::Study;
+                    self.restore_current_study_result(ctx, &id);
+                    self.message = (
+                        false,
+                        format!(
+                            "Study workspace opened — {} variant(s); dependency bundles and results retained.",
+                            self.study_workspace.variants.len()
+                        ),
+                    );
+                    self.refresh_study_summary();
+                }
+            }
+            Ok(JobResult::WorkspaceWritten(path)) => {
+                self.message = (
+                    false,
+                    format!("Study workspace saved to {}.", path.display()),
+                );
+            }
+            Ok(JobResult::StudyVariantLoaded(payload)) => {
+                let (id, case_json, bundles) = *payload;
+                self.importing_workspace = true;
+                self.apply_result(
+                    ctx,
+                    load_project_json(case_json, PathBuf::from(format!("{id}.json"))),
+                );
+                self.importing_workspace = false;
+                self.install_workspace_bundles(&bundles);
+                self.study_variant_id = Some(id.clone());
+                let _ = self.study_workspace.select_variant(&id);
+                self.page = Page::Study;
+                self.study_diff = None;
+                if self.launch_after_variant {
+                    self.launch_after_variant = false;
+                    self.start(ctx);
+                } else {
+                    self.restore_current_study_result(ctx, &id);
+                    self.refresh_study_summary();
                 }
             }
             Ok(JobResult::Verified(checks)) => {
@@ -2144,6 +2744,12 @@ impl Workbench {
                         } else {
                             self.search_spec_datasets.insert(dataset_id, source);
                         }
+                        // Dependencies are executable inputs. Keep the exact
+                        // loaded bundle bytes on the selected workspace variant
+                        // before a later Run/Save/Compare can observe it.
+                        self.edit_variant = self.study_variant_id.clone();
+                        self.register_active_variant();
+                        self.refresh_study_summary();
                     }
                     (Some(case), None) => {
                         let expected = case
@@ -2221,14 +2827,25 @@ impl Workbench {
                     self.open(ui.ctx(), None);
                     ui.close();
                 }
+                if ui.add_enabled(self.worker.is_none(), egui::Button::new("Open study workspace…")).clicked() {
+                    self.open_study_workspace(ui.ctx());
+                    ui.close();
+                }
+                if ui.add_enabled(self.worker.is_none() && !self.study_workspace.variants.is_empty(), egui::Button::new("Save study workspace…"))
+                    .on_hover_text("Portable workspace with named cases, exact bundle bytes, options and attached results")
+                    .clicked() {
+                    self.save_study_workspace(ui.ctx());
+                    ui.close();
+                }
                 if ui
                     .add_enabled(
                         self.worker.is_none() && self.author.is_none(),
                         egui::Button::new("New search case…"),
                     )
-                    .on_hover_text("Create a supported coupled-search case; revise loaded cases with the advanced editor")
+                    .on_hover_text("Create a supported case or revise requirement, geometry, pack, material, cost, limits and execution inputs with structured controls; Advanced JSON remains available.")
                     .clicked()
                 {
+                    self.edit_variant = None;
                     self.author = Some(author::CaseDraft::guided());
                     ui.close();
                 }
@@ -2308,11 +2925,11 @@ impl Workbench {
                 if ui
                     .add_enabled(
                         self.search_record.is_some() && self.worker.is_none(),
-                        egui::Button::new("Pilot bundle…"),
+                        egui::Button::new("Export review package…"),
                     )
                     .on_hover_text(
-                        "Write one directory: case.json + record.json + bom.json + rfq.md — the \
-                         auditable package for a reviewer or vendor",
+                        "Includes the case, run record, reports, required dataset bundles, manifest, \
+                         and offline verification instructions",
                     )
                     .clicked()
                 {
@@ -2444,7 +3061,7 @@ impl Workbench {
                     self.worker.is_none() && self.author.is_none(),
                     egui::Button::new("New search case…"),
                 )
-                .on_hover_text("Create a supported coupled-search case; revise loaded cases with the advanced editor")
+                .on_hover_text("Create a supported case or revise requirement, geometry, pack, material, cost, limits and execution inputs with structured controls; Advanced JSON remains available.")
                 .clicked()
             {
                 self.author = Some(author::CaseDraft::guided());
@@ -2494,6 +3111,7 @@ impl Workbench {
                         JobKind::Bakeoff => "Running vendor bake-off…",
                         JobKind::Profile => "Evaluating bore profile…",
                         JobKind::Queue => "Choosing queue files…",
+                        JobKind::Workspace => "Loading or saving study workspace…",
                     },
                 );
                 if worker.kind == JobKind::Search
@@ -2833,6 +3451,7 @@ impl Workbench {
             (Page::Materials, "Materials & operating point"),
             (Page::Checks, "Checks & evidence"),
             (Page::Reports, "Reports & artifacts"),
+            (Page::Study, "Engineering study"),
             (Page::Integrations, "Imports & solvers"),
         ] {
             let y = self.nav_item(ui, page, title);
@@ -3075,6 +3694,7 @@ impl eframe::App for Workbench {
             }
             if closed {
                 self.author = None;
+                self.edit_variant = None;
             }
         }
         if self.page != self.last_page {
@@ -3173,7 +3793,7 @@ impl eframe::App for Workbench {
             let fade =
                 egui::emath::easing::cubic_out(self.anim_progress(self.page_fade_start, 240));
             egui::ScrollArea::vertical()
-                .id_salt("workspace-scroll")
+                .id_salt(("workspace-scroll", self.page))
                 .show(ui, |ui| {
                     ui.set_opacity(fade);
                     ui.add_space((1.0 - fade) * 10.0);
@@ -3200,6 +3820,7 @@ impl eframe::App for Workbench {
                             }
                         }
                         Page::Reports => self.reports(ui),
+                        Page::Study => self.study(ui),
                         Page::Integrations => self.integrations(ui),
                     }
                     if self.show_inspector && !side_inspector {
@@ -3268,6 +3889,10 @@ impl Drop for Workbench {
             if let Some(w) = worker.web_worker.as_ref() {
                 w.terminate();
             }
+        }
+        #[cfg(target_arch = "wasm32")]
+        if let Some(worker) = self.browser_search_worker.take() {
+            worker.terminate();
         }
     }
 }
