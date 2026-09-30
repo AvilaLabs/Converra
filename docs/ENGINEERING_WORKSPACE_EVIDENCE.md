@@ -90,8 +90,12 @@ Page navigation retains each page's own scroll position, so switching from a
 scrolled result view to a new study view keeps its workspace controls visible.
 Each delivered commit must also pass [GitHub CI](https://github.com/AvilaLabs/Converra/actions/workflows/ci.yml).
 The [source history](https://github.com/AvilaLabs/Converra/commits/main/) identifies
-the corresponding delivery commits. No release tag or hosted-browser deployment
-is part of this extension.
+the corresponding delivery commits. The extension is distributed in
+[v0.2.0](https://github.com/AvilaLabs/Converra/releases/tag/v0.2.0); the hosted
+[browser workbench](https://converra.avilalabs.org) is deployed separately from
+the same tested source. Its `/release.json` manifest identifies the deployed
+version, source commit and asset hashes. Release packaging and deployment checks
+supplement the software evidence above; they do not close external validation.
 
 For setup and use, see the [workspace guide](ENGINEERING_WORKSPACE.md) and
 [MCP guide](../crates/optcoil-mcp/README.md).

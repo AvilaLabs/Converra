@@ -32,23 +32,20 @@ Use the desktop workbench to explore designs, the CLI to run reproducible studie
 
 ### Download a release
 
-Prebuilt desktop and CLI binaries are available from [GitHub Releases](https://github.com/AvilaLabs/Converra/releases/latest).
+Prebuilt desktop, CLI and local MCP binaries are available from [GitHub Releases](https://github.com/AvilaLabs/Converra/releases/latest).
 
-| Platform | Desktop | CLI |
+| Platform | Desktop | CLI and MCP |
 | --- | --- | --- |
 | Windows x64 | [ZIP](https://github.com/AvilaLabs/Converra/releases/latest/download/converra-windows-x64.zip) | Included in the same ZIP |
 | macOS Apple Silicon | [App ZIP](https://github.com/AvilaLabs/Converra/releases/latest/download/converra-macos-arm64.zip) | [CLI archive](https://github.com/AvilaLabs/Converra/releases/latest/download/converra-macos-arm64-cli.tar.gz) |
 | macOS Intel | [App ZIP](https://github.com/AvilaLabs/Converra/releases/latest/download/converra-macos-x64.zip) | [CLI archive](https://github.com/AvilaLabs/Converra/releases/latest/download/converra-macos-x64-cli.tar.gz) |
 | Linux x64 | [Archive](https://github.com/AvilaLabs/Converra/releases/latest/download/converra-linux-x64.tar.gz) | Included in the same archive |
 
-Extract the archive and launch `Converra` on Windows/Linux or `Converra.app` on macOS. No Rust installation is needed for these builds. The command-line executable is named `optcoil` (`optcoil.exe` on Windows).
+Extract the archive and launch `Converra` on Windows/Linux or `Converra.app` on macOS. No Rust installation is needed for these builds. The command-line executable is named `optcoil` (`optcoil.exe` on Windows); the MCP server is `optcoil-mcp` (`optcoil-mcp.exe`). Archives include setup guides, examples and dataset attribution. Verify downloaded archives against the release's `SHA256SUMS` file.
 
 The workbench starts with a small attributed measured-conductor study and explicitly illustrative prices. Review **Applicability and work estimate**, run, inspect the decision, then **Revise** or **Duplicate** and export a **Review package**. **Engineering study** keeps named variants, diagnoses, comparisons and saved workspaces together. **File → Examples** also offers the synthetic allocation reference. The guided builder authors supported racetrack and helix cases; loaded cases have structured controls for routine revisions and an advanced JSON editor for other declarations. Linux desktop use requires a graphical session and graphics drivers.
 
 ### Build from source
-
-The engineering workspace and MCP extension are available in the current source.
-Existing release archives and the hosted browser build are updated separately.
 
 Install [Rust with rustup](https://rustup.rs/), then clone the repository. The pinned toolchain is Rust **1.95.0**.
 
@@ -106,7 +103,8 @@ workflow, verification gates and open external engineer validation milestone.
 
 ### Use Converra from an AI agent
 
-Build the local stdio server:
+Use `optcoil-mcp` from the platform's CLI/MCP archive above, or build the local
+stdio server from source:
 
 ```bash
 cargo build --release -p optcoil-mcp

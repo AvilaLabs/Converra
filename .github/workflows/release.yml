@@ -2,7 +2,7 @@ name: release
 
 # Tag a release: `git tag v0.2.0 && git push origin v0.2.0`. Builds the
 # workbench, CLI and local MCP server on every supported platform, packages them (.app on
-# macOS, .zip elsewhere), and attaches everything to a GitHub Release.
+# macOS, .zip/.tar.gz elsewhere), and attaches everything to a draft release.
 #
 # Signing is optional and secret-gated: with no secrets configured the
 # workflow produces unsigned-but-working artifacts. Add the secrets listed
@@ -20,7 +20,28 @@ env:
   WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
 
 jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require matching version and successful source CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release_version="$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["version"])')"
+          test "$GITHUB_REF_NAME" = "v$release_version"
+          release_source_sha="$(git rev-parse HEAD)"
+          gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml \
+            --commit "$release_source_sha" --event push --limit 100 \
+            --json status,conclusion,headSha > source-ci.json
+          jq -e --arg sha "$release_source_sha" \
+            'any(.[]; .headSha == $sha and .status == "completed" and .conclusion == "success")' source-ci.json
+
   build:
+    needs: verify
     strategy:
       fail-fast: false
       matrix:
@@ -47,11 +68,25 @@ jobs:
       WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
       - uses: Swatinem/rust-cache@v2
       - run: rustup target add ${{ matrix.target }}
 
       - name: Build release binaries
         run: cargo build --release --target ${{ matrix.target }} -p optcoil-app -p optcoil-cli -p optcoil-mcp
+
+      - name: Smoke headless binaries
+        shell: bash
+        run: |
+          release_suffix=""
+          if [ "$RUNNER_OS" = "Windows" ]; then release_suffix=".exe"; fi
+          "target/${{ matrix.target }}/release/optcoil$release_suffix" --version
+          "target/${{ matrix.target }}/release/optcoil-mcp$release_suffix" --help
+
+      - name: Stage release guides
+        run: python packaging/stage-guides.py stage
 
       # ---------- macOS: bundle → (sign) → (notarize) → zip ----------
       - name: Bundle Converra.app
@@ -80,10 +115,14 @@ jobs:
       - name: Package for release
         if: runner.os == 'macOS'
         run: |
-          ditto -c -k --keepParent Converra.app "${{ matrix.artifact }}.zip"
+          mkdir app-stage
+          cp -R stage/. app-stage/
+          cp -R Converra.app app-stage/
+          ditto -c -k app-stage "${{ matrix.artifact }}.zip"
           # Headless tools ship beside the app.
-          tar -czf "${{ matrix.artifact }}-cli.tar.gz" \
-            -C "target/${{ matrix.target }}/release" optcoil optcoil-mcp
+          cp "target/${{ matrix.target }}/release/optcoil" stage/
+          cp "target/${{ matrix.target }}/release/optcoil-mcp" stage/
+          tar -czf "${{ matrix.artifact }}-cli.tar.gz" -C stage .
 
       - name: Notarize the app
         if: runner.os == 'macOS' && env.APPLE_ID != ''
@@ -92,7 +131,9 @@ jobs:
             --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" \
             --team-id "$APPLE_TEAM_ID" --wait
           xcrun stapler staple Converra.app
-          ditto -c -k --keepParent Converra.app "${{ matrix.artifact }}.zip"
+          rm -rf app-stage/Converra.app
+          cp -R Converra.app app-stage/
+          ditto -c -k app-stage "${{ matrix.artifact }}.zip"
 
       # ---------- Windows: (sign) → zip ----------
       - name: Import signing certificate
@@ -115,7 +156,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $stage = "stage"; New-Item -ItemType Directory $stage
+          $stage = "stage"
           Copy-Item "target/${{ matrix.target }}/release/optcoil-app.exe" "$stage/Converra.exe"
           Copy-Item "target/${{ matrix.target }}/release/optcoil.exe" "$stage/optcoil.exe"
           Copy-Item "target/${{ matrix.target }}/release/optcoil-mcp.exe" "$stage/optcoil-mcp.exe"
@@ -125,7 +166,6 @@ jobs:
       - name: Package for release
         if: runner.os == 'Linux'
         run: |
-          mkdir stage
           cp "target/${{ matrix.target }}/release/optcoil-app" stage/Converra
           cp "target/${{ matrix.target }}/release/optcoil" stage/
           cp "target/${{ matrix.target }}/release/optcoil-mcp" stage/
@@ -145,13 +185,22 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
-      - name: Create GitHub release
+      - name: Check archive count and create checksums
+        run: |
+          release_archives=(converra-*.zip converra-*.tar.gz)
+          test "${#release_archives[@]}" -eq 6
+          sha256sum "${release_archives[@]}" > SHA256SUMS
+      - name: Create draft GitHub release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             converra-*.zip
             converra-*.tar.gz
-          generate_release_notes: true
+            SHA256SUMS
+          body_path: packaging/releases/${{ github.ref_name }}.md
+          draft: true
+          fail_on_unmatched_files: true

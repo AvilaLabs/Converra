@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased — engineering decision workspace
+## v0.2.0 — engineering decision workspace
+
+### Study workspaces and AI agents
 
 - Shared versioned study workspaces carry named variants, exact input and dataset
   bytes, historical result dependencies, structured diagnoses and decision diffs.
@@ -15,7 +17,7 @@
   candidates. Run schema advances to v26 and search checker identity to v23;
   numerical kernels and engineering gates are unchanged.
 
-## Unreleased — complete supported study workflow
+### Complete supported study workflow
 
 - Measured-conductor startup study with explicit illustrative prices, shared
   CLI/workbench applicability checks, workload estimates and unresolved actions.
@@ -36,6 +38,15 @@
   identity advances to v19; field kernels and numerical gates are unchanged.
 - Complete headless workflow regression and recorded release performance evidence.
   External engineer validation remains an open product milestone.
+
+### Distribution
+
+- Desktop, CLI and MCP archives for Windows x64, Linux x64, and both macOS
+  architectures include setup guides, examples, licenses and dataset attribution.
+- Releases require successful CI for the exact tagged commit, provide SHA-256
+  checksums and remain drafts until the built archives are inspected.
+- The hosted browser build carries a release manifest with its source commit and
+  asset hashes. Browser staging stops on build errors.
 
 ## v0.1.0 — first public release
 

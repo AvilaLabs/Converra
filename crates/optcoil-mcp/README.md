@@ -6,7 +6,10 @@ explicit local workspace directory. It has no remote listener or hosted account.
 
 ## Setup
 
-From the repository root:
+Download the platform's CLI/MCP archive from
+[GitHub Releases](https://github.com/AvilaLabs/Converra/releases/latest) and extract
+`optcoil-mcp` (`optcoil-mcp.exe` on Windows). No Rust installation is needed.
+Alternatively, build from the repository root:
 
 ```bash
 cargo build --release -p optcoil-mcp
@@ -19,7 +22,7 @@ directory. A typical client configuration is:
 {
   "mcpServers": {
     "converra": {
-      "command": "/absolute/path/to/converra/target/release/optcoil-mcp",
+      "command": "/absolute/path/to/optcoil-mcp",
       "args": ["--workspace-dir", "/absolute/path/to/my-converra-study"]
     }
   }

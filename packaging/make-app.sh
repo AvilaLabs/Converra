@@ -8,7 +8,7 @@
 set -euo pipefail
 
 BINARY="${1:?path to the compiled optcoil-app binary}"
-VERSION="${2:?version string, e.g. 0.1.0}"
+VERSION="${2:?version string, e.g. 0.2.0}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 

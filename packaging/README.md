@@ -17,9 +17,25 @@ Artifacts attached to the GitHub Release:
 | `converra-windows-x64.zip` | `Converra.exe`, `optcoil.exe`, `optcoil-mcp.exe` |
 | `converra-linux-x64.tar.gz` | `Converra`, `optcoil`, `optcoil-mcp` |
 
-The MCP server is included starting with the next tagged release. Existing v0.1.0
-archives predate it; build it from source as described in the
-[MCP guide](../crates/optcoil-mcp/README.md).
+MCP is included from v0.2.0. Archives also include setup guides, example inputs,
+the MIT license and dataset attribution. Each release provides `SHA256SUMS`.
+
+The workflow verifies that the tag matches the workspace version and that
+`ci.yml` passed on the exact source commit before building. It creates a draft
+release with all six archives and checksums. Inspect the draft archives and their
+headless executables before publishing the release. Tag the already tested commit;
+do not move a published tag to repair a release.
+
+Build and deploy the browser workbench separately:
+
+```bash
+deploy/web/sync.sh
+cd deploy/web && npx wrangler deploy
+```
+
+Staging fails if Trunk fails. `release.json` records the workspace version, source
+commit, dirty-tree state and SHA-256 of each staged asset. Deploy a clean, tested
+commit, then compare the live manifest and asset hashes with the staged files.
 
 The `.app` bundle is assembled by `packaging/make-app.sh` (Info.plist +
 `icon.icns` generated from the bundled logo via `sips`/`iconutil`). The
@@ -66,7 +82,7 @@ wire it by replacing the "Sign the binaries" step with the
 ```bash
 # macOS (on a Mac):
 cargo build --release -p optcoil-app
-packaging/make-app.sh target/release/optcoil-app 0.1.0
+packaging/make-app.sh target/release/optcoil-app 0.2.0
 open Converra.app
 
 # Windows: the .exe is portable — no packaging needed beyond zipping it.

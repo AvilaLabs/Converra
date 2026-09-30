@@ -1,4 +1,4 @@
-// Local GUI verification through Chrome DevTools Protocol. No package dependencies.
+// GUI verification through Chrome DevTools Protocol. No package dependencies.
 // Start an isolated headless Chromium with --remote-debugging-port=9227, then
 // serve the Trunk build on localhost. Outputs are evidence, not customer validation.
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -74,7 +74,10 @@ try {
   await pause(300);
   if (command === 'navigate') {
     const [url, prefix] = args;
-    if (!/^http:\/\/127\.0\.0\.1:\d+\//.test(url)) throw new Error('Verification navigates only to a local build');
+    const destination = new URL(url);
+    const local = destination.protocol === 'http:' && destination.hostname === '127.0.0.1' && destination.port;
+    const hosted = destination.origin === 'https://converra.avilalabs.org';
+    if (!local && !hosted) throw new Error('Verification requires a local build or the Converra hosted workbench');
     await call('Page.navigate', { url });
     const deadline = Date.now() + 25000;
     while (Date.now() < deadline) {
@@ -82,7 +85,7 @@ try {
       await pause(200);
     }
     if (!await evaluate('document.querySelector("canvas")?.width > 0 && !document.getElementById("converra-loading")')) {
-      throw new Error('The local GUI did not finish loading');
+      throw new Error('The GUI did not finish loading');
     }
     await pause(300);
     await snapshot(prefix);
