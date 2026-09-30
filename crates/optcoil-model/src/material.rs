@@ -144,6 +144,11 @@ pub enum MaterialDataClass {
     /// such a dataset is measured-data-verified; see the dataset's
     /// `limitations` and preparation audit.
     PublishedModelFit,
+    /// Values transformed for a declared sensitivity/what-if analysis.
+    /// Source attribution is retained, but these transformed values are not
+    /// measurements, published fit evaluations, or covered by a source
+    /// attestation.
+    SyntheticSensitivity,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -692,6 +697,34 @@ impl MaterialDataset {
                 "unknown embedded material dataset id: {id}"
             ))),
         }
+    }
+
+    /// Retains an embedded dataset's source metadata and CSV as an unsigned
+    /// portable v1 bundle. The CSV bytes are included verbatim, so the
+    /// declared `csv_sha256` remains the exact source identity.
+    pub fn embedded_bundle_json(id: &str) -> Result<String, ModelError> {
+        let (metadata, csv) = match id {
+            SUPERPOWER_ID => (SUPERPOWER_METADATA, SUPERPOWER_CSV),
+            SUPERPOWER_LOWFIELD_ID => (SUPERPOWER_LOWFIELD_METADATA, SUPERPOWER_LOWFIELD_CSV),
+            SUPERPOWER_MODELEXT_ID => (SUPERPOWER_MODELEXT_METADATA, SUPERPOWER_MODELEXT_CSV),
+            SHANGHAI_HFLT_ID => (SHANGHAI_HFLT_METADATA, SHANGHAI_HFLT_CSV),
+            THEVA_AP_ID => (THEVA_AP_METADATA, THEVA_AP_CSV),
+            FFJ_YBCO_ID => (FFJ_YBCO_METADATA, FFJ_YBCO_CSV),
+            BABOUCHE_SP_ID => (BABOUCHE_SP_METADATA, BABOUCHE_SP_CSV),
+            BABOUCHE_SST_ID => (BABOUCHE_SST_METADATA, BABOUCHE_SST_CSV),
+            BABOUCHE_SP_V2_ID => (BABOUCHE_SP_V2_METADATA, BABOUCHE_SP_V2_CSV),
+            BABOUCHE_SST_V2_ID => (BABOUCHE_SST_V2_METADATA, BABOUCHE_SST_V2_CSV),
+            _ => {
+                return Err(invalid(&format!(
+                    "unknown embedded material dataset id: {id}"
+                )));
+            }
+        };
+        let csv_data = std::str::from_utf8(csv).map_err(|e| invalid(&e.to_string()))?;
+        let quoted_csv = serde_json::to_string(csv_data)?;
+        Ok(format!(
+            "{{\"schema\":\"{MATERIAL_DATASET_BUNDLE_SCHEMA}\",\"metadata\":{metadata},\"csv_data\":{quoted_csv}}}"
+        ))
     }
 
     /// A declared perturbation for sensitivity studies: every measured Ic

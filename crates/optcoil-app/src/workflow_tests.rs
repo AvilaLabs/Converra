@@ -15,6 +15,50 @@ fn wait_for_idle(app: &mut Workbench, ctx: &egui::Context) {
 }
 
 #[test]
+fn robustness_editor_builds_bounded_named_preflight_scenarios() {
+    let ctx = egui::Context::default();
+    let mut app = Workbench::new(&ctx).expect("headless workbench");
+    wait_for_idle(&mut app, &ctx);
+    let variant_id = app
+        .study_variant_id
+        .clone()
+        .expect("bundled measured example is a study variant");
+    app.robustness_variant_ids = vec![variant_id.clone()];
+    app.robustness_scenarios.clear();
+    app.sync_robustness_editor();
+
+    let scenario = app.robustness_scenarios.first().expect("named what-if");
+    assert_eq!(scenario.name, "Supplier price +10%");
+    assert!(!scenario.price_multipliers.is_empty());
+    assert!(
+        scenario
+            .price_multipliers
+            .values()
+            .all(|multiplier| *multiplier == 1.1)
+    );
+    assert!(
+        scenario
+            .ic_multipliers
+            .values()
+            .all(|multiplier| *multiplier == 1.0)
+    );
+    assert_eq!(scenario.temperature_offset_k, 0.0);
+
+    let spec = app.robustness_spec();
+    assert_eq!(spec.scenarios.len(), 2);
+    assert_eq!(spec.scenarios[0].id, "nominal");
+    let preflight = optcoil_search::robustness::robustness_preflight(
+        &app.study_workspace,
+        std::slice::from_ref(&variant_id),
+        &spec,
+    )
+    .expect("bounded named scenario preflight");
+    assert_eq!(preflight.run_count, 2);
+    assert!(preflight.candidate_runs > 0);
+    assert!(!preflight.engineering_acceptance_claim);
+}
+
+#[test]
 fn measured_case_search_revision_and_review_workflow() {
     let ctx = egui::Context::default();
     let mut app = Workbench::new(&ctx).expect("headless workbench");

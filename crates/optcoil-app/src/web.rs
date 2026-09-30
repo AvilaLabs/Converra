@@ -117,6 +117,10 @@ fn run_request(text: &str) -> String {
             Ok((workspace, record, cache_hit)) => serde_json::json!({"status":"study_ok", "workspace_json":workspace, "record":record, "cache_hit":cache_hit}).to_string(),
             Err(error) => serde_json::json!({"status":"err", "error":error}).to_string(),
         },
+        "study-robustness" => match run_study_robustness(&request) {
+            Ok(record) => serde_json::json!({"status":"robustness_ok", "record":record}).to_string(),
+            Err(error) => serde_json::json!({"status":"err", "error":error}).to_string(),
+        },
         _ => match run_search(&request) {
             Ok(record) => serde_json::json!({"status": "ok", "record": record}).to_string(),
             Err(error) => serde_json::json!({"status": "err", "error": error}).to_string(),
@@ -169,6 +173,49 @@ fn run_study_search(request: &serde_json::Value) -> Result<(String, String, bool
         .clone();
     let saved = workspace.to_json().map_err(|e| e.to_string())?;
     Ok((saved, record, cache_hit))
+}
+
+fn run_study_robustness(request: &serde_json::Value) -> Result<String, String> {
+    let workspace_json = request
+        .get("workspace_json")
+        .and_then(|v| v.as_str())
+        .ok_or("what-if worker request lacks workspace_json")?;
+    let variant_ids: Vec<String> = serde_json::from_value(
+        request
+            .get("variant_ids")
+            .cloned()
+            .ok_or("what-if worker request lacks variant_ids")?,
+    )
+    .map_err(|e| format!("what-if variant ids parse: {e}"))?;
+    let spec: optcoil_search::robustness::RobustnessSpec = serde_json::from_value(
+        request
+            .get("spec")
+            .cloned()
+            .ok_or("what-if worker request lacks spec")?,
+    )
+    .map_err(|e| format!("what-if spec parse: {e}"))?;
+    let workspace = optcoil_search::study::StudyWorkspace::from_json(workspace_json)
+        .map_err(|e| e.to_string())?;
+    for id in &variant_ids {
+        if workspace
+            .variant(id)
+            .map_err(|e| e.to_string())?
+            .options
+            .threads
+            != Some(1)
+        {
+            return Err("Browser scenarios require an explicitly reviewed one-thread override for every variant".into());
+        }
+    }
+    let record = optcoil_search::robustness::run_study_robustness(
+        &workspace,
+        &variant_ids,
+        &spec,
+        &std::sync::atomic::AtomicBool::new(false),
+        None,
+    )
+    .map_err(|e| e.to_string())?;
+    serde_json::to_string(&record).map_err(|e| e.to_string())
 }
 
 fn run_search(request: &serde_json::Value) -> Result<String, String> {

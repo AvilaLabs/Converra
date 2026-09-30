@@ -23,7 +23,9 @@ use crate::{
     review::{self, DecisionSummary, InputChange},
 };
 
-pub const STUDY_WORKSPACE_SCHEMA: &str = "optcoil-study-workspace/v1";
+pub const STUDY_WORKSPACE_SCHEMA: &str = "optcoil-study-workspace/v2";
+const LEGACY_STUDY_WORKSPACE_SCHEMA: &str = "optcoil-study-workspace/v1";
+pub const MAX_STUDY_ROBUSTNESS_RESULTS: usize = 3;
 pub const MAX_STUDY_WORKSPACE_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_STUDY_VARIANTS: usize = 64;
 pub const MAX_STUDY_RESULTS_PER_VARIANT: usize = 128;
@@ -50,6 +52,10 @@ pub struct StudyWorkspace {
     pub name: String,
     pub selected_variant_id: Option<String>,
     pub variants: Vec<StudyVariant>,
+    /// Completed scenario evidence is retained after revisions as history;
+    /// only exact source and current engine bindings make it current.
+    #[serde(default)]
+    pub robustness_results: Vec<crate::robustness::RobustnessStudyRecord>,
     #[serde(default)]
     next_variant_number: u64,
 }
@@ -103,8 +109,54 @@ pub struct StudyIssue {
 pub struct StudyDiagnosis {
     pub schema: String,
     pub issues: Vec<StudyIssue>,
+    /// Ranked, deduplicated actions derived from `issues`. Indices refer to
+    /// the unchanged raw issue list above.
+    pub action_groups: Vec<StudyActionGroup>,
     pub follow_up_axes: Vec<FollowUpAxis>,
     pub engineering_acceptance_claim: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StudyActionGroup {
+    /// Stable machine-readable key, normally the source issue code.
+    pub code: String,
+    pub title: String,
+    pub urgency: StudyActionUrgency,
+    pub category: StudyActionCategory,
+    pub scope: StudyActionScope,
+    pub explanation: String,
+    pub next_action: String,
+    pub issue_indices: Vec<usize>,
+    pub affected_candidate_indices: Vec<usize>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum StudyActionUrgency {
+    Blocking,
+    Review,
+    Unperformed,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum StudyActionCategory {
+    Readiness,
+    Requirements,
+    NumericalEvidence,
+    MaterialCoverage,
+    OptionalEngineering,
+    SearchSpace,
+    Other,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum StudyActionScope {
+    StudyWide,
+    SelectedCandidate,
+    RejectedCandidates,
+    SelectedAndRejectedCandidates,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -197,6 +249,7 @@ impl StudyWorkspace {
             name: name.into(),
             selected_variant_id: None,
             variants: Vec::new(),
+            robustness_results: Vec::new(),
             next_variant_number: 1,
         }
     }
@@ -207,7 +260,15 @@ impl StudyWorkspace {
                 "workspace exceeds 64 MiB payload limit".into(),
             ));
         }
-        let workspace: Self = serde_json::from_str(json)?;
+        let mut workspace: Self = serde_json::from_str(json)?;
+        if workspace.schema == LEGACY_STUDY_WORKSPACE_SCHEMA {
+            if !workspace.robustness_results.is_empty() {
+                return Err(StudyError::Invalid(
+                    "v1 workspace cannot contain scenario evidence".into(),
+                ));
+            }
+            workspace.schema = STUDY_WORKSPACE_SCHEMA.into();
+        }
         workspace.validate()?;
         Ok(workspace)
     }
@@ -247,6 +308,16 @@ impl StudyWorkspace {
         }
         let mut ids = BTreeSet::new();
         let mut payload_bytes = 0_usize;
+        if self.robustness_results.len() > MAX_STUDY_ROBUSTNESS_RESULTS {
+            return Err(StudyError::Invalid(
+                "workspace exceeds three retained scenario analyses".into(),
+            ));
+        }
+        for record in &self.robustness_results {
+            crate::robustness::validate_robustness_record(record)
+                .map_err(|e| StudyError::Invalid(e.to_string()))?;
+            payload_bytes = payload_bytes.saturating_add(serde_json::to_vec(record)?.len());
+        }
         for variant in &self.variants {
             if !ids.insert(variant.id.as_str()) {
                 return Err(StudyError::Invalid(format!(
@@ -271,6 +342,22 @@ impl StudyWorkspace {
                 "selected_variant_id does not name a variant".into(),
             ));
         }
+        Ok(())
+    }
+
+    pub fn attach_robustness_result(
+        &mut self,
+        record: crate::robustness::RobustnessStudyRecord,
+    ) -> Result<(), StudyError> {
+        crate::robustness::validate_robustness_record(&record)
+            .map_err(|e| StudyError::Invalid(e.to_string()))?;
+        let mut proposed = self.clone();
+        proposed.robustness_results.push(record);
+        if proposed.robustness_results.len() > MAX_STUDY_ROBUSTNESS_RESULTS {
+            proposed.robustness_results.remove(0);
+        }
+        proposed.to_json()?;
+        *self = proposed;
         Ok(())
     }
 
@@ -437,9 +524,11 @@ impl StudyWorkspace {
                 }
             })
             .collect::<Vec<_>>();
+        let mut selected_candidate_index = None;
         if let Some(result) = self.current_results(variant)?.last()
             && let Ok(record) = serde_json::from_str::<CoupledSearchRunRecord>(&result.record_json)
         {
+            selected_candidate_index = record.best_index;
             issues.extend(record_issues(&record));
         }
         let follow_up_axes = [FollowUpAxis::TapesAlongWidth, FollowUpAxis::StrandsParallel]
@@ -447,7 +536,8 @@ impl StudyWorkspace {
             .filter(|axis| self.propose_followup(id, *axis).is_ok())
             .collect();
         Ok(StudyDiagnosis {
-            schema: "optcoil-study-diagnosis/v1".into(),
+            schema: "optcoil-study-diagnosis/v2".into(),
+            action_groups: rank_study_actions(&issues, selected_candidate_index),
             issues,
             follow_up_axes,
             engineering_acceptance_claim: false,
@@ -1103,6 +1193,191 @@ fn supports_strands_axis(schema: &str) -> bool {
         .rsplit_once("/v")
         .and_then(|(_, version)| version.parse::<u32>().ok())
         .is_some_and(|version| version >= 4)
+}
+
+fn rank_study_actions(
+    issues: &[StudyIssue],
+    selected_candidate_index: Option<usize>,
+) -> Vec<StudyActionGroup> {
+    let mut groups: Vec<StudyActionGroup> = Vec::new();
+    for (issue_index, issue) in issues.iter().enumerate() {
+        let category = action_category(&issue.code);
+        if let Some(group) = groups.iter_mut().find(|group| group.code == issue.code) {
+            group.issue_indices.push(issue_index);
+            if let Some(index) = issue.candidate_index
+                && !group.affected_candidate_indices.contains(&index)
+            {
+                group.affected_candidate_indices.push(index);
+            }
+        } else {
+            groups.push(StudyActionGroup {
+                code: issue.code.clone(),
+                title: action_title(&issue.code),
+                urgency: StudyActionUrgency::Review,
+                category,
+                scope: StudyActionScope::StudyWide,
+                explanation: issue.message.clone(),
+                next_action: action_next_step(&issue.code),
+                issue_indices: vec![issue_index],
+                affected_candidate_indices: issue.candidate_index.into_iter().collect(),
+            });
+        }
+    }
+
+    for group in &mut groups {
+        group.affected_candidate_indices.sort_unstable();
+        let selected = selected_candidate_index
+            .is_some_and(|selected| group.affected_candidate_indices.contains(&selected));
+        let rejected = group
+            .affected_candidate_indices
+            .iter()
+            .any(|candidate| Some(*candidate) != selected_candidate_index);
+        group.scope = match (
+            group.affected_candidate_indices.is_empty(),
+            selected,
+            rejected,
+        ) {
+            (true, _, _) => StudyActionScope::StudyWide,
+            (_, true, true) => StudyActionScope::SelectedAndRejectedCandidates,
+            (_, true, false) => StudyActionScope::SelectedCandidate,
+            (_, false, true) => StudyActionScope::RejectedCandidates,
+            _ => StudyActionScope::StudyWide,
+        };
+        group.urgency = if group.category == StudyActionCategory::OptionalEngineering
+            && group
+                .issue_indices
+                .iter()
+                .all(|index| issues[*index].status == Status::NotEvaluated)
+        {
+            StudyActionUrgency::Unperformed
+        } else if matches!(
+            group.scope,
+            StudyActionScope::SelectedCandidate
+                | StudyActionScope::SelectedAndRejectedCandidates
+                | StudyActionScope::StudyWide
+        ) {
+            StudyActionUrgency::Blocking
+        } else {
+            StudyActionUrgency::Review
+        };
+    }
+    groups.sort_by_key(|group| {
+        let urgency = match group.urgency {
+            StudyActionUrgency::Blocking => 0_u8,
+            StudyActionUrgency::Review => 1,
+            StudyActionUrgency::Unperformed => 2,
+        };
+        let status = group
+            .issue_indices
+            .iter()
+            .map(|index| match issues[*index].status {
+                Status::Fail => 0_u8,
+                Status::Inconclusive => 1,
+                Status::NotEvaluated => 2,
+                Status::Pass => 3,
+            })
+            .min()
+            .unwrap_or(3);
+        let priority = if group.code == "search_selection_unresolved" {
+            0_u8
+        } else {
+            match group.category {
+                StudyActionCategory::Readiness => 1,
+                StudyActionCategory::MaterialCoverage => 2,
+                StudyActionCategory::NumericalEvidence => 3,
+                StudyActionCategory::Requirements => 4,
+                StudyActionCategory::Other => 5,
+                StudyActionCategory::SearchSpace => 6,
+                StudyActionCategory::OptionalEngineering => 7,
+            }
+        };
+        (urgency, priority, status, group.code.clone())
+    });
+    groups
+}
+
+fn action_category(code: &str) -> StudyActionCategory {
+    if code == "screen_not_evaluated" {
+        StudyActionCategory::OptionalEngineering
+    } else if matches!(
+        code,
+        "invalid_case"
+            | "invalid_threads"
+            | "threads_exceed_case_limit"
+            | "dataset_map_key_mismatch"
+            | "dataset_identity_mismatch"
+            | "dataset_missing"
+            | "dataset_not_declared"
+            | "criterion_mismatch"
+            | "temperature_outside_dataset_span"
+            | "dataset_validation_failed"
+    ) {
+        StudyActionCategory::Readiness
+    } else if code.contains("requirement") || code.contains("utilization") {
+        StudyActionCategory::Requirements
+    } else if code.contains("refinement") || code.contains("numerical") {
+        StudyActionCategory::NumericalEvidence
+    } else if code.contains("material")
+        || code.contains("coverage")
+        || code.contains("self_field")
+        || code.contains("along_current")
+    {
+        StudyActionCategory::MaterialCoverage
+    } else if code.contains("search") || code.contains("candidate") || code.contains("geometry") {
+        StudyActionCategory::SearchSpace
+    } else {
+        StudyActionCategory::Other
+    }
+}
+
+fn action_title(code: &str) -> String {
+    match code {
+        "search_selection_unresolved" => "Search result is unresolved".into(),
+        "screen_not_evaluated" => "Optional engineering check was not run".into(),
+        "material_coverage_gap" => "Material coverage is incomplete".into(),
+        "requirement_gate_unresolved" => "Candidate requirement gate is unresolved".into(),
+        "candidate_status" => "Candidate did not pass all recorded checks".into(),
+        "utilization_limit_exceeded" => "Declared utilization limit is exceeded".into(),
+        "numerical_reference_unresolved"
+        | "bore_refinement_gate_unresolved"
+        | "good_field_refinement_gate_unresolved"
+        | "screening_refinement_gate_unresolved" => "Numerical evidence needs review".into(),
+        _ => code
+            .split('_')
+            .map(|part| {
+                let mut chars = part.chars();
+                chars
+                    .next()
+                    .map(|first| first.to_uppercase().chain(chars).collect::<String>())
+                    .unwrap_or_default()
+            })
+            .collect::<Vec<_>>()
+            .join(" "),
+    }
+}
+
+fn action_next_step(code: &str) -> String {
+    match code {
+        "screen_not_evaluated" => {
+            "Decide whether this check is required for the study and configure it before relying on the design for that question.".into()
+        }
+        "search_selection_unresolved" => {
+            "Review the required gates and candidate evidence. If the search-space boundary is relevant, inspect an explicit follow-up proposal before running it.".into()
+        }
+        "material_coverage_gap" | "along_current_query_excluded" => {
+            "Review the reported material domain and query policy; use supported data or a model that covers these conditions.".into()
+        }
+        "numerical_reference_unresolved"
+        | "bore_refinement_gate_unresolved"
+        | "good_field_refinement_gate_unresolved"
+        | "screening_refinement_gate_unresolved" => {
+            "Review the reported numerical gate and refine the declared calculation where needed.".into()
+        }
+        "utilization_limit_exceeded" => {
+            "Review the candidate and declared conductor choices against the unchanged utilization requirement.".into()
+        }
+        _ => "Review the referenced issue and affected candidate evidence before changing the study.".into(),
+    }
 }
 
 fn record_issues(record: &CoupledSearchRunRecord) -> Vec<StudyIssue> {
@@ -1955,6 +2230,135 @@ mod tests {
     const BASE_BUNDLE: &str =
         include_str!("../../../data/materials/robinson-superpower-ap-v3/bundle.json");
 
+    fn issue(
+        code: &str,
+        status: Status,
+        candidate_index: Option<usize>,
+        message: &str,
+    ) -> StudyIssue {
+        StudyIssue {
+            code: code.into(),
+            status,
+            message: message.into(),
+            input_pointer: None,
+            observed_limit: None,
+            data_gap: None,
+            candidate_index,
+            limiting_location: None,
+            observed_value: None,
+            declared_limit: None,
+            unit: None,
+        }
+    }
+
+    #[test]
+    fn diagnosis_actions_deduplicate_and_rank_selected_recommendation_blockers() {
+        let issues = vec![
+            issue(
+                "candidate_status",
+                Status::Fail,
+                Some(4),
+                "candidate 4 failed",
+            ),
+            issue(
+                "candidate_status",
+                Status::Fail,
+                Some(9),
+                "candidate 9 failed",
+            ),
+            issue(
+                "requirement_gate_unresolved",
+                Status::Inconclusive,
+                Some(4),
+                "requirement unresolved",
+            ),
+            issue(
+                "screen_not_evaluated",
+                Status::NotEvaluated,
+                None,
+                "thermal screen not run",
+            ),
+        ];
+        let groups = rank_study_actions(&issues, Some(4));
+
+        assert_eq!(groups[0].code, "requirement_gate_unresolved");
+        assert_eq!(groups[0].urgency, StudyActionUrgency::Blocking);
+        assert_eq!(groups[0].scope, StudyActionScope::SelectedCandidate);
+        let candidate = groups
+            .iter()
+            .find(|group| group.code == "candidate_status")
+            .unwrap();
+        assert_eq!(candidate.issue_indices, vec![0, 1]);
+        assert_eq!(candidate.affected_candidate_indices, vec![4, 9]);
+        assert_eq!(
+            candidate.scope,
+            StudyActionScope::SelectedAndRejectedCandidates
+        );
+        assert_eq!(candidate.urgency, StudyActionUrgency::Blocking);
+        let optional = groups
+            .iter()
+            .find(|group| group.code == "screen_not_evaluated")
+            .unwrap();
+        assert_eq!(optional.urgency, StudyActionUrgency::Unperformed);
+        assert_eq!(optional.category, StudyActionCategory::OptionalEngineering);
+        assert_eq!(issues[0].status, Status::Fail);
+        assert_eq!(issues[3].status, Status::NotEvaluated);
+    }
+
+    #[test]
+    fn diagnosis_actions_keep_rejected_candidates_separate_without_a_recommendation() {
+        let issues = vec![
+            issue(
+                "candidate_status",
+                Status::Fail,
+                Some(2),
+                "candidate 2 failed",
+            ),
+            issue(
+                "search_selection_unresolved",
+                Status::Inconclusive,
+                None,
+                "no eligible candidate",
+            ),
+        ];
+        let groups = rank_study_actions(&issues, None);
+        assert_eq!(groups[0].code, "search_selection_unresolved");
+        assert_eq!(groups[0].scope, StudyActionScope::StudyWide);
+        let rejected = groups
+            .iter()
+            .find(|group| group.code == "candidate_status")
+            .unwrap();
+        assert_eq!(rejected.scope, StudyActionScope::RejectedCandidates);
+        assert_eq!(rejected.urgency, StudyActionUrgency::Review);
+        assert_eq!(rejected.affected_candidate_indices, vec![2]);
+    }
+
+    #[test]
+    fn no_run_diagnosis_is_v2_and_retains_preflight_issue_statuses() {
+        let mut workspace = StudyWorkspace::new("preflight diagnosis");
+        let id = workspace
+            .add_variant(
+                "baseline",
+                SMALL_CASE.into(),
+                vec![],
+                CoupledSearchOptions::default(),
+            )
+            .unwrap();
+        let diagnosis = workspace.diagnose_variant(&id).unwrap();
+        assert_eq!(diagnosis.schema, "optcoil-study-diagnosis/v2");
+        assert!(!diagnosis.issues.is_empty());
+        assert!(diagnosis.issues.iter().all(|issue| {
+            issue.status == Status::NotEvaluated || issue.status == Status::Inconclusive
+        }));
+        assert!(diagnosis.action_groups.iter().all(|group| {
+            group
+                .issue_indices
+                .iter()
+                .all(|index| *index < diagnosis.issues.len())
+        }));
+        assert!(!diagnosis.engineering_acceptance_claim);
+    }
+
     #[test]
     fn workspace_preserves_exact_inputs_and_explicit_followup_changes() {
         let mut workspace = StudyWorkspace::new("materials trade study");
@@ -2567,5 +2971,19 @@ mod tests {
                 .is_empty()
         );
         assert!(StudyWorkspace::from_json(&workspace.to_json().unwrap()).is_ok());
+    }
+    #[test]
+    fn legacy_workspace_migrates_without_inventing_scenario_evidence() {
+        let original = StudyWorkspace::new("legacy import");
+        let mut legacy = serde_json::to_value(&original).unwrap();
+        legacy["schema"] = Value::String(LEGACY_STUDY_WORKSPACE_SCHEMA.into());
+        legacy.as_object_mut().unwrap().remove("robustness_results");
+        let migrated = StudyWorkspace::from_json(&legacy.to_string()).unwrap();
+        assert_eq!(migrated.schema, STUDY_WORKSPACE_SCHEMA);
+        assert!(migrated.robustness_results.is_empty());
+        assert_eq!(migrated.name, original.name);
+        assert!(StudyWorkspace::from_json(&migrated.to_json().unwrap()).is_ok());
+        legacy["schema"] = Value::String("optcoil-study-workspace/v999".into());
+        assert!(StudyWorkspace::from_json(&legacy.to_string()).is_err());
     }
 }

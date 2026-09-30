@@ -1,0 +1,64 @@
+{
+  "schema": "converra-workflow-comparison-fixtures/v1",
+  "frozen_sha256_scope": "raw case and raw bundle file bytes in the paths below",
+  "fixtures": [
+    {
+      "id": "measured_startup",
+      "description": "Existing small measured-conductor first-study example, run unchanged as the base; declared teaching prices and screening limits are retained.",
+      "case": "benchmarks/coupled/first-study.json",
+      "bundles": [
+        "data/materials/robinson-superpower-ap-v3-lowfield/bundle.json"
+      ],
+      "revision": {
+        "pointer": "/cost/price_usd_per_m",
+        "multiplier": 1.05
+      },
+      "sha256": {
+        "case": "2ffd17fe14ebfd902ecccb252c616a3478da927da9117864a03034c70531f4bf",
+        "bundles": [
+          "f6724ae2da25e0f9271c6d871bfddae0b96c1f0e71527413c78c6fc4dab2c993"
+        ]
+      }
+    },
+    {
+      "id": "two_measured_bindings",
+      "description": "Four-turn/two-tape attributed measured study with separate base and Shanghai bindings; source bundle bytes are taken from the checked-in dataset releases.",
+      "case": "benchmarks/workflow-comparison/two-bindings-case.json",
+      "bundles": [
+        "data/materials/robinson-superpower-ap-v3/bundle.json",
+        "data/materials/robinson-shanghai-hflt-v3/bundle.json"
+      ],
+      "revision": {
+        "pointer": "/tape_specs/hts-shanghai/price_usd_per_m",
+        "multiplier": 1.05
+      },
+      "sha256": {
+        "case": "2dc115f1b70a8d282ca43dc2a311ef2df1f62660ad60f80cfd39fbacd0df0c67",
+        "bundles": [
+          "27c6fd19970eaa234b9b4257dca0c6819c1dac6b4c56ff9d4dec065a45941fd3",
+          "18d2d6c1aa6ed6062656d2175480bb8c2e61638ea2cd5a19303b73d3b6bbab62"
+        ]
+      }
+    },
+    {
+      "id": "controlled_failure",
+      "description": "Same small two-binding study with a deliberately raised declared bore-field requirement; tests an honest failed search path.",
+      "case": "benchmarks/workflow-comparison/failure-control-case.json",
+      "bundles": [
+        "data/materials/robinson-superpower-ap-v3/bundle.json",
+        "data/materials/robinson-shanghai-hflt-v3/bundle.json"
+      ],
+      "revision": {
+        "pointer": "/tape_specs/hts-shanghai/price_usd_per_m",
+        "multiplier": 1.05
+      },
+      "sha256": {
+        "case": "b57ecbadf7200a6e773f20b436905d91b1db0085e4b70867f783854b230f7b9f",
+        "bundles": [
+          "27c6fd19970eaa234b9b4257dca0c6819c1dac6b4c56ff9d4dec065a45941fd3",
+          "18d2d6c1aa6ed6062656d2175480bb8c2e61638ea2cd5a19303b73d3b6bbab62"
+        ]
+      }
+    }
+  ]
+}

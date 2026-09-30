@@ -28,6 +28,7 @@ pub mod preflight;
 pub mod report;
 pub mod reprice;
 pub mod review;
+pub mod robustness;
 pub mod search_acceptance;
 pub mod sensitivity;
 pub mod sizing;

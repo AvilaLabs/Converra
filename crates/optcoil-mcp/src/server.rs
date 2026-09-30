@@ -15,6 +15,7 @@ use optcoil_model::material::MaterialDataset;
 use optcoil_search::{
     coupled_search::{CoupledSearchOptions, SearchProgress},
     review,
+    robustness::{RobustnessSpec, robustness_preflight, run_study_robustness},
     sensitivity::run_sensitivity_sweep_with_datasets,
     study::{FollowUpAxis, StudyEngineSession, StudyWorkspace, exact_input_key},
     verify::{self, Outcome},
@@ -122,12 +123,11 @@ impl JobControl {
         let (fraction, done, planned) = self.progress.fraction();
         let mut view = self.view.lock().unwrap_or_else(|e| e.into_inner());
         if matches!(view.phase, JobPhase::Running) {
-            if view.kind == "sensitivity" {
+            if view.kind == "sensitivity" || view.kind == "robustness" {
                 view.progress_fraction = 0.0;
                 view.progress_done = 0;
                 view.progress_planned = 0;
-                view.phase_label =
-                    "Sensitivity sweep running; per-point progress unavailable".into();
+                view.phase_label = format!("{} running; aggregate progress unavailable", view.kind);
             } else {
                 view.progress_fraction = fraction;
                 view.progress_done = done;
@@ -605,6 +605,119 @@ impl ServerState {
         Ok(job.snapshot())
     }
 
+    fn start_robustness(
+        &self,
+        variant_ids: Vec<String>,
+        spec_json: String,
+    ) -> Result<JobView, String> {
+        if spec_json.len() > MAX_SENSITIVITY_SPEC_BYTES {
+            return Err("scenario specification exceeds the 256 KiB limit".into());
+        }
+        let spec: RobustnessSpec = serde_json::from_str(&spec_json).map_err(|e| e.to_string())?;
+        let (input, input_keys, job) = {
+            let _gate = self
+                .0
+                .mutation_gate
+                .lock()
+                .map_err(|_| "mutation lock poisoned")?;
+            let workspace = self
+                .0
+                .workspace
+                .lock()
+                .map_err(|_| "workspace lock poisoned")?;
+            let preflight = check_robustness_workload(&workspace, &variant_ids, &spec)?;
+            if !preflight.ready_to_run {
+                return Err(
+                    "scenario inputs are not ready; preview and resolve the reported errors".into(),
+                );
+            }
+            let keys = variant_ids
+                .iter()
+                .map(|id| {
+                    let variant = workspace.variant(id).map_err(|e| e.to_string())?;
+                    Ok((
+                        id.clone(),
+                        exact_input_key(variant).map_err(|e| e.to_string())?,
+                    ))
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            (
+                workspace.clone(),
+                keys,
+                self.start_job_locked("robustness")?,
+            )
+        };
+        let state = self.clone();
+        let worker_job = job.clone();
+        let join = thread::spawn(move || {
+            let _terminal_guard = WorkerTerminalGuard {
+                state: state.clone(),
+                job: worker_job.clone(),
+            };
+            let result =
+                run_study_robustness(&input, &variant_ids, &spec, &worker_job.cancel, None)
+                    .map_err(|e| e.to_string())
+                    .and_then(|record| {
+                        let artifact_id = robustness_artifact_id(&record)?;
+                        let _gate = state
+                            .0
+                            .mutation_gate
+                            .lock()
+                            .map_err(|_| "mutation lock poisoned")?;
+                        let mut workspace = state
+                            .0
+                            .workspace
+                            .lock()
+                            .map_err(|_| "workspace lock poisoned")?;
+                        if worker_job.cancel.load(Ordering::Relaxed) {
+                            return Err("scenario study cancelled before attachment".into());
+                        }
+                        for (id, key) in &input_keys {
+                            if exact_input_key(workspace.variant(id).map_err(|e| e.to_string())?)
+                                .map_err(|e| e.to_string())?
+                                != *key
+                            {
+                                return Err("scenario inputs changed before attachment".into());
+                            }
+                        }
+                        let mut candidate = workspace.clone();
+                        candidate
+                            .attach_robustness_result(record.clone())
+                            .map_err(|e| e.to_string())?;
+                        state.persist(&candidate)?;
+                        *workspace = candidate;
+                        // The workspace is the durable source of evidence. Its resource
+                        // stays available across server restarts without an export cache.
+                        Ok(artifact_id)
+                    });
+            match result {
+                Ok(id) => state.finish_job(
+                    &worker_job,
+                    JobPhase::Completed,
+                    Some((id.clone(), format!("optcoil://study/robustness/{id}"))),
+                    None,
+                ),
+                Err(error) => {
+                    let phase = if worker_job.wall_expired.load(Ordering::Relaxed) {
+                        JobPhase::Failed
+                    } else if worker_job.cancel.load(Ordering::Relaxed) {
+                        JobPhase::Cancelled
+                    } else {
+                        JobPhase::Failed
+                    };
+                    let error = if worker_job.wall_expired.load(Ordering::Relaxed) {
+                        format!("15-minute server wall-time budget expired: {error}")
+                    } else {
+                        error
+                    };
+                    state.finish_job(&worker_job, phase, None, Some(error));
+                }
+            }
+        });
+        *job.join.lock().map_err(|_| "job lock poisoned")? = Some(join);
+        Ok(job.snapshot())
+    }
+
     fn job_view(&self, job_id: &str) -> Result<JobView, String> {
         self.0
             .jobs
@@ -627,6 +740,19 @@ impl ServerState {
         }
         if uri == "optcoil://study/workspace" {
             return self.workspace_json();
+        }
+        if let Some(id) = uri.strip_prefix("optcoil://study/robustness/") {
+            let workspace = self
+                .0
+                .workspace
+                .lock()
+                .map_err(|_| "workspace lock poisoned")?;
+            for record in workspace.robustness_results.iter().rev() {
+                if robustness_artifact_id(record)? == id {
+                    return serde_json::to_string_pretty(record).map_err(|e| e.to_string());
+                }
+            }
+            return Err("scenario evidence is no longer retained in this workspace".into());
         }
         if uri == "optcoil://examples/first-study" {
             return Ok(include_str!("../../../benchmarks/coupled/first-study.json").to_owned());
@@ -765,6 +891,38 @@ fn reserve_export_dir(state: &ServerState, prefix: &str) -> Result<String, Strin
         }
     }
     Err("could not allocate an unused export identifier".into())
+}
+
+fn robustness_artifact_id(
+    record: &optcoil_search::robustness::RobustnessStudyRecord,
+) -> Result<String, String> {
+    // Bind a resource to this exact completed artifact, including its
+    // calculation timestamps; repeated inputs can have distinct records.
+    let bytes = serde_json::to_vec_pretty(record).map_err(|e| e.to_string())?;
+    Ok(optcoil_model::attestation::sha256_hex(&bytes))
+}
+
+fn check_robustness_workload(
+    workspace: &StudyWorkspace,
+    ids: &[String],
+    spec: &RobustnessSpec,
+) -> Result<optcoil_search::robustness::RobustnessPreflight, String> {
+    let preflight = robustness_preflight(workspace, ids, spec).map_err(|e| e.to_string())?;
+    if preflight
+        .preflights
+        .iter()
+        .any(|run| run.candidate_count > MAX_CANDIDATES)
+    {
+        return Err(format!(
+            "scenario candidate count exceeds server limit of {MAX_CANDIDATES}"
+        ));
+    }
+    if preflight.kernel_work_proxy > MAX_REFINED_KERNEL_PROXY {
+        return Err(format!(
+            "scenario aggregate kernel work proxy exceeds server limit of {MAX_REFINED_KERNEL_PROXY}"
+        ));
+    }
+    Ok(preflight)
 }
 
 fn check_workload(
@@ -930,6 +1088,11 @@ struct StartSensitivityArgs {
     spec_json: String,
 }
 #[derive(Debug, Deserialize, JsonSchema)]
+struct RobustnessArgs {
+    variant_ids: Vec<String>,
+    spec_json: String,
+}
+#[derive(Debug, Deserialize, JsonSchema)]
 struct JobArgs {
     job_id: String,
 }
@@ -976,6 +1139,11 @@ impl McpServer {
                 "candidate_count": MAX_CANDIDATES,
                 "refined_kernel_work_proxy": MAX_REFINED_KERNEL_PROXY.to_string(),
                 "sensitivity_points": MAX_SENSITIVITY_POINTS,
+                "robustness_variants": optcoil_search::robustness::MAX_ROBUSTNESS_VARIANTS,
+                "robustness_scenarios": optcoil_search::robustness::MAX_ROBUSTNESS_SCENARIOS,
+                "robustness_runs": optcoil_search::robustness::MAX_ROBUSTNESS_RUNS,
+                "robustness_total_kernel_work_proxy": MAX_REFINED_KERNEL_PROXY.min(optcoil_search::robustness::MAX_ROBUSTNESS_KERNEL_WORK).to_string(),
+                "robustness_total_candidates": optcoil_search::robustness::MAX_ROBUSTNESS_CANDIDATES.to_string(),
                 "sensitivity_total_kernel_work_proxy": MAX_REFINED_KERNEL_PROXY.to_string(),
                 "job_wall_time_seconds": MAX_JOB_WALL_TIME.as_secs(),
                 "concurrent_engine_jobs": 1,
@@ -1249,6 +1417,70 @@ impl McpServer {
     }
 
     #[tool(
+        description = "Preview exact scenario inputs, comparability, aggregate work and readiness for named alternatives. Scenarios have no implied probabilities; nominal is required."
+    )]
+    fn preview_robustness(&self, Parameters(args): Parameters<RobustnessArgs>) -> CallToolResult {
+        if args.spec_json.len() > MAX_SENSITIVITY_SPEC_BYTES {
+            return fail("scenario specification exceeds the 256 KiB limit");
+        }
+        let spec: RobustnessSpec = match serde_json::from_str(&args.spec_json) {
+            Ok(v) => v,
+            Err(e) => return fail(e),
+        };
+        match self.state.0.workspace.lock() {
+            Ok(workspace) => {
+                match check_robustness_workload(&workspace, &args.variant_ids, &spec) {
+                    Ok(preflight) => ok(preflight),
+                    Err(e) => fail(e),
+                }
+            }
+            Err(_) => fail("workspace lock poisoned"),
+        }
+    }
+
+    #[tool(
+        description = "Start bounded cancellable fresh reruns across explicit price, Ic and operating-temperature scenarios at unchanged numerical fidelity. Full source evidence is retained in the workspace; no robust engineering acceptance is claimed."
+    )]
+    fn start_robustness(&self, Parameters(args): Parameters<RobustnessArgs>) -> CallToolResult {
+        match self
+            .state
+            .start_robustness(args.variant_ids, args.spec_json)
+        {
+            Ok(job) => ok(job),
+            Err(e) => fail(e),
+        }
+    }
+
+    #[tool(
+        description = "List retained scenario analyses with exact input fingerprints, winners, switches and current/history binding. Read each resource for full offline rerun evidence."
+    )]
+    fn list_robustness_results(&self) -> CallToolResult {
+        match self.state.0.workspace.lock() {
+            Ok(workspace) => {
+                let summaries = workspace.robustness_results.iter().map(|record| {
+                    let artifact_id = robustness_artifact_id(record)?;
+                    let current = optcoil_search::robustness::robustness_record_binding_is_current(&workspace, record)
+                        .map_err(|error| error.to_string())?;
+                    Ok(json!({
+                        "input_fingerprint": record.input_fingerprint,
+                        "current": current,
+                        "scenario_summaries": record.scenario_summaries,
+                        "winner_switches": record.winner_switches,
+                        "all_scenarios_have_supported_winner": record.all_scenarios_have_supported_winner,
+                        "artifact_sha256": artifact_id,
+                        "resource": format!("optcoil://study/robustness/{artifact_id}"),
+                    }))
+                }).collect::<Result<Vec<_>, String>>();
+                match summaries {
+                    Ok(summaries) => ok(summaries),
+                    Err(error) => fail(error),
+                }
+            }
+            Err(_) => fail("workspace lock poisoned"),
+        }
+    }
+
+    #[tool(
         description = "Get background job phase, engine progress, result id/resource or a structured error."
     )]
     fn get_job(&self, Parameters(args): Parameters<JobArgs>) -> CallToolResult {
@@ -1485,6 +1717,19 @@ impl ServerHandler for McpServer {
                     .with_mime_type("application/json"),
                 );
             }
+        }
+        for record in &workspace.robustness_results {
+            resources.push(
+                Resource::new(
+                    format!(
+                        "optcoil://study/robustness/{}",
+                        robustness_artifact_id(record)
+                            .map_err(|error| McpError::internal_error(error, None))?
+                    ),
+                    "Retained scenario evidence",
+                )
+                .with_mime_type("application/json"),
+            );
         }
         drop(workspace);
         if let Ok(exports) = self.state.0.export_resources.lock() {

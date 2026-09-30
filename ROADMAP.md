@@ -193,6 +193,50 @@ Implementation and verification scope are recorded in the
 [verification evidence](docs/ENGINEERING_WORKSPACE_EVIDENCE.md).
 The separate PC-08 external validation gate remains open.
 
+## Decision clarity and scenario evidence — September 2026
+
+**Implemented software scope:** shorten the path from existing HTS winding inputs to a
+reviewable design and cost decision. Keep the current egui application, exact
+source evidence, and declared numerical fidelity. External engineer validation
+remains the open PC-08 gate.
+
+Implementation and observed verification are recorded in
+[decision clarity evidence](docs/DECISION_CLARITY_EVIDENCE.md),
+[scenario studies](docs/ROBUSTNESS.md) and
+[workflow measurements](docs/WORKFLOW_COMPARISON.md).
+Every delivered SHA must pass GitHub CI before completion is reported.
+
+### DC-01 — Prioritized decisions
+
+- [x] Rank and deduplicate actionable diagnoses while retaining every raw check.
+- [x] Distinguish the selected recommendation, rejected alternatives, required
+  input/numerical gates and optional unperformed engineering checks.
+- [x] Show concise next actions in the existing GUI and shared MCP diagnosis.
+
+### DC-02 — Explicit uncertainty scenarios
+
+- [x] Rerun comparable named alternatives across declared supplier-price,
+  conductor-Ic and operating-temperature scenarios with a mandatory nominal row.
+- [x] Preserve graded bindings, purchased-piece costs, unchanged constraints and
+  source provenance; label scaled material data synthetic.
+- [x] Report winner changes, nominal geometry survival, unresolved outcomes and
+  cost ranges without assigning probabilities or claiming qualification.
+- [x] Preview bounded aggregate work, calculate away from the GUI event thread,
+  cancel without attaching partial evidence, and expose local MCP jobs.
+- [x] Retain exact replay inputs and records in a portable workspace; distinguish
+  current results from history after revisions and verify imported evidence.
+
+### DC-03 — Representative workflow comparison
+
+- [x] Freeze three attributed representative input sets and compare explicit
+  CLI/files with the shared workspace at identical numerical settings.
+- [x] Record fresh solves, exact repeat reuse, revision, save/reopen and review
+  export separately; assert semantic parity and preserve failed outcomes.
+- [x] Publish measured software timings and operation units accurately. Human
+  effort and commercial-tool superiority need separate observed comparisons.
+- [x] Verify the complete extension through local formatting, workspace
+  Clippy/tests, wasm and release builds, and observed browser workflows.
+
 ## Domain coverage (the real frontier)
 
 - **Wider measured domains.** Embedded datasets currently cover

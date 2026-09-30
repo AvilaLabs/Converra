@@ -9,6 +9,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+csv.workspace = true
 optcoil-adapters.workspace = true
 optcoil-model.workspace = true
 optcoil-physics.workspace = true

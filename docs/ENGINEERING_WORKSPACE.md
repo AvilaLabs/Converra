@@ -2,7 +2,12 @@
 
 An engineering study keeps a baseline and proposed alternatives together with
 their exact source data and calculated evidence. The GUI and local MCP server
-use `optcoil-search::study` and the `optcoil-study-workspace/v1` format.
+use `optcoil-search::study`. Source builds save `optcoil-study-workspace/v2`,
+including retained scenario evidence, and import older v1 workspaces. The
+published v0.2.0 archives use v1 and predate the scenario extension.
+
+The extension's local gates and observed GUI workflows are recorded in
+[decision clarity verification](DECISION_CLARITY_EVIDENCE.md).
 
 ## GUI workflow
 
@@ -17,7 +22,9 @@ use `optcoil-search::study` and the `optcoil-study-workspace/v1` format.
    invalid input must be corrected before saving.
 4. Open **Engineering study**. Name variants, duplicate an alternative and compare
    its inputs and calculated decision against the original.
-5. Inspect **Constraint diagnosis**. A reported quantity and limit belong to the
+5. Inspect **Constraint diagnosis**. Source builds rank and group next actions,
+   with optional unperformed checks and the raw ledger available in collapsed
+   details. A reported quantity and limit belong to the
    stated check. A location is shown only when the record supplies it; absent
    material data and unresolved model applicability remain visible.
 6. Review a **Follow-up experiment** proposal before creating and calculating it.
@@ -27,6 +34,10 @@ use `optcoil-search::study` and the `optcoil-study-workspace/v1` format.
 7. **Save workspace** to keep variants and evidence together. **Open workspace**
    validates its stored sources and records. Export a **Review package** for a
    standalone report, inputs, conductor dependencies and offline verification.
+
+For explicit supplier-price, conductor-Ic and temperature what-ifs across named
+alternatives, use [scenario studies](ROBUSTNESS.md). Completed analyses retain
+source inputs and full evidence; input changes mark them historical.
 
 Desktop searches run on a background thread. Browser searches use a Web Worker
 and one execution thread; imported desktop options require an explicit browser

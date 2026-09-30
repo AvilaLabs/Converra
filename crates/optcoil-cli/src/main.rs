@@ -56,6 +56,19 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Rerun named alternatives across explicit price, Ic and temperature
+    /// scenarios at unchanged declared fidelity. Output retains offline inputs.
+    StudyRobustness {
+        workspace: PathBuf,
+        spec: PathBuf,
+        #[arg(long = "variant", required = true)]
+        variants: Vec<String>,
+        #[arg(long, short)]
+        output: PathBuf,
+        /// Write only a bounded readiness/work estimate; perform no solve.
+        #[arg(long)]
+        preview: bool,
+    },
     /// Run the embedded synthetic reference benchmark (no file required).
     Demo(RunArgs),
     /// Run OC-002 racetrack fields against the embedded independent reference.
@@ -620,6 +633,51 @@ fn main() -> ExitCode {
 
 fn execute(cli: Cli) -> Result<(), Box<dyn Error>> {
     match cli.command {
+        Command::StudyRobustness {
+            workspace,
+            spec,
+            variants,
+            output,
+            preview,
+        } => {
+            if fs::metadata(&workspace)?.len()
+                > optcoil_search::study::MAX_STUDY_WORKSPACE_BYTES as u64
+            {
+                return Err("workspace exceeds 64 MiB limit".into());
+            }
+            if fs::metadata(&spec)?.len() > 256 * 1024 {
+                return Err("scenario specification exceeds 256 KiB limit".into());
+            }
+            let workspace =
+                optcoil_search::study::StudyWorkspace::from_json(&fs::read_to_string(workspace)?)?;
+            let spec: optcoil_search::robustness::RobustnessSpec =
+                serde_json::from_str(&fs::read_to_string(spec)?)?;
+            let preflight =
+                optcoil_search::robustness::robustness_preflight(&workspace, &variants, &spec)?;
+            let bytes = if preview {
+                serde_json::to_vec_pretty(&preflight)?
+            } else {
+                if !preflight.ready_to_run {
+                    return Err("scenario inputs are not ready; run --preview and resolve the reported errors".into());
+                }
+                let record = optcoil_search::robustness::run_study_robustness(
+                    &workspace,
+                    &variants,
+                    &spec,
+                    &AtomicBool::new(false),
+                    None,
+                )?;
+                serde_json::to_vec_pretty(&record)?
+            };
+            // Do not overwrite an existing evidence artifact.
+            use std::io::Write as _;
+            let mut file = fs::OpenOptions::new()
+                .create_new(true)
+                .write(true)
+                .open(&output)?;
+            file.write_all(&bytes)?;
+            eprintln!("Saved {}", output.display());
+        }
         Command::Demo(args) => execute_run(Case::demo()?, args)?,
         Command::FieldBenchmark(args) => {
             let record = run_oc002(&args.options()?)?;

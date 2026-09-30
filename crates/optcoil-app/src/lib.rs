@@ -95,6 +95,7 @@ enum JobKind {
     Profile,
     Queue,
     Workspace,
+    Robustness,
 }
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 enum JobResult {
@@ -119,6 +120,8 @@ enum JobResult {
     ),
     #[cfg(target_arch = "wasm32")]
     BrowserStudySearchCompleted(Box<(StudyWorkspace, CoupledSearchRunRecord, bool)>),
+    #[cfg(target_arch = "wasm32")]
+    BrowserRobustnessCompleted(Box<optcoil_search::robustness::RobustnessStudyRecord>),
     /// A material dataset bundle the user picked explicitly (coupled mode).
     DatasetLoaded(Box<MaterialBundle>, PathBuf, Option<String>),
     Exported(PathBuf),
@@ -151,6 +154,8 @@ enum JobResult {
             optcoil_search::study::StudySummary,
         )>,
     ),
+    RobustnessCompleted(Box<StudyWorkspace>),
+    RobustnessExported(PathBuf),
     StudyVariantLoaded(Box<(String, String, Vec<String>)>),
     Dismissed,
 }
@@ -393,6 +398,10 @@ struct Workbench {
         optcoil_search::study::StudySummary,
         optcoil_search::study::StudySummary,
     )>,
+    robustness_variant_ids: Vec<String>,
+    robustness_scenarios: Vec<optcoil_search::robustness::RobustnessScenario>,
+    robustness_preflight: Option<optcoil_search::robustness::RobustnessPreflight>,
+    robustness_history_current: Vec<(String, bool)>,
     /// Decision artifacts derived from the loaded record — computed once
     /// on arrival, not per frame.
     bom_record: Option<BomRecord>,
@@ -433,6 +442,201 @@ impl Workbench {
                 .as_ref()
                 .filter(|source| source.dataset.metadata.id == dataset_id)
         })
+    }
+
+    fn robustness_dataset_ids(&self) -> Vec<String> {
+        let mut ids = std::collections::BTreeSet::new();
+        for id in &self.robustness_variant_ids {
+            if let Ok(variant) = self.study_workspace.variant(id)
+                && let Ok(case) = CoupledSearchCase::from_json(&variant.case_json)
+            {
+                ids.extend(
+                    case.material_bindings()
+                        .into_iter()
+                        .map(|(_, binding)| binding.dataset_id.clone()),
+                );
+            }
+        }
+        ids.into_iter().collect()
+    }
+
+    fn sync_robustness_editor(&mut self) {
+        if self.robustness_variant_ids.is_empty()
+            && self.robustness_scenarios.is_empty()
+            && let Some(id) = self.study_variant_id.clone()
+            && self.study_workspace.variant(&id).is_ok()
+        {
+            self.robustness_variant_ids.push(id);
+        }
+        let dataset_ids = self.robustness_dataset_ids();
+        if self.robustness_scenarios.is_empty() {
+            let mut price_multipliers = std::collections::BTreeMap::new();
+            let mut ic_multipliers = std::collections::BTreeMap::new();
+            for dataset_id in &dataset_ids {
+                price_multipliers.insert(dataset_id.clone(), 1.1);
+                ic_multipliers.insert(dataset_id.clone(), 1.0);
+            }
+            self.robustness_scenarios
+                .push(optcoil_search::robustness::RobustnessScenario {
+                    id: "scenario-1".into(),
+                    name: "Supplier price +10%".into(),
+                    price_multipliers,
+                    ic_multipliers,
+                    temperature_offset_k: 0.0,
+                });
+        }
+        for scenario in &mut self.robustness_scenarios {
+            scenario
+                .price_multipliers
+                .retain(|dataset_id, _| dataset_ids.contains(dataset_id));
+            scenario
+                .ic_multipliers
+                .retain(|dataset_id, _| dataset_ids.contains(dataset_id));
+            for dataset_id in &dataset_ids {
+                scenario
+                    .price_multipliers
+                    .entry(dataset_id.clone())
+                    .or_insert(1.1);
+                scenario
+                    .ic_multipliers
+                    .entry(dataset_id.clone())
+                    .or_insert(1.0);
+            }
+        }
+    }
+
+    fn robustness_spec(&self) -> optcoil_search::robustness::RobustnessSpec {
+        let mut scenarios = vec![optcoil_search::robustness::RobustnessScenario::nominal()];
+        scenarios.extend(self.robustness_scenarios.iter().cloned());
+        optcoil_search::robustness::RobustnessSpec {
+            schema: optcoil_search::robustness::ROBUSTNESS_SPEC_SCHEMA.into(),
+            scenarios,
+        }
+    }
+
+    fn refresh_robustness_history_current(&mut self) {
+        self.robustness_history_current = self
+            .study_workspace
+            .robustness_results
+            .iter()
+            .map(|record| {
+                let current = optcoil_search::robustness::robustness_record_binding_is_current(
+                    &self.study_workspace,
+                    record,
+                )
+                .unwrap_or(false);
+                (record.input_fingerprint.clone(), current)
+            })
+            .collect();
+    }
+
+    fn preview_robustness(&mut self) {
+        self.sync_robustness_editor();
+        let spec = self.robustness_spec();
+        match optcoil_search::robustness::robustness_preflight(
+            &self.study_workspace,
+            &self.robustness_variant_ids,
+            &spec,
+        ) {
+            Ok(preflight) => self.robustness_preflight = Some(preflight),
+            Err(error) => {
+                self.robustness_preflight = None;
+                self.message = (true, error.to_string());
+            }
+        }
+    }
+
+    fn start_robustness(&mut self, ctx: &egui::Context) {
+        #[cfg(target_arch = "wasm32")]
+        if self.robustness_variant_ids.iter().any(|id| {
+            self.study_workspace
+                .variant(id)
+                .is_ok_and(|variant| variant.options.threads != Some(1))
+        }) {
+            self.message = (true, "Browser scenarios use one thread. Review the explicit browser override for each selected variant before running.".into());
+            return;
+        }
+        let Some(preflight) = self.robustness_preflight.as_ref() else {
+            self.message = (
+                true,
+                "Preview the what-if workload before running it.".into(),
+            );
+            return;
+        };
+        if !preflight.ready_to_run {
+            self.message = (
+                true,
+                "Resolve every scenario preflight issue before running.".into(),
+            );
+            return;
+        }
+        let workspace = self.study_workspace.clone();
+        let ids = self.robustness_variant_ids.clone();
+        let spec = self.robustness_spec();
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.launch(ctx, JobKind::Robustness, move |cancel| {
+                let mut workspace = workspace;
+                let record = optcoil_search::robustness::run_study_robustness(
+                    &workspace, &ids, &spec, &cancel, None,
+                )
+                .map_err(|error| error.to_string())?;
+                workspace
+                    .attach_robustness_result(record)
+                    .map_err(|error| error.to_string())?;
+                Ok(JobResult::RobustnessCompleted(Box::new(workspace)))
+            });
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let workspace_json = match workspace.to_json() {
+                Ok(json) => json,
+                Err(error) => {
+                    self.message = (true, error.to_string());
+                    return;
+                }
+            };
+            self.launch_robustness_worker(ctx, workspace_json, ids, spec);
+        }
+    }
+
+    fn export_robustness_record(
+        &mut self,
+        ctx: &egui::Context,
+        record: optcoil_search::robustness::RobustnessStudyRecord,
+    ) {
+        #[cfg(not(target_arch = "wasm32"))]
+        self.launch(ctx, JobKind::Export, move |_| {
+            let json = serde_json::to_string_pretty(&record).map_err(|e| e.to_string())?;
+            let Some(path) = rfd::FileDialog::new()
+                .set_title("Export robustness study JSON")
+                .add_filter("Robustness study", &["json"])
+                .set_file_name("converra-robustness-study.json")
+                .save_file()
+            else {
+                return Ok(JobResult::Dismissed);
+            };
+            use std::io::Write;
+            let mut file = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&path)
+                .map_err(|e| format!("Export failed: {e}. Choose a new filename."))?;
+            file.write_all(json.as_bytes())
+                .map_err(|e| format!("Export failed: {e}"))?;
+            Ok(JobResult::RobustnessExported(path))
+        });
+        #[cfg(target_arch = "wasm32")]
+        {
+            let json = serde_json::to_string_pretty(&record);
+            self.launch_wasm(ctx, JobKind::Export, async move {
+                let json = json.map_err(|e| e.to_string())?;
+                web::download_bytes("converra-robustness-study.json", json.as_bytes());
+                Ok(JobResult::RobustnessExported(PathBuf::from(
+                    "converra-robustness-study.json",
+                )))
+            });
+        }
     }
 
     fn install_workspace_bundles(&mut self, bundles: &[String]) {
@@ -631,6 +835,10 @@ impl Workbench {
             study_summary: None,
             study_diff: None,
             study_compare_summary: None,
+            robustness_variant_ids: Vec::new(),
+            robustness_scenarios: Vec::new(),
+            robustness_preflight: None,
+            robustness_history_current: Vec::new(),
             bom_record: None,
             decision_summary: None,
             grade_report: None,
@@ -798,6 +1006,8 @@ impl Workbench {
             {
                 self.study_variant_id = Some(id.clone());
                 let _ = self.study_workspace.select_variant(&id);
+                self.robustness_preflight = None;
+                self.refresh_robustness_history_current();
                 return;
             }
         }
@@ -814,6 +1024,8 @@ impl Workbench {
             },
         ) {
             self.study_variant_id = Some(id);
+            self.robustness_preflight = None;
+            self.refresh_robustness_history_current();
         }
     }
 
@@ -972,6 +1184,102 @@ impl Workbench {
         });
     }
 
+    #[cfg(target_arch = "wasm32")]
+    fn launch_robustness_worker(
+        &mut self,
+        ctx: &egui::Context,
+        workspace_json: String,
+        variant_ids: Vec<String>,
+        spec: optcoil_search::robustness::RobustnessSpec,
+    ) {
+        use wasm_bindgen::JsCast as _;
+        if self.worker.is_some() {
+            return;
+        }
+        let web_worker = if let Some(worker) = self.browser_search_worker.take() {
+            worker
+        } else {
+            let options = web_sys::WorkerOptions::new();
+            options.set_type(web_sys::WorkerType::Module);
+            match web_sys::Worker::new_with_options("./worker.js", &options) {
+                Ok(worker) => worker,
+                Err(error) => {
+                    self.message = (
+                        true,
+                        format!(
+                            "Could not start the what-if worker ({error:?}). Serve the built bundle, then retry."
+                        ),
+                    );
+                    return;
+                }
+            }
+        };
+        let (sender, receiver) = mpsc::channel();
+        let error_sender = sender.clone();
+        let error_ctx = ctx.clone();
+        let reply_ctx = ctx.clone();
+        let onmessage =
+            wasm_bindgen::closure::Closure::wrap(Box::new(move |event: web_sys::MessageEvent| {
+                let result = event
+                    .data()
+                    .as_string()
+                    .ok_or_else(|| "worker replied with a non-string message".to_owned())
+                    .and_then(|text| {
+                        let payload: serde_json::Value =
+                            serde_json::from_str(&text).map_err(|e| e.to_string())?;
+                        if payload.get("status").and_then(|v| v.as_str()) == Some("robustness_ok") {
+                            serde_json::from_str(payload["record"].as_str().unwrap_or_default())
+                                .map(|record| {
+                                    JobResult::BrowserRobustnessCompleted(Box::new(record))
+                                })
+                                .map_err(|e| e.to_string())
+                        } else {
+                            Err(payload["error"]
+                                .as_str()
+                                .unwrap_or("what-if worker error")
+                                .to_owned())
+                        }
+                    });
+                let _ = sender.send(result);
+                reply_ctx.request_repaint();
+            }) as Box<dyn FnMut(_)>);
+        web_worker.set_onmessage(Some(onmessage.as_ref().unchecked_ref()));
+        let onerror = wasm_bindgen::closure::Closure::wrap(Box::new(
+            move |_event: wasm_bindgen::JsValue| {
+                let _ = error_sender.send(Err(
+                    "What-if worker failed. Check the browser console and served worker bundle; prior results are retained.".into(),
+                ));
+                error_ctx.request_repaint();
+            },
+        ) as Box<dyn FnMut(_)>);
+        web_worker.set_onerror(Some(onerror.as_ref().unchecked_ref()));
+        let payload = serde_json::json!({
+            "kind": "study-robustness",
+            "workspace_json": workspace_json,
+            "variant_ids": variant_ids,
+            "spec": spec,
+        });
+        if let Err(error) =
+            web_worker.post_message(&wasm_bindgen::JsValue::from_str(&payload.to_string()))
+        {
+            web_worker.set_onmessage(None);
+            web_worker.set_onerror(None);
+            web_worker.terminate();
+            self.message = (true, format!("Could not send the what-if run: {error:?}"));
+            return;
+        }
+        self.worker = Some(Worker {
+            receiver,
+            cancel: Arc::new(AtomicBool::new(false)),
+            kind: JobKind::Robustness,
+            web_worker: Some(web_worker),
+            _web_callbacks: Some(BrowserWorkerCallbacks {
+                _message: onmessage,
+                _error: onerror,
+            }),
+        });
+    }
+
     /// WASM-only counterpart for file dialogs: `rfd::AsyncFileDialog`
     /// is a future on the browser's event loop, not a blocking call —
     /// the JobResult arrives through the same channel a worker uses.
@@ -1001,9 +1309,15 @@ impl Workbench {
     }
 
     fn cancel_search(&mut self) {
-        let Some(worker) = self.worker.as_ref().filter(|w| w.kind == JobKind::Search) else {
+        let Some(worker) = self
+            .worker
+            .as_ref()
+            .filter(|w| matches!(w.kind, JobKind::Search | JobKind::Robustness))
+        else {
             return;
         };
+        #[cfg(target_arch = "wasm32")]
+        let robustness = worker.kind == JobKind::Robustness;
         worker.cancel.store(true, Ordering::Relaxed);
         self.package_after_search = false;
         self.queue_active = false;
@@ -1015,7 +1329,11 @@ impl Workbench {
             self.search_progress = None;
             self.message = (
                 false,
-                "Search cancelled. The previous completed result is retained.".into(),
+                if robustness {
+                    "What-if run cancelled. Earlier robustness results are retained.".into()
+                } else {
+                    "Search cancelled. The previous completed result is retained.".into()
+                },
             );
             self.message_fade_start = Instant::now();
         }
@@ -2305,6 +2623,8 @@ impl Workbench {
         ) {
             Ok(()) => {
                 self.message = (false, "Browser execution override applied: one thread. The changed options create a new exact-input identity; saved results remain historical.".into());
+                self.robustness_preflight = None;
+                self.refresh_robustness_history_current();
                 self.refresh_study_summary();
             }
             Err(error) => self.message = (true, error.to_string()),
@@ -2349,7 +2669,10 @@ impl Workbench {
             Err(TryRecvError::Disconnected) => Err("Background task stopped unexpectedly.".into()),
         };
         #[cfg(target_arch = "wasm32")]
-        let keep_browser_worker = matches!(&result, Ok(JobResult::BrowserStudySearchCompleted(_)));
+        let keep_browser_worker = matches!(
+            &result,
+            Ok(JobResult::BrowserStudySearchCompleted(_) | JobResult::RobustnessCompleted(_))
+        );
         #[cfg(target_arch = "wasm32")]
         if keep_browser_worker {
             if let Some(worker) = self
@@ -2549,6 +2872,22 @@ impl Workbench {
                     self.message = (false, "Reused the exact-input result cached by this live browser worker; no new calculation was run.".into());
                 }
             }
+            #[cfg(target_arch = "wasm32")]
+            Ok(JobResult::BrowserRobustnessCompleted(record)) => {
+                let mut workspace = self.study_workspace.clone();
+                match workspace.attach_robustness_result(*record) {
+                    Ok(()) => {
+                        self.study_workspace = workspace;
+                        self.robustness_preflight = None;
+                        self.refresh_robustness_history_current();
+                        self.message = (
+                            false,
+                            "Named what-if runs completed. Results are retained with their exact source snapshots; they are not probabilities or engineering acceptance.".into(),
+                        );
+                    }
+                    Err(error) => self.message = (true, error.to_string()),
+                }
+            }
             Ok(JobResult::StudySearchCompleted(result)) => {
                 let (workspace, session, cache_hit, outcome) = *result;
                 self.study_workspace = workspace;
@@ -2570,6 +2909,15 @@ impl Workbench {
             Ok(JobResult::StudySummaryReady(summary)) => {
                 self.study_summary = Some(*summary);
             }
+            Ok(JobResult::RobustnessCompleted(result)) => {
+                self.study_workspace = *result;
+                self.robustness_preflight = None;
+                self.refresh_robustness_history_current();
+                self.message = (
+                    false,
+                    "Named what-if runs completed. Results are retained with their exact source snapshots; they are not probabilities or engineering acceptance.".into(),
+                );
+            }
             Ok(JobResult::StudyCompareReady(summaries)) => {
                 let (diff, left, right) = *summaries;
                 self.study_diff = Some(diff);
@@ -2581,6 +2929,10 @@ impl Workbench {
                     worker.terminate();
                 }
                 self.study_workspace = *workspace;
+                self.robustness_preflight = None;
+                self.robustness_variant_ids.clear();
+                self.robustness_scenarios.clear();
+                self.refresh_robustness_history_current();
                 self.study_session = StudyEngineSession::default();
                 let selected = self
                     .study_workspace
@@ -2615,6 +2967,12 @@ impl Workbench {
                 self.message = (
                     false,
                     format!("Study workspace saved to {}.", path.display()),
+                );
+            }
+            Ok(JobResult::RobustnessExported(path)) => {
+                self.message = (
+                    false,
+                    format!("Robustness JSON exported to {}.", path.display()),
                 );
             }
             Ok(JobResult::StudyVariantLoaded(payload)) => {
@@ -3112,6 +3470,7 @@ impl Workbench {
                         JobKind::Profile => "Evaluating bore profile…",
                         JobKind::Queue => "Choosing queue files…",
                         JobKind::Workspace => "Loading or saving study workspace…",
+                        JobKind::Robustness => "Running named what-if scenarios…",
                     },
                 );
                 if worker.kind == JobKind::Search
@@ -3140,7 +3499,9 @@ impl Workbench {
                     };
                     ui.colored_label(brand::MUTED, detail);
                 }
-                if worker.kind == JobKind::Search && ui.button("Cancel").clicked() {
+                if matches!(worker.kind, JobKind::Search | JobKind::Robustness)
+                    && ui.button("Cancel").clicked()
+                {
                     self.cancel_search();
                 }
             }

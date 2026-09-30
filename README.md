@@ -23,7 +23,7 @@ Use the desktop workbench to explore designs, the CLI to run reproducible studie
 - **Search coil designs.** Compare turn counts, tape counts, parallel strands, and permitted geometry choices while holding field, aperture, operating point, and declared constraints fixed. Planar racetrack, circular, and piecewise line-and-arc paths use the built-in field evaluator; non-planar helical paths require a declared field map.
 - **Compare conductors and grading.** Evaluate material datasets and product options, or assign different conductor specifications to winding regions. Embedded REBCO data includes measured characterizations and explicitly labeled model fits; you can also load your own datasets.
 - **Screen operating limits.** Couple magnetic-field evaluation to critical-current data at sampled tape positions and orientations, with declared utilization, bend, and first-order mechanical limits. Optional screens cover thermal margin, AC loss, and quench bounds. Unsupported material queries produce an explicit unresolved result.
-- **Explore tradeoffs.** Run sensitivity sweeps, compare vendor options, and reprice completed studies with documented price provenance.
+- **Explore tradeoffs.** Run sensitivity sweeps, compare vendor options, and reprice completed studies with documented price provenance. Source builds also compare named alternatives across explicit supplier-price, conductor-Ic and temperature scenarios; see [scenario studies](docs/ROBUSTNESS.md).
 - **Keep an engineering study together.** Name and revise variants, retain their exact source data and historical results, compare decisions, and calculate explicit follow-up experiments in the GUI or through MCP.
 - **Export design evidence.** Save JSON run records, standalone HTML reports, conductor bills of materials, and procurement summaries with piece and splice schedules when declared by the case.
 - **Check the result.** A separate acceptance path recomputes costs and screening checks, including a finer sampling plan where declared. Offline verification checks input hashes and ledger arithmetic; signed dataset bundles support provenance verification.
@@ -116,6 +116,9 @@ offers typed study operations, cancellable search and sensitivity jobs, compact
 decisions and resources for full records. It shares the GUI's workspace format;
 no hosted account or remote desktop connection is required.
 
+Scenario analysis and prioritized diagnosis are available in the current source
+build; the published v0.2.0 archives predate these extensions.
+
 See [MCP setup and tool workflow](crates/optcoil-mcp/README.md) and
 [engineering study workspaces](docs/ENGINEERING_WORKSPACE.md).
 
@@ -173,6 +176,9 @@ The repository includes frozen cases, independent reference tools, and reports d
 These results describe the individual benchmark cases. Dollar savings depend on the declared prices, manufacturing costs, and baseline; conductor comparisons depend on the stated geometry and material assumptions.
 
 ## Documentation
+
+- [Scenario studies](docs/ROBUSTNESS.md) — explicit what-ifs and portable replay evidence.
+- [Workflow comparison](docs/WORKFLOW_COMPARISON.md) — frozen inputs and matched software measurements.
 
 | Guide | Use it for |
 | --- | --- |

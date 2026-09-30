@@ -2837,6 +2837,7 @@ dependencies = [
 name = "optcoil-search"
 version = "0.2.0"
 dependencies = [
+ "csv",
  "optcoil-adapters",
  "optcoil-model",
  "optcoil-physics",

@@ -1,6 +1,10 @@
-use std::{fs, path::PathBuf, time::Duration};
+use std::{fs, path::PathBuf, sync::atomic::AtomicBool, time::Duration};
 
-use optcoil_search::coupled_search::{CoupledSearchOptions, run_coupled_search_case};
+use optcoil_search::{
+    coupled_search::{CoupledSearchOptions, run_coupled_search_case},
+    robustness::{RobustnessSpec, run_study_robustness},
+    study::StudyWorkspace,
+};
 use rmcp::{
     ServiceExt,
     model::CallToolRequestParams,
@@ -82,6 +86,77 @@ async fn call(
             })
             .unwrap_or_else(|| json!({ "is_error": response.is_error }))
     })
+}
+
+fn robustness_spec() -> Value {
+    json!({
+        "schema": "optcoil-robustness-spec/v1",
+        "scenarios": [
+            {
+                "id": "nominal",
+                "name": "Nominal conditions",
+                "price_multipliers": {},
+                "ic_multipliers": {},
+                "temperature_offset_k": 0.0
+            },
+            {
+                "id": "bounded-what-if",
+                "name": "Explicit price, Ic, and temperature what-if",
+                "price_multipliers": { "robinson-superpower-ap-v3": 1.05 },
+                "ic_multipliers": { "robinson-superpower-ap-v3": 1.02 },
+                "temperature_offset_k": 0.5
+            }
+        ]
+    })
+}
+
+fn robustness_semantics(record: &Value) -> Value {
+    let mut normalized = record.clone();
+    let root = normalized.as_object_mut().unwrap();
+    root.remove("started_unix_ms");
+    root.remove("elapsed_ms");
+    if let Some(rows) = root.get_mut("rows").and_then(Value::as_array_mut) {
+        for row in rows {
+            let Some(text) = row
+                .get("run_record_json")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+            else {
+                continue;
+            };
+            let mut run: Value = serde_json::from_str(&text).unwrap();
+            if let Some(run_root) = run.as_object_mut() {
+                run_root.remove("started_unix_ms");
+                run_root.remove("elapsed_ms");
+                if let Some(candidates) =
+                    run_root.get_mut("candidates").and_then(Value::as_array_mut)
+                {
+                    for candidate in candidates {
+                        if let Some(candidate) = candidate.as_object_mut() {
+                            candidate.remove("field_timing_ms");
+                        }
+                    }
+                }
+            }
+            row["run_record_json"] = Value::String(serde_json::to_string(&run).unwrap());
+        }
+    }
+    normalized
+}
+
+async fn wait_for_job(
+    client: &rmcp::service::RunningService<rmcp::RoleClient, ()>,
+    job_id: &str,
+) -> Value {
+    let mut status = Value::Null;
+    for _ in 0..600 {
+        status = call(client, "get_job", json!({ "job_id": job_id })).await;
+        if status["phase"] != "running" {
+            return status;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    panic!("job did not reach a terminal state: {status}");
 }
 
 #[tokio::test]
@@ -480,5 +555,312 @@ async fn stdio_declared_multi_dataset_bindings_keep_exact_sources() {
         .unwrap();
     assert!(!source.contents.is_empty());
     client.cancel().await.unwrap();
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[tokio::test]
+async fn stdio_robustness_preview_jobs_resources_and_history() {
+    let root = temp_workspace("robustness");
+    let client = launch(&root).await;
+    let tools = client.list_all_tools().await.unwrap();
+    for name in [
+        "preview_robustness",
+        "start_robustness",
+        "list_robustness_results",
+    ] {
+        assert!(
+            tools.iter().any(|tool| tool.name == name),
+            "missing MCP tool {name}"
+        );
+    }
+
+    let case_json = small_case();
+    let variant_name = "stdio robustness fixture";
+    let created = call(
+        &client,
+        "create_variant",
+        json!({
+            "name": variant_name,
+            "case_json": case_json,
+            "dataset_bundles": [],
+            "threads": 1
+        }),
+    )
+    .await;
+    let variant_id = created["variant_id"].as_str().unwrap().to_owned();
+    let spec_value = robustness_spec();
+    let spec_json = spec_value.to_string();
+    let preview = call(
+        &client,
+        "preview_robustness",
+        json!({ "variant_ids": [variant_id], "spec_json": spec_json }),
+    )
+    .await;
+    assert_eq!(
+        preview["schema"], "optcoil-robustness-preflight/v1",
+        "{preview}"
+    );
+    assert_eq!(preview["ready_to_run"], true, "{preview}");
+    assert_eq!(preview["run_count"], 2, "{preview}");
+    assert_eq!(preview["engineering_acceptance_claim"], false, "{preview}");
+    assert_eq!(preview["scenario_ids"][0], "nominal");
+    assert_eq!(preview["scenario_ids"][1], "bounded-what-if");
+
+    let malformed = call(
+        &client,
+        "preview_robustness",
+        json!({ "variant_ids": [variant_id], "spec_json": "not json" }),
+    )
+    .await;
+    assert!(malformed["text"].as_str().is_some(), "{malformed}");
+    let mut missing_nominal = spec_value.clone();
+    missing_nominal["scenarios"] = json!([missing_nominal["scenarios"][1].clone()]);
+    let missing_nominal = call(
+        &client,
+        "preview_robustness",
+        json!({ "variant_ids": [variant_id], "spec_json": missing_nominal.to_string() }),
+    )
+    .await;
+    assert!(
+        missing_nominal["text"].as_str().is_some(),
+        "{missing_nominal}"
+    );
+
+    let mut too_many = spec_value.clone();
+    let scenarios = too_many["scenarios"].as_array_mut().unwrap();
+    for index in 0..15 {
+        scenarios.push(json!({
+            "id": format!("bounded-{index}"),
+            "name": format!("Bounded scenario {index}"),
+            "price_multipliers": {},
+            "ic_multipliers": {},
+            "temperature_offset_k": 0.0
+        }));
+    }
+    let over_limit = call(
+        &client,
+        "preview_robustness",
+        json!({ "variant_ids": [variant_id], "spec_json": too_many.to_string() }),
+    )
+    .await;
+    assert!(over_limit["text"].as_str().is_some(), "{over_limit}");
+
+    let spec: RobustnessSpec = serde_json::from_value(spec_value).unwrap();
+    let mut control = StudyWorkspace::new("Converra engineering study");
+    let control_variant_id = control
+        .add_variant(
+            variant_name,
+            case_json.clone(),
+            Vec::new(),
+            CoupledSearchOptions { threads: Some(1) },
+        )
+        .unwrap();
+    assert_eq!(control_variant_id, variant_id);
+    let expected = run_study_robustness(
+        &control,
+        std::slice::from_ref(&control_variant_id),
+        &spec,
+        &AtomicBool::new(false),
+        None,
+    )
+    .unwrap();
+    let expected = serde_json::to_value(expected).unwrap();
+
+    // Request cancellation immediately after dispatch. If the worker still
+    // reaches completion first, its completed evidence is used below; a
+    // cancelled worker must leave the retained-results list untouched.
+    let cancel_attempt = call(
+        &client,
+        "start_robustness",
+        json!({ "variant_ids": [variant_id], "spec_json": serde_json::to_string(&spec).unwrap() }),
+    )
+    .await;
+    assert_eq!(cancel_attempt["kind"], "robustness", "{cancel_attempt}");
+    let cancel_job_id = cancel_attempt["job_id"].as_str().unwrap().to_owned();
+    let first_phase = call(&client, "get_job", json!({ "job_id": cancel_job_id })).await;
+    let mut completed_job = if first_phase["phase"] == "completed" {
+        Some(first_phase)
+    } else {
+        assert_eq!(first_phase["phase"], "running", "{first_phase}");
+        let cancel_result = call(&client, "cancel_job", json!({ "job_id": cancel_job_id })).await;
+        if cancel_result["cancellation_requested"] == true {
+            let status = wait_for_job(&client, &cancel_job_id).await;
+            match status["phase"].as_str() {
+                Some("cancelled") => {
+                    let retained = call(&client, "list_robustness_results", json!({})).await;
+                    assert_eq!(
+                        retained.as_array().unwrap().len(),
+                        0,
+                        "cancelled job attached partial evidence"
+                    );
+                    None
+                }
+                Some("completed") => Some(status),
+                other => panic!("unexpected cancellation terminal phase {other:?}: {status}"),
+            }
+        } else {
+            let status = wait_for_job(&client, &cancel_job_id).await;
+            assert_eq!(status["phase"], "completed", "{cancel_result}; {status}");
+            Some(status)
+        }
+    };
+    if completed_job.is_none() {
+        let started = call(
+            &client,
+            "start_robustness",
+            json!({ "variant_ids": [variant_id], "spec_json": serde_json::to_string(&spec).unwrap() }),
+        )
+        .await;
+        let job_id = started["job_id"].as_str().unwrap();
+        let status = wait_for_job(&client, job_id).await;
+        assert_eq!(status["phase"], "completed", "{status}");
+        completed_job = Some(status);
+    }
+    let completed_job = completed_job.unwrap();
+    assert_eq!(completed_job["phase"], "completed", "{completed_job}");
+    assert!(
+        completed_job["result_resource"].as_str().is_some(),
+        "{completed_job}"
+    );
+
+    let summaries = call(&client, "list_robustness_results", json!({})).await;
+    assert_eq!(summaries.as_array().unwrap().len(), 1, "{summaries}");
+    let summary = &summaries[0];
+    assert_eq!(summary["current"], true, "{summary}");
+    let artifact_sha256 = summary["artifact_sha256"].as_str().unwrap();
+    let resource_uri = format!("optcoil://study/robustness/{artifact_sha256}");
+    assert_eq!(summary["resource"], resource_uri);
+    assert_eq!(completed_job["result_resource"], resource_uri);
+    let resources = client.list_all_resources().await.unwrap();
+    assert!(
+        resources
+            .iter()
+            .any(|resource| resource.uri == resource_uri)
+    );
+    let resource = client
+        .read_resource(rmcp::model::ReadResourceRequestParams::new(
+            resource_uri.clone(),
+        ))
+        .await
+        .unwrap();
+    let actual_text = match &resource.contents[0] {
+        rmcp::model::ResourceContents::TextResourceContents { text, .. } => text.clone(),
+        _ => panic!("robustness resource was not text JSON"),
+    };
+    let actual: Value = serde_json::from_str(&actual_text).unwrap();
+    assert_eq!(
+        optcoil_model::attestation::sha256_hex(actual_text.as_bytes()),
+        artifact_sha256
+    );
+    assert_eq!(actual["input_fingerprint"], expected["input_fingerprint"]);
+    assert_eq!(
+        actual["source_fingerprints"],
+        expected["source_fingerprints"]
+    );
+    assert_eq!(actual["rows"][0]["source_case_json"], case_json);
+    assert_eq!(actual["rows"][1]["source_case_json"], case_json);
+    assert_eq!(actual["rows"][0]["source_options"]["threads"], 1);
+    assert_eq!(
+        robustness_semantics(&actual),
+        robustness_semantics(&expected),
+        "MCP job result differs from direct run_study_robustness on the exact same workspace and spec"
+    );
+    assert_eq!(
+        actual["all_scenarios_have_supported_winner"],
+        expected["all_scenarios_have_supported_winner"]
+    );
+
+    // Identical inputs can produce distinct timing metadata. A completed job's
+    // resource must continue returning its exact artifact after another rerun.
+    tokio::time::sleep(Duration::from_millis(2)).await;
+    let repeated = call(
+        &client,
+        "start_robustness",
+        json!({ "variant_ids": [variant_id], "spec_json": serde_json::to_string(&spec).unwrap() }),
+    )
+    .await;
+    let repeated_job = wait_for_job(&client, repeated["job_id"].as_str().unwrap()).await;
+    assert_eq!(repeated_job["phase"], "completed", "{repeated_job}");
+    assert_ne!(repeated_job["result_resource"], resource_uri);
+    let retained = call(&client, "list_robustness_results", json!({})).await;
+    assert_eq!(retained.as_array().unwrap().len(), 2, "{retained}");
+    assert_eq!(
+        retained[0]["input_fingerprint"],
+        retained[1]["input_fingerprint"]
+    );
+    let original_resource = client
+        .read_resource(rmcp::model::ReadResourceRequestParams::new(
+            resource_uri.clone(),
+        ))
+        .await
+        .unwrap();
+    match &original_resource.contents[0] {
+        rmcp::model::ResourceContents::TextResourceContents { text, .. } => {
+            assert_eq!(text, &actual_text)
+        }
+        _ => panic!("original robustness resource was not text JSON"),
+    }
+
+    let mut revised_case: Value = serde_json::from_str(&case_json).unwrap();
+    let old_price = revised_case["cost"]["price_usd_per_m"].as_f64().unwrap();
+    revised_case["cost"]["price_usd_per_m"] = json!(old_price * 1.01);
+    let revised = call(
+        &client,
+        "revise_variant",
+        json!({
+            "variant_id": variant_id,
+            "case_json": serde_json::to_string(&revised_case).unwrap(),
+            "dataset_bundles": [],
+            "threads": 1
+        }),
+    )
+    .await;
+    assert_eq!(revised["variant_id"], variant_id, "{revised}");
+    let historical = call(&client, "list_robustness_results", json!({})).await;
+    assert_eq!(
+        historical.as_array().unwrap().len(),
+        2,
+        "revision removed scenario evidence"
+    );
+    assert_eq!(
+        historical[0]["current"], false,
+        "revision did not mark prior evidence historical"
+    );
+    assert_eq!(historical[1]["current"], false);
+    let historical_resource = client
+        .read_resource(rmcp::model::ReadResourceRequestParams::new(
+            resource_uri.clone(),
+        ))
+        .await
+        .unwrap();
+    let historical_text = match &historical_resource.contents[0] {
+        rmcp::model::ResourceContents::TextResourceContents { text, .. } => text,
+        _ => panic!("historical robustness resource was not text JSON"),
+    };
+    assert_eq!(historical_text, &actual_text);
+
+    client.cancel().await.unwrap();
+    let restarted = launch(&root).await;
+    let after_restart = call(&restarted, "list_robustness_results", json!({})).await;
+    assert_eq!(
+        after_restart.as_array().unwrap().len(),
+        2,
+        "restart lost retained robustness evidence"
+    );
+    assert_eq!(
+        after_restart[0]["current"], false,
+        "restart lost historical binding state"
+    );
+    assert_eq!(after_restart[1]["current"], false);
+    let restarted_resource = restarted
+        .read_resource(rmcp::model::ReadResourceRequestParams::new(resource_uri))
+        .await
+        .unwrap();
+    let restarted_text = match &restarted_resource.contents[0] {
+        rmcp::model::ResourceContents::TextResourceContents { text, .. } => text,
+        _ => panic!("restarted robustness resource was not text JSON"),
+    };
+    assert_eq!(restarted_text, &actual_text);
+    restarted.cancel().await.unwrap();
     fs::remove_dir_all(root).unwrap();
 }

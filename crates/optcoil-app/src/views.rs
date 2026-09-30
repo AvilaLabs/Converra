@@ -127,6 +127,9 @@ impl Workbench {
                 self.study_diagnosis(&mut columns[1]);
             });
         }
+        ui.add_space(12.0);
+        ui.separator();
+        self.study_robustness(ui);
     }
 
     fn study_variants(&mut self, ui: &mut egui::Ui) {
@@ -392,31 +395,142 @@ impl Workbench {
                         summary.current_binding_result_ids.len(),
                         summary.result_count
                     ));
-                    for gate in decision.unresolved_gates.iter().take(8) {
-                        ui.colored_label(brand::MUTED, gate);
+                    if !decision.unresolved_gates.is_empty() {
+                        egui::CollapsingHeader::new(format!(
+                            "Decision evidence ({})",
+                            decision.unresolved_gates.len()
+                        ))
+                        .id_salt("study-decision-evidence")
+                        .show(ui, |ui| {
+                            for gate in &decision.unresolved_gates {
+                                ui.colored_label(brand::MUTED, gate);
+                            }
+                        });
                     }
                 });
             } else {
                 ui.label("No exact-input result yet. Run this variant to produce a current decision summary.");
             }
-            for issue in &summary.diagnosis.issues {
+            let actions = &summary.diagnosis.action_groups;
+            let primary_actions = actions
+                .iter()
+                .filter(|action| {
+                    action.urgency != optcoil_search::study::StudyActionUrgency::Unperformed
+                })
+                .collect::<Vec<_>>();
+            for action in primary_actions.iter().take(3) {
                 ui.group(|ui| {
                     ui.horizontal_wrapped(|ui| {
-                        ui.colored_label(status_color(issue.status), status_label(issue.status));
-                        ui.strong(&issue.code);
+                        let urgency = match action.urgency {
+                            optcoil_search::study::StudyActionUrgency::Blocking => "BLOCKING",
+                            optcoil_search::study::StudyActionUrgency::Review => "REVIEW",
+                            optcoil_search::study::StudyActionUrgency::Unperformed => "NOT RUN",
+                        };
+                        let color = if action.urgency
+                            == optcoil_search::study::StudyActionUrgency::Blocking
+                        {
+                            status_color(Status::Fail)
+                        } else {
+                            brand::MUTED
+                        };
+                        ui.colored_label(color, urgency);
+                        ui.strong(&action.title);
                     });
-                    ui.label(&issue.message);
-                    if let Some(pointer) = &issue.input_pointer {
-                        ui.small(format!("Input: {pointer}"));
+                    let scope = match action.scope {
+                        optcoil_search::study::StudyActionScope::StudyWide => "Study-wide",
+                        optcoil_search::study::StudyActionScope::SelectedCandidate => {
+                            "Current recommendation"
+                        }
+                        optcoil_search::study::StudyActionScope::RejectedCandidates => {
+                            "Rejected alternatives"
+                        }
+                        optcoil_search::study::StudyActionScope::SelectedAndRejectedCandidates => {
+                            "Current recommendation and alternatives"
+                        }
+                    };
+                    ui.small(format!(
+                        "{scope} · {} related check(s)",
+                        action.issue_indices.len()
+                    ));
+                    if !action.affected_candidate_indices.is_empty() {
+                        ui.small(format!(
+                            "Candidate indices: {}",
+                            action
+                                .affected_candidate_indices
+                                .iter()
+                                .map(usize::to_string)
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        ));
                     }
-                    if let Some(limit) = &issue.observed_limit {
-                        ui.small(format!("Observed / limit: {limit}"));
-                    }
-                    if let Some(gap) = &issue.data_gap {
-                        ui.small(format!("Data gap: {gap}"));
+                    ui.label(&action.explanation);
+                    ui.label(RichText::new(&action.next_action).color(brand::BLUE));
+                });
+            }
+            let remaining_actions = primary_actions.iter().skip(3).copied().collect::<Vec<_>>();
+            let optional_actions = actions
+                .iter()
+                .filter(|action| {
+                    action.urgency == optcoil_search::study::StudyActionUrgency::Unperformed
+                })
+                .collect::<Vec<_>>();
+            if !remaining_actions.is_empty() || !optional_actions.is_empty() {
+                egui::CollapsingHeader::new(format!(
+                    "More actions and optional checks ({})",
+                    remaining_actions.len() + optional_actions.len()
+                ))
+                .id_salt("study_more_actions")
+                .show(ui, |ui| {
+                    for action in remaining_actions
+                        .iter()
+                        .copied()
+                        .chain(optional_actions.iter().copied())
+                    {
+                        ui.group(|ui| {
+                            ui.strong(&action.title);
+                            ui.small(match action.urgency {
+                                optcoil_search::study::StudyActionUrgency::Blocking => {
+                                    "Requires attention"
+                                }
+                                optcoil_search::study::StudyActionUrgency::Review => "Review",
+                                optcoil_search::study::StudyActionUrgency::Unperformed => {
+                                    "Unperformed optional check"
+                                }
+                            });
+                            ui.label(&action.explanation);
+                            ui.label(&action.next_action);
+                        });
                     }
                 });
             }
+            egui::CollapsingHeader::new(format!(
+                "Raw checks and statuses ({})",
+                summary.diagnosis.issues.len()
+            ))
+            .id_salt("study_raw_diagnosis_issues")
+            .show(ui, |ui| {
+                for issue in &summary.diagnosis.issues {
+                    ui.group(|ui| {
+                        ui.horizontal_wrapped(|ui| {
+                            ui.colored_label(
+                                status_color(issue.status),
+                                status_label(issue.status),
+                            );
+                            ui.strong(&issue.code);
+                        });
+                        ui.label(&issue.message);
+                        if let Some(pointer) = &issue.input_pointer {
+                            ui.small(format!("Input: {pointer}"));
+                        }
+                        if let Some(limit) = &issue.observed_limit {
+                            ui.small(format!("Observed / limit: {limit}"));
+                        }
+                        if let Some(gap) = &issue.data_gap {
+                            ui.small(format!("Data gap: {gap}"));
+                        }
+                    });
+                }
+            });
             if !summary.diagnosis.engineering_acceptance_claim {
                 ui.colored_label(brand::MUTED, "Diagnosis organizes declared and evaluated constraints; it does not establish engineering acceptance.");
             }
@@ -437,7 +551,10 @@ impl Workbench {
             }
         }
         ui.add_space(12.0);
-        ui.heading("Follow-up experiment");
+        egui::CollapsingHeader::new("Follow-up experiment")
+            .id_salt("study_followup_experiment")
+            .default_open(false)
+            .show(ui, |ui| {
         ui.small("Proposals change one declared pack-choice axis. Requirement, numerical gates and limits remain fixed; every proposal starts uncalculated.");
         if let Some(id) = self.study_variant_id.clone() {
             if let Some(summary) = &self.study_summary {
@@ -526,6 +643,388 @@ impl Workbench {
                     self.create_study_follow_up(proposal.clone());
                 }
             });
+        }
+            });
+    }
+
+    fn study_robustness(&mut self, ui: &mut egui::Ui) {
+        ui.heading("What-if robustness study");
+        ui.small("Run named, analyst-authored supplier and operating scenarios through the same search. These are deterministic what-if cases, not probabilities or engineering acceptance.");
+        ui.small(
+            "Multipliers are per dataset (1.10 means +10%); temperature is an additive offset.",
+        );
+        self.sync_robustness_editor();
+        let mut editor_changed = false;
+        ui.label("Variants to include (up to 8)");
+        let variants = self
+            .study_workspace
+            .variants
+            .iter()
+            .map(|variant| (variant.id.clone(), variant.name.clone()))
+            .collect::<Vec<_>>();
+        for (variant_id, variant_name) in variants {
+            let mut selected = self.robustness_variant_ids.contains(&variant_id);
+            let can_select = selected || self.robustness_variant_ids.len() < 8;
+            if ui
+                .add_enabled(
+                    can_select && self.worker.is_none(),
+                    egui::Checkbox::new(&mut selected, variant_name),
+                )
+                .changed()
+            {
+                if selected {
+                    self.robustness_variant_ids.push(variant_id);
+                } else {
+                    self.robustness_variant_ids.retain(|id| id != &variant_id);
+                }
+                editor_changed = true;
+            }
+        }
+        ui.separator();
+        ui.horizontal_wrapped(|ui| {
+            ui.strong("Nominal conditions");
+            ui.small("Required reference scenario · unchanged source inputs");
+        });
+        let mut remove_scenario = None;
+        let can_remove_scenario = self.robustness_scenarios.len() > 1;
+        for (index, scenario) in self.robustness_scenarios.iter_mut().enumerate() {
+            ui.group(|ui| {
+                ui.horizontal_wrapped(|ui| {
+                    ui.strong(format!("What-if {}", index + 1));
+                    editor_changed |= ui
+                        .add_enabled(
+                            self.worker.is_none(),
+                            egui::TextEdit::singleline(&mut scenario.name)
+                                .desired_width(190.0)
+                                .hint_text("Scenario name"),
+                        )
+                        .changed();
+                });
+                let dataset_ids = scenario
+                    .price_multipliers
+                    .keys()
+                    .cloned()
+                    .collect::<Vec<_>>();
+                for dataset_id in dataset_ids {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.strong(&dataset_id);
+                        ui.label("price ×");
+                        if let Some(value) = scenario.price_multipliers.get_mut(&dataset_id) {
+                            editor_changed |= ui
+                                .add_enabled(
+                                    self.worker.is_none(),
+                                    egui::DragValue::new(value).range(0.01..=20.0).speed(0.01),
+                                )
+                                .changed();
+                        }
+                        ui.label("Ic ×");
+                        if let Some(value) = scenario.ic_multipliers.get_mut(&dataset_id) {
+                            editor_changed |= ui
+                                .add_enabled(
+                                    self.worker.is_none(),
+                                    egui::DragValue::new(value).range(0.1..=2.0).speed(0.01),
+                                )
+                                .changed();
+                        }
+                    });
+                }
+                ui.horizontal(|ui| {
+                    ui.label("Temperature change");
+                    editor_changed |= ui
+                        .add_enabled(
+                            self.worker.is_none(),
+                            egui::DragValue::new(&mut scenario.temperature_offset_k)
+                                .range(-50.0..=50.0)
+                                .speed(0.1)
+                                .suffix(" K"),
+                        )
+                        .changed();
+                    if ui
+                        .add_enabled(
+                            self.worker.is_none() && can_remove_scenario,
+                            egui::Button::new("Remove"),
+                        )
+                        .clicked()
+                    {
+                        remove_scenario = Some(index);
+                    }
+                });
+            });
+        }
+        if let Some(index) = remove_scenario {
+            self.robustness_scenarios.remove(index);
+            editor_changed = true;
+        }
+        let selected_count = self.robustness_variant_ids.len();
+        let scenario_count = self.robustness_scenarios.len();
+        if ui
+            .add_enabled(
+                self.worker.is_none()
+                    && scenario_count < 8
+                    && selected_count.max(1) * (scenario_count + 2) <= 64,
+                egui::Button::new("Add named what-if"),
+            )
+            .clicked()
+        {
+            let number = (1..=8)
+                .find(|number| {
+                    !self
+                        .robustness_scenarios
+                        .iter()
+                        .any(|scenario| scenario.id == format!("scenario-{number}"))
+                })
+                .unwrap_or(8);
+            let dataset_ids = self.robustness_dataset_ids();
+            self.robustness_scenarios
+                .push(optcoil_search::robustness::RobustnessScenario {
+                    id: format!("scenario-{number}"),
+                    name: format!("What-if {number}"),
+                    price_multipliers: dataset_ids.iter().map(|id| (id.clone(), 1.1)).collect(),
+                    ic_multipliers: dataset_ids.iter().map(|id| (id.clone(), 1.0)).collect(),
+                    temperature_offset_k: 0.0,
+                });
+            editor_changed = true;
+        }
+        if editor_changed {
+            self.robustness_preflight = None;
+        }
+        ui.horizontal_wrapped(|ui| {
+            if ui
+                .add_enabled(
+                    self.worker.is_none() && !self.robustness_variant_ids.is_empty(),
+                    egui::Button::new("Preview workload"),
+                )
+                .clicked()
+            {
+                self.preview_robustness();
+            }
+            if ui
+                .add_enabled(
+                    self.worker.is_none()
+                        && self
+                            .robustness_preflight
+                            .as_ref()
+                            .is_some_and(|preflight| preflight.ready_to_run),
+                    egui::Button::new("Run named scenarios"),
+                )
+                .clicked()
+            {
+                self.start_robustness(ui.ctx());
+            }
+        });
+        if let Some(preflight) = &self.robustness_preflight {
+            ui.group(|ui| {
+                ui.horizontal_wrapped(|ui| {
+                    ui.strong(if preflight.ready_to_run {
+                        "Ready under declared gates"
+                    } else {
+                        "Resolve scenario inputs before running"
+                    });
+                    ui.label(format!("{} search runs", preflight.run_count));
+                    ui.label(format!("{} candidate evaluations", preflight.candidate_runs));
+                });
+                ui.small(format!("Aggregate kernel work proxy: {}", preflight.kernel_work_proxy));
+                ui.small("The work proxy is not a time estimate; the runner will recheck each scenario before calculation.");
+                for run in &preflight.preflights {
+                    if !run.ready_to_run {
+                        ui.colored_label(
+                            status_color(Status::Inconclusive),
+                            format!("{} · {} needs input fixes", run.variant_id, run.scenario_id),
+                        );
+                        for error in &run.errors {
+                            ui.small(error);
+                        }
+                    }
+                }
+                if !preflight.engineering_acceptance_claim {
+                    ui.small("Readiness is not engineering acceptance.");
+                }
+            });
+        }
+        self.robustness_history(ui);
+    }
+
+    fn robustness_history(&mut self, ui: &mut egui::Ui) {
+        let records = &self.study_workspace.robustness_results;
+        if records.is_empty() {
+            ui.small("Completed what-if histories will appear here and stay attached when the workspace is saved.");
+            return;
+        }
+        ui.separator();
+        ui.heading("Retained what-if history");
+        ui.small("Up to three completed analyses are retained. Export evidence you need to keep before further reruns.");
+        let mut export_index = None;
+        for (index, record) in records.iter().enumerate().rev() {
+            let current = self
+                .robustness_history_current
+                .iter()
+                .find(|(fingerprint, _)| fingerprint == &record.input_fingerprint)
+                .is_some_and(|(_, current)| *current);
+            let binding = if current {
+                "Current source and engine binding"
+            } else {
+                "Historical result · source inputs or engine identity changed"
+            };
+            egui::CollapsingHeader::new(format!(
+                "What-if study {} · {}",
+                index + 1,
+                binding
+            ))
+            .id_salt(("robustness-history", &record.input_fingerprint, index))
+            .show(ui, |ui| {
+                ui.label(format!(
+                    "{} variant(s) · {} scenario(s) · {} row(s)",
+                    record.variant_ids.len(),
+                    record.spec.scenarios.len(),
+                    record.rows.len()
+                ));
+                ui.small(format!("Input fingerprint {}", &record.input_fingerprint[..record.input_fingerprint.len().min(12)]));
+                ui.small("Binding status checks exact case, bundle and option inputs plus the engine fingerprint.");
+                for scenario in &record.scenario_summaries {
+                    ui.group(|ui| {
+                        let scenario_name = record
+                            .spec
+                            .scenarios
+                            .iter()
+                            .find(|candidate| candidate.id == scenario.scenario_id)
+                            .map(|candidate| candidate.name.as_str())
+                            .unwrap_or(&scenario.scenario_id);
+                        ui.strong(scenario_name);
+                        if let Some(spec) = record
+                            .spec
+                            .scenarios
+                            .iter()
+                            .find(|candidate| candidate.id == scenario.scenario_id)
+                        {
+                            if spec.id == "nominal" {
+                                ui.small("No input perturbations");
+                            } else {
+                                for (dataset_id, multiplier) in &spec.price_multipliers {
+                                    ui.small(format!("{dataset_id} price ×{multiplier:.4}"));
+                                }
+                                for (dataset_id, multiplier) in &spec.ic_multipliers {
+                                    ui.small(format!("{dataset_id} Ic ×{multiplier:.4}"));
+                                }
+                                ui.small(format!(
+                                    "Temperature offset {:+.2} K",
+                                    spec.temperature_offset_k
+                                ));
+                            }
+                        }
+                        match (&scenario.winner_variant_id, scenario.winner_cost_usd) {
+                            (Some(variant_id), Some(cost)) => {
+                                let name = record.rows.iter()
+                                    .find(|row| row.variant_id == *variant_id && row.scenario_id == scenario.scenario_id)
+                                    .map_or(variant_id.as_str(), |row| row.variant_name.as_str());
+                                ui.label(format!("Lowest resolved variant: {name} · ${cost:.2}"))
+                            },
+                            _ => ui.label("No resolved scenario winner"),
+                        };
+                        if let (Some(low), Some(high)) = (
+                            scenario.resolved_cost_min_usd,
+                            scenario.resolved_cost_max_usd,
+                        ) {
+                            ui.small(format!("Resolved variant cost range: ${low:.2}–${high:.2}"));
+                            if let Some(regret) = scenario.possible_regret_usd {
+                                ui.small(format!("Largest resolved cost difference: ${regret:.2}"));
+                            }
+                        }
+                        if !scenario.all_variants_resolved {
+                            ui.colored_label(
+                                status_color(Status::Inconclusive),
+                                format!(
+                                    "Unresolved variants: {}",
+                                    scenario.missing_variant_ids.join(", ")
+                                ),
+                            );
+                        }
+                    });
+                }
+                for row in &record.rows {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.strong(format!("{} · {}", row.variant_name, row.scenario_name));
+                        match row.status {
+                            optcoil_search::robustness::RobustnessRunStatus::Completed => {
+                                if let Some(winner) = &row.winner {
+                                    ui.label(format!(
+                                        "candidate {} · ${:.2}",
+                                        winner.candidate_index, winner.cost_usd
+                                    ));
+                                    ui.small(format!(
+                                        "{} turns · {} tapes · {} parallel strands{}{}",
+                                        winner.turns_along_normal,
+                                        winner.tapes_along_width,
+                                        winner.strands_parallel,
+                                        winner.bend_radius_m.map_or(String::new(), |value| {
+                                            format!(" · bend radius {value:.4} m")
+                                        }),
+                                        winner.straight_half_length_m.map_or(
+                                            String::new(),
+                                            |value| format!(" · straight half-length {value:.4} m"),
+                                        ),
+                                    ));
+                                    if row.scenario_id != "nominal" {
+                                        ui.label(match row.nominal_winner_geometry_survives {
+                                            Some(true) => "nominal geometry passes primary screening",
+                                            Some(false) => "nominal geometry fails primary screening",
+                                            None => "nominal geometry eligibility is unresolved",
+                                        });
+                                    }
+                                } else {
+                                    ui.label("Completed without a selected winner");
+                                }
+                            }
+                            optcoil_search::robustness::RobustnessRunStatus::NoWinner => {
+                                ui.colored_label(status_color(Status::Fail), "No candidate passed declared gates");
+                            }
+                            optcoil_search::robustness::RobustnessRunStatus::Unresolved => {
+                                ui.colored_label(status_color(Status::Inconclusive), "Winner unresolved");
+                            }
+                            optcoil_search::robustness::RobustnessRunStatus::Failed => {
+                                ui.colored_label(status_color(Status::Fail), "Scenario failed");
+                            }
+                        }
+                    });
+                    if let Some(error) = &row.error {
+                        ui.small(error);
+                    }
+                }
+                if !record.winner_switches.is_empty() {
+                    ui.strong("Winner switches between scenarios");
+                    for switch in &record.winner_switches {
+                        let scenario_name = |id: &str| record.spec.scenarios.iter()
+                            .find(|scenario| scenario.id == id)
+                            .map_or_else(|| id.to_owned(), |scenario| scenario.name.clone());
+                        let variant_name = |id: &str| record.rows.iter()
+                            .find(|row| row.variant_id == id)
+                            .map_or_else(|| id.to_owned(), |row| row.variant_name.clone());
+                        ui.small(format!(
+                            "{} → {}: {} → {}",
+                            scenario_name(&switch.from_scenario_id),
+                            scenario_name(&switch.to_scenario_id),
+                            variant_name(&switch.from_variant_id),
+                            variant_name(&switch.to_variant_id)
+                        ));
+                    }
+                }
+                if record.winner_switches.is_empty() && record.all_scenarios_have_supported_winner {
+                    ui.small("No winner switch was recorded across these named scenarios.");
+                }
+                for limitation in &record.limitations {
+                    ui.small(limitation);
+                }
+                if ui
+                    .add_enabled(self.worker.is_none(), egui::Button::new("Export JSON…"))
+                    .clicked()
+                {
+                    export_index = Some(index);
+                }
+            });
+        }
+        if let Some(index) = export_index
+            && let Some(record) = self.study_workspace.robustness_results.get(index).cloned()
+        {
+            self.export_robustness_record(ui.ctx(), record);
         }
     }
 

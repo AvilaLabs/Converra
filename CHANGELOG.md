@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- Rank study diagnoses into actionable groups, retaining the raw check ledger
+  and separating required gates, selected candidates, rejected alternatives and
+  optional unperformed checks.
+- Add bounded scenario reruns for named alternatives with dataset-specific
+  conductor prices and Ic multipliers plus operating-temperature offsets. Retain
+  full replay evidence, label transformed material data synthetic, and show
+  recommendation changes and unresolved scenarios in the existing egui GUI.
+- Preserve scenario evidence in workspace v2 with v1 import migration and
+  explicit current/history binding. Expose preview, background jobs and evidence
+  resources through the local MCP server and a `study-robustness` CLI command.
+- Add a frozen-input workflow comparison harness for the explicit CLI/files and
+  shared workspace paths. Software timings and operation counts do not measure
+  human usability or superiority over commercial tools.
+
 ## v0.2.0 — engineering decision workspace
 
 ### Study workspaces and AI agents

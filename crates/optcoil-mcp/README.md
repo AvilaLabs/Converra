@@ -43,7 +43,8 @@ process per directory. Standard output is reserved for protocol messages.
 | Supply exact inputs and dependencies | `create_variant`, `revise_variant`, `attach_dataset_bundle` |
 | Organize alternatives | `list_variants`, `select_variant`, `duplicate_variant`, `rename_variant` |
 | Check inputs, decisions and unresolved gates | `preflight_variant`, `summarize_variant`, `diagnose_variant` |
-| Calculate | `start_search`, `start_sensitivity` |
+| Calculate | `start_search`, `start_sensitivity`, `start_robustness` |
+| Declare and review scenarios | `preview_robustness`, `list_robustness_results` |
 | Follow progress or cancel | `get_job`, `cancel_job`, `get_job_result` |
 | Inspect evidence | `list_results`, `compare_variants`, `verify_result` |
 | Propose an unevaluated next experiment | `propose_follow_up` |
@@ -55,7 +56,7 @@ Inputs use the engine's case and material schemas. Do not normalize signed
 bundle files: their exact source bytes are retained. Thread overrides may reduce
 the declared case limit.
 
-Search and sensitivity calls return a job ID promptly. Poll `get_job` until
+Search, sensitivity and scenario calls return a job ID promptly. Poll `get_job` until
 `completed`, `cancelled` or `failed`; a cancellation request is not completion.
 Workspace mutations are paused during a calculation. Completed searches attach
 verified source records atomically to the persistent study. Failed or cancelled
@@ -73,6 +74,7 @@ server, for example:
 optcoil://study/workspace
 optcoil://study/variant/<variant-id>/case
 optcoil://study/variant/<variant-id>/result/<result-id>
+optcoil://study/robustness/<record-sha256>
 optcoil://artifact/<export-id>/manifest.json
 ```
 
@@ -92,6 +94,23 @@ law to a 12 mm tape width under the assumptions declared in the case. Its prices
 are invented teaching placeholders: USD 30/m of tape, USD 500 per pancake, and
 USD 200 per interface. They are not supplier quotes. The example is a bounded
 screening exercise and does not establish engineering acceptance.
+
+## Explicit scenario analysis (source builds)
+
+`preview_robustness` and `start_robustness` accept selected `variant_ids` and
+`spec_json` using `optcoil-robustness-spec/v1`. A nominal row is mandatory. Named
+what-if rows declare dataset-specific price and Ic multipliers and a temperature
+offset. The engine preserves the original numerical gates and rejects
+incomparable requirements or operating contracts. Scaled conductor data is
+explicitly synthetic; no probabilities or measurement uncertainty are inferred.
+
+Completed scenario jobs attach full replay evidence to workspace v2, including
+source cases, material bundles, transformed inputs and calculation records.
+`list_robustness_results` returns compact winners, changes and current/history
+bindings with full-record resource locators. Resources survive server restart;
+up to three analyses fit within the workspace payload limit. Cancelled jobs do
+not attach partial evidence. See [scenario studies](../../docs/ROBUSTNESS.md).
+These tools postdate the published v0.2.0 binaries and require a source build.
 
 ## Limits and result meaning
 
