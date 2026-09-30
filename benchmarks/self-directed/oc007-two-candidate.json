@@ -1,0 +1,215 @@
+{
+  "schema": "optcoil-coupled-search/v1",
+  "id": "self-directed-oc007-two-candidate",
+  "provenance": "Self-directed workflow fixture derived from frozen OC-007. Exact source JSON SHA-256: 7b8325d9db100fd9cae4141c29d061c834291f9d33534d65004cb947f788d20e. It narrows only the declared candidate choices to 120 turns and 3/4 tapes, which OC-007 already evaluated as FAIL and PASS respectively. Geometry, measured low-field dataset bytes, sampling, material policies, physical screens, numerical gates, refined plan, and synthetic illustrative cost inputs are unchanged. The baseline is set to the already-documented 120x4 PASS candidate so this short workflow rechecks that candidate independently. Derived software workflow fixture; not a frozen benchmark or engineering acceptance claim.",
+  "requirement": {
+    "bore_probe_m": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "b_target_t": 0.9,
+    "tolerance_fraction": 1e-09
+  },
+  "fixed_geometry": {
+    "straight_half_length_m": 0.3,
+    "bend_radius_m": 0.2,
+    "radial_pitch_m": 0.0001,
+    "tape_width_m": 0.012,
+    "tape_normal": "radial"
+  },
+  "choices": {
+    "turns_along_normal": [
+      120
+    ],
+    "tapes_along_width": [
+      3,
+      4
+    ]
+  },
+  "operating": {
+    "temperature_k": 21.0,
+    "electric_field_criterion_v_per_m": 0.0001
+  },
+  "material": {
+    "dataset_id": "robinson-superpower-ap-v3-lowfield",
+    "csv_sha256": "043cbaab9a32da5de6394b136265835b9c5917e28861d0793544c5e3885f893b",
+    "method": "measured-coordinate-tetrahedral-log-field-log-ic/v1",
+    "angle_mapping": "period_180_field_reversal",
+    "mirror_policy": "minimum_of_mirror_pair",
+    "field_basis_mapping": "pack_field_as_applied_field_self_field_consistent",
+    "field_magnitude_policy": "total_magnitude_with_transverse_angle",
+    "low_field_policy": "monotone_field_lower_bound",
+    "low_field_clamp_t": 0.0501,
+    "monotonicity_tolerance": 0.002
+  },
+  "sampling": {
+    "stations": [
+      {
+        "id": "straight_center",
+        "kind": "straight",
+        "x_m": 0.0
+      },
+      {
+        "id": "straight_near_junction",
+        "kind": "straight",
+        "x_m": 0.29
+      },
+      {
+        "id": "arc_apex",
+        "kind": "arc",
+        "azimuth_deg": 0.0
+      },
+      {
+        "id": "arc_mid",
+        "kind": "arc",
+        "azimuth_deg": 45.0
+      }
+    ],
+    "relative_turn_indices": [
+      {
+        "kind": "from_start",
+        "offset": 1
+      },
+      {
+        "kind": "from_start",
+        "offset": 2
+      },
+      {
+        "kind": "from_start",
+        "offset": 3
+      },
+      {
+        "kind": "from_start",
+        "offset": 5
+      },
+      {
+        "kind": "from_start",
+        "offset": 10
+      },
+      {
+        "kind": "from_start",
+        "offset": 20
+      },
+      {
+        "kind": "fraction",
+        "value": 0.25
+      },
+      {
+        "kind": "fraction",
+        "value": 0.5
+      },
+      {
+        "kind": "fraction",
+        "value": 0.75
+      },
+      {
+        "kind": "from_end",
+        "offset": 19
+      },
+      {
+        "kind": "from_end",
+        "offset": 9
+      },
+      {
+        "kind": "from_end",
+        "offset": 4
+      },
+      {
+        "kind": "from_end",
+        "offset": 1
+      },
+      {
+        "kind": "from_end",
+        "offset": 0
+      }
+    ],
+    "width_points": 5
+  },
+  "limits": {
+    "max_along_current_field_fraction": 0.2,
+    "max_self_field_ratio": 0.1,
+    "interpolation_overprediction_budget": 0.1,
+    "utilization_limit": 0.8
+  },
+  "numerics": {
+    "quadrature_orders": [
+      10,
+      14
+    ],
+    "field_scale_t": 1.0,
+    "max_refinement_change_fraction": 0.0025
+  },
+  "pruning": {
+    "coarse_stations": [
+      "arc_apex",
+      "straight_center"
+    ],
+    "coarse_turn_fractions": [
+      {
+        "kind": "from_start",
+        "offset": 1
+      },
+      {
+        "kind": "fraction",
+        "value": 0.5
+      },
+      {
+        "kind": "from_end",
+        "offset": 0
+      }
+    ],
+    "coarse_width_indices": [
+      0,
+      4
+    ]
+  },
+  "cost": {
+    "price_usd_per_m": 30.0,
+    "scrap_fraction": 0.1,
+    "assembly_cost_per_pancake_usd": 500.0,
+    "joint_cost_usd": 200.0
+  },
+  "baseline": {
+    "turns_along_normal": 120,
+    "tapes_along_width": 4
+  },
+  "refined_plan": {
+    "additional_stations": [
+      {
+        "id": "arc_15",
+        "kind": "arc",
+        "azimuth_deg": 15.0
+      },
+      {
+        "id": "arc_30",
+        "kind": "arc",
+        "azimuth_deg": 30.0
+      },
+      {
+        "id": "arc_60",
+        "kind": "arc",
+        "azimuth_deg": 60.0
+      },
+      {
+        "id": "arc_75",
+        "kind": "arc",
+        "azimuth_deg": 75.0
+      },
+      {
+        "id": "straight_015",
+        "kind": "straight",
+        "x_m": 0.15
+      },
+      {
+        "id": "straight_025",
+        "kind": "straight",
+        "x_m": 0.25
+      }
+    ],
+    "max_sampling_shortfall_fraction": 0.02
+  },
+  "execution": {
+    "max_threads": 5
+  }
+}

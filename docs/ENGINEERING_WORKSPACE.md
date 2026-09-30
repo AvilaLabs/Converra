@@ -35,6 +35,37 @@ The extension's local gates and observed GUI workflows are recorded in
    validates its stored sources and records. Export a **Review package** for a
    standalone report, inputs, conductor dependencies and offline verification.
 
+The workbench also autosaves a recoverable draft on the current device. If a
+saved draft is found at startup, choose **Restore draft** or **Discard draft**;
+restoration brings back the active source, workspace, unfinished case edits,
+resolved material bundles and completed evidence. An interrupted calculation
+is not represented as completed and can be run again. Desktop drafts use the
+application configuration directory; browser drafts use this browser's local
+IndexedDB storage. Browser storage does not move between browsers or devices.
+Unfinished import mappings and their original file are retained too; validate
+the restored source again before applying it. Concurrent tabs/windows cannot
+silently replace a newer draft. If storage reports a conflict, retry to inspect
+the latest saved draft, then choose restore or discard while keeping the current
+session. Desktop close waits for a saved draft, or lets you export the study or
+explicitly close without saving. Historical recovered artifacts are available
+from **File → Export recovered historical evidence**.
+
+Export a study workspace or review package for a portable copy; device-local
+recovery is not a substitute for export.
+
+For a screening PASS comparison, **File → Examples → Measured supported
+comparison (2 candidates)** provides an optional OC-007-derived case with the
+original numerical and engineering gates. It takes several minutes; the
+ordinary first-study example is quicker and demonstrates unresolved data
+coverage explicitly.
+
+For a small two-candidate comparison, open the first-study case, run it, then
+duplicate it as a named study variant. Change one supported choice or declared
+input, review applicability again, and calculate the variant. Compare the
+baseline and alternative in **Engineering study**; each result remains tied to
+its own exact case and material sources. If the alternative is not run, the
+comparison correctly has no calculated result for it.
+
 For explicit supplier-price, conductor-Ic and temperature what-ifs across named
 alternatives, use [scenario studies](ROBUSTNESS.md). Completed analyses retain
 source inputs and full evidence; input changes mark them historical.
@@ -93,5 +124,7 @@ calls, result resources and operating limits. Save or read the workspace resourc
 to move the same study between MCP and the GUI. Use one active writer for a study
 directory; the server is a local process with its own session cache.
 
-See the [verification evidence](ENGINEERING_WORKSPACE_EVIDENCE.md) for exercised
-workflows, measured repeat-work scope and the separate external validation gate.
+See the [workspace verification evidence](ENGINEERING_WORKSPACE_EVIDENCE.md) for
+exercised workflows and measured repeat-work scope, and the
+[self-directed workflow evidence](SELF_DIRECTED_WORKFLOW_EVIDENCE.md) for
+spreadsheet intake, cancellation, portable reopening and unfinished draft recovery.

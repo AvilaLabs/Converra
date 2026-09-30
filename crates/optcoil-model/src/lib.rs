@@ -12,6 +12,7 @@ pub mod path;
 pub mod path3d;
 pub mod product;
 pub mod sensitivity;
+pub mod tabular_import;
 
 use std::collections::HashSet;
 

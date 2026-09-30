@@ -1024,6 +1024,7 @@ mod tests {
             limitations: vec![
                 "Synthetic fixture for stratum-gate unit tests; not measured data.".into(),
             ],
+            tabular_import: None,
         };
         let mut points = Vec::new();
         let mut source_row = 1u32;

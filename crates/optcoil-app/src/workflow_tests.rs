@@ -105,6 +105,64 @@ fn robustness_editor_builds_bounded_named_preflight_scenarios() {
 }
 
 #[test]
+fn app_recovery_round_trip_restores_exact_active_case_workspace_and_editor() {
+    let ctx = egui::Context::default();
+    let mut app = Workbench::new(&ctx).expect("headless workbench");
+    wait_for_idle(&mut app, &ctx);
+    let exact_source = app.search_json.clone();
+    let exact_workspace = serde_json::to_string(&app.study_workspace).unwrap();
+
+    // Save the actual loaded case and an open authoring session. Recovery is
+    // expected to preserve the draft separately from the accepted source.
+    app.page = Page::Study;
+    app.edit_case(false);
+    assert!(app.author.is_some());
+    let imported_bundle = MaterialBundle::from_json(include_str!(
+        "../../../data/materials/robinson-superpower-ap-v3/bundle.json"
+    ))
+    .expect("measured source bundle");
+    app.apply_imported_material(imported_bundle, "SuperPower measured bundle".into())
+        .expect("attach imported bundle to the case draft");
+    let exact_imported_bundle = app
+        .author
+        .as_ref()
+        .unwrap()
+        .imported_bundle_json()
+        .expect("draft keeps imported source bundle")
+        .to_owned();
+    let exact_draft = app.author.as_ref().unwrap().recovery_json().unwrap();
+    let snapshot = app.create_recovery_snapshot().expect("recovery snapshot");
+    let active = snapshot.active_source.as_ref().expect("active source");
+    assert_eq!(active.source_json, exact_source);
+    assert_eq!(snapshot.workspace_json, exact_workspace);
+    assert_eq!(snapshot.author_json.as_deref(), Some(exact_draft.as_str()));
+
+    // Restore into an independent app instance so the test verifies the
+    // recovery path, rather than observing the still-live editor in place.
+    let mut reopened = Workbench::new(&ctx).expect("fresh workbench");
+    wait_for_idle(&mut reopened, &ctx);
+    reopened
+        .restore_recovery_snapshot(&ctx, snapshot)
+        .expect("restore recovery state");
+    wait_for_idle(&mut reopened, &ctx);
+    assert_eq!(reopened.search_json, exact_source);
+    assert_eq!(
+        serde_json::to_string(&reopened.study_workspace).unwrap(),
+        exact_workspace
+    );
+    assert_eq!(reopened.page, Page::Study);
+    assert_eq!(
+        reopened.author.as_ref().unwrap().recovery_json().unwrap(),
+        exact_draft
+    );
+    assert_eq!(
+        reopened.author.as_ref().unwrap().imported_bundle_json(),
+        Some(exact_imported_bundle.as_str())
+    );
+    assert!(reopened.search_record.is_none());
+}
+
+#[test]
 fn measured_case_search_revision_and_review_workflow() {
     let ctx = egui::Context::default();
     let mut app = Workbench::new(&ctx).expect("headless workbench");
@@ -161,6 +219,48 @@ fn measured_case_search_revision_and_review_workflow() {
         app.bom_record.is_none(),
         "the measured fixture has no PASS optimum"
     );
+
+    // A recovery snapshot carries the exact current run with its source. The
+    // second app must verify and restore that identity without rerunning the
+    // field search or promoting the unresolved result to an acceptance pass.
+    let snapshot = app
+        .create_recovery_snapshot()
+        .expect("completed-run recovery");
+    let active = snapshot.active_source.as_ref().expect("active source");
+    assert!(active.current_record_json.is_some());
+    let mut mismatched = snapshot.clone();
+    let record_json = mismatched
+        .active_source
+        .as_mut()
+        .unwrap()
+        .current_record_json
+        .as_mut()
+        .unwrap();
+    let mut invalid_record: serde_json::Value = serde_json::from_str(record_json).unwrap();
+    invalid_record["case_sha256"] = serde_json::Value::String("0".repeat(64));
+    *record_json = invalid_record.to_string();
+    let mut untouched = Workbench::new(&ctx).expect("fresh workbench for invalid recovery");
+    wait_for_idle(&mut untouched, &ctx);
+    let untouched_source = untouched.search_json.clone();
+    assert!(
+        untouched
+            .restore_recovery_snapshot(&ctx, mismatched)
+            .is_err(),
+        "a saved result bound to different case bytes must be rejected"
+    );
+    assert_eq!(untouched.search_json, untouched_source);
+    assert!(untouched.search_record.is_none());
+
+    let mut restored = Workbench::new(&ctx).expect("fresh workbench");
+    wait_for_idle(&mut restored, &ctx);
+    restored
+        .restore_recovery_snapshot(&ctx, snapshot)
+        .expect("restore exact run evidence");
+    wait_for_idle(&mut restored, &ctx);
+    let restored_record = restored.search_record.as_ref().expect("restored result");
+    assert_eq!(restored_record.case_sha256, first_record_id);
+    assert!(restored.bom_record.is_none());
+    assert_eq!(restored.search_json, original_json);
 
     app.edit_case(false);
     assert!(app.author.is_some());

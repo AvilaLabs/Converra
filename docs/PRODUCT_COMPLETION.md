@@ -18,7 +18,7 @@ bundle JSON bytes, because signed registries can pin the whole file hash.
 | PC-02 | Full JSON revision and duplication with validation and source protection; input differences; case round-trip and workbench state regressions. |
 | PC-03 | Small attributed measured-conductor startup case, explicit synthetic example, applicability sequence and geometry preview. |
 | PC-04 | Shared headless preflight in the CLI and workbench, dependency checks and sampling/work proxies. |
-| PC-05 | Bounded metadata/CSV intake and automatic hash binding; documented price categories and assumptions; complete material maps and portable rerun commands; original supplied bundle bytes and issued embedded signatures retained. |
+| PC-05 | Bounded CSV/TSV/XLSX material-table intake with preview, explicit column and unit mapping, structured source receipts and canonical validation; metadata/CSV pair and bundle intake; documented price categories and assumptions; complete material maps and portable rerun commands; original supplied bundle bytes and issued embedded signatures retained. |
 | PC-06 | Shared decision summary and portable review package; artifact, identity and modeled cost verification, including tamper rejection. |
 | PC-07 | Previous results retained during replacement; cancellation in search and acceptance; independently recomputed baseline reuse. |
 | PC-08 | Headless first-study workflow through revision, cancellation, comparison, export and verification; native and wasm gates. External validation remains open. |

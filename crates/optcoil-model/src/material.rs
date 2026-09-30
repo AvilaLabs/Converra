@@ -115,6 +115,10 @@ pub struct MaterialMetadata {
     pub csv_sha256: String,
     pub preparation_source_sha256: String,
     pub source_description_sha256: String,
+    /// Present only on tabular imports. Binds the exact original upload and
+    /// the explicit unit/column transformation used to produce canonical CSV.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tabular_import: Option<TabularImportReceipt>,
     pub electric_field_criterion_v_per_m: f64,
     pub voltage_tap_spacing_m: f64,
     pub measured_bridge_width_m: f64,
@@ -129,6 +133,29 @@ pub struct MaterialMetadata {
     pub max_cell_spans: CellSpanLimits,
     pub point_count: usize,
     pub limitations: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TabularImportReceipt {
+    pub schema: String,
+    pub source_sha256: String,
+    pub source_format: crate::tabular_import::TabularFormat,
+    pub worksheet: Option<String>,
+    pub mapping: crate::tabular_import::ColumnMapping,
+    pub canonical_csv_sha256: String,
+    /// Declared Ic perturbations applied after import, from the canonical
+    /// imported CSV through the currently bound dataset CSV.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ic_scalings: Vec<IcScalingReceipt>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct IcScalingReceipt {
+    pub parent_csv_sha256: String,
+    pub result_csv_sha256: String,
+    pub factor: f64,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -534,12 +561,69 @@ impl MaterialMetadata {
         if self.authors.is_empty() || self.authors.iter().any(|a| a.trim().is_empty()) {
             return Err(invalid("material data requires author attribution"));
         }
-        for hash in [
-            &self.source_xlsx_sha256,
-            &self.csv_sha256,
-            &self.preparation_source_sha256,
-            &self.source_description_sha256,
+        let receipt = self.tabular_import.as_ref();
+        let source_xlsx_optional = receipt.is_some_and(|receipt| {
+            receipt.source_format != crate::tabular_import::TabularFormat::Xlsx
+        }) && self.source_xlsx_sha256.is_empty();
+        if let Some(receipt) = receipt {
+            if self.schema != MATERIAL_SCHEMA_V2
+                || receipt.schema != "optcoil-tabular-import/v1"
+                || !valid_sha256(&receipt.source_sha256)
+                || !valid_sha256(&receipt.canonical_csv_sha256)
+                || receipt.mapping.validate().is_err()
+                || match receipt.source_format {
+                    crate::tabular_import::TabularFormat::Xlsx => receipt
+                        .worksheet
+                        .as_ref()
+                        .is_none_or(|worksheet| worksheet.trim().is_empty()),
+                    crate::tabular_import::TabularFormat::Csv
+                    | crate::tabular_import::TabularFormat::Tsv => receipt.worksheet.is_some(),
+                }
+                || (receipt.source_format == crate::tabular_import::TabularFormat::Xlsx
+                    && receipt.source_sha256 != self.source_xlsx_sha256)
+                || (receipt.source_format != crate::tabular_import::TabularFormat::Xlsx
+                    && !self.source_xlsx_sha256.is_empty()
+                    && !valid_sha256(&self.source_xlsx_sha256))
+            {
+                return Err(invalid(
+                    "invalid tabular import receipt or source hash binding",
+                ));
+            }
+            if receipt.ic_scalings.len() > 32 {
+                return Err(invalid("tabular import scaling history exceeds 32 steps"));
+            }
+            let mut expected_parent = receipt.canonical_csv_sha256.as_str();
+            for step in &receipt.ic_scalings {
+                if step.parent_csv_sha256 != expected_parent
+                    || !valid_sha256(&step.parent_csv_sha256)
+                    || !valid_sha256(&step.result_csv_sha256)
+                    || !positive(step.factor)
+                {
+                    return Err(invalid("invalid tabular import Ic scaling history"));
+                }
+                expected_parent = &step.result_csv_sha256;
+            }
+            if expected_parent != self.csv_sha256 {
+                return Err(invalid(
+                    "tabular import receipt does not bind the current canonical CSV",
+                ));
+            }
+            let recipe = serde_json::to_vec(receipt).map_err(|e| invalid(&e.to_string()))?;
+            if format!("{:x}", Sha256::digest(recipe)) != self.preparation_source_sha256 {
+                return Err(invalid(
+                    "tabular import preparation hash does not match its receipt",
+                ));
+            }
+        }
+        for (hash, optional) in [
+            (&self.source_xlsx_sha256, source_xlsx_optional),
+            (&self.csv_sha256, false),
+            (&self.preparation_source_sha256, false),
+            (&self.source_description_sha256, false),
         ] {
+            if optional && hash.is_empty() {
+                continue;
+            }
             if hash.len() != 64
                 || !hash
                     .bytes()
@@ -749,7 +833,21 @@ impl MaterialDataset {
             wtr.serialize(p).map_err(|e| invalid(&e.to_string()))?;
         }
         let bytes = wtr.into_inner().map_err(|e| invalid(&e.to_string()))?;
-        scaled.metadata.csv_sha256 = format!("{:x}", Sha256::digest(&bytes));
+        let result_sha256 = format!("{:x}", Sha256::digest(&bytes));
+        if let Some(receipt) = scaled.metadata.tabular_import.as_mut() {
+            if receipt.ic_scalings.len() >= 32 {
+                return Err(invalid("tabular import scaling history exceeds 32 steps"));
+            }
+            receipt.ic_scalings.push(IcScalingReceipt {
+                parent_csv_sha256: self.metadata.csv_sha256.clone(),
+                result_csv_sha256: result_sha256.clone(),
+                factor,
+            });
+            let recipe = serde_json::to_vec(receipt).map_err(|e| invalid(&e.to_string()))?;
+            scaled.metadata.preparation_source_sha256 = format!("{:x}", Sha256::digest(recipe));
+            scaled.metadata.data_class = MaterialDataClass::SyntheticSensitivity;
+        }
+        scaled.metadata.csv_sha256 = result_sha256;
         scaled.metadata.id = format!("{}@icx{}", self.metadata.id, factor);
         scaled.validate()?;
         Ok(scaled)
@@ -809,6 +907,12 @@ pub fn validate_coordinates(position: [f64; 3], allow_zero_field: bool) -> Resul
 
 fn positive(x: f64) -> bool {
     x.is_finite() && x > 0.0
+}
+fn valid_sha256(hash: &str) -> bool {
+    hash.len() == 64
+        && hash
+            .bytes()
+            .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
 }
 fn invalid(message: &str) -> ModelError {
     ModelError::Invalid(message.into())

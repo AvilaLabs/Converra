@@ -1,6 +1,11 @@
 mod author;
 mod brand;
 mod capture;
+mod importer;
+mod recovery;
+#[cfg(not(target_arch = "wasm32"))]
+mod recovery_close;
+mod recovery_coordinator;
 mod views;
 #[cfg(target_arch = "wasm32")]
 mod web;
@@ -96,6 +101,7 @@ enum JobKind {
     Queue,
     Workspace,
     Robustness,
+    Import,
 }
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 enum JobResult {
@@ -124,6 +130,10 @@ enum JobResult {
     BrowserRobustnessCompleted(Box<optcoil_search::robustness::RobustnessStudyRecord>),
     /// A material dataset bundle the user picked explicitly (coupled mode).
     DatasetLoaded(Box<MaterialBundle>, PathBuf, Option<String>),
+    TablePicked(String, Vec<u8>),
+    TablePreview(Box<optcoil_model::tabular_import::ImportPreview>),
+    ImportMetadataLoaded(String),
+    MaterialImported(Box<MaterialBundle>),
     Exported(PathBuf),
     /// A newly authored coupled-search case file — opened after writing.
     CaseWritten(PathBuf),
@@ -315,6 +325,9 @@ struct Workbench {
     preflight: Option<optcoil_search::preflight::StudyPreflight>,
     /// The coupled-search case builder window, while open.
     author: Option<author::CaseDraft>,
+    material_import: Option<importer::ImportDraft>,
+    pending_import_bundle: Option<String>,
+    recovery: recovery_coordinator::RecoveryRuntime,
     edit_variant: Option<String>,
     importing_workspace: bool,
     launch_after_variant: bool,
@@ -788,6 +801,9 @@ impl Workbench {
             search_spec_datasets: std::collections::BTreeMap::new(),
             preflight: None,
             author: None,
+            material_import: None,
+            pending_import_bundle: None,
+            recovery: recovery_coordinator::RecoveryRuntime::new(),
             edit_variant: None,
             importing_workspace: false,
             launch_after_variant: false,
@@ -874,6 +890,7 @@ impl Workbench {
         if app.capture.is_some() {
             app.start(ctx);
         }
+        app.initialize_recovery();
         Ok(app)
     }
 
@@ -1048,6 +1065,7 @@ impl Workbench {
                 | JobKind::Bakeoff
                 | JobKind::Profile
                 | JobKind::Robustness
+                | JobKind::Import
         ) {
             self.message = (true, "This calculation requires a browser worker.".into());
             return;
@@ -1225,6 +1243,18 @@ impl Workbench {
         label: &'static str,
         payload: serde_json::Value,
     ) {
+        self.launch_analysis_worker_with_bytes(ctx, kind, label, payload, None);
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn launch_analysis_worker_with_bytes(
+        &mut self,
+        ctx: &egui::Context,
+        kind: JobKind,
+        label: &'static str,
+        payload: serde_json::Value,
+        bytes: Option<Vec<u8>>,
+    ) {
         use wasm_bindgen::JsCast as _;
         if self.worker.is_some() {
             return;
@@ -1273,6 +1303,18 @@ impl Workbench {
                                     .map(|record| JobResult::SweepDone(Box::new(record)))
                                     .map_err(|e| e.to_string())
                             }
+                            (JobKind::Import, Some("table_preview_ok")) => {
+                                serde_json::from_value(payload["preview"].clone())
+                                    .map(|preview| JobResult::TablePreview(Box::new(preview)))
+                                    .map_err(|e| e.to_string())
+                            }
+                            (JobKind::Import, Some("material_import_ok")) => {
+                                MaterialBundle::from_json(
+                                    payload["bundle_json"].as_str().unwrap_or_default(),
+                                )
+                                .map(|bundle| JobResult::MaterialImported(Box::new(bundle)))
+                                .map_err(|e| e.to_string())
+                            }
                             _ => Err(payload["error"]
                                 .as_str()
                                 .unwrap_or("analysis worker error")
@@ -1292,9 +1334,20 @@ impl Workbench {
             },
         ) as Box<dyn FnMut(_)>);
         web_worker.set_onerror(Some(onerror.as_ref().unchecked_ref()));
-        if let Err(error) =
+        let dispatch = if let Some(bytes) = bytes {
+            // Transfer table bytes directly; formatting millions of byte
+            // values as JSON would stall the main browser thread.
+            let message = js_sys::Object::new();
+            let buffer = js_sys::Uint8Array::from(bytes.as_slice());
+            let transfer = js_sys::Array::new();
+            transfer.push(&buffer.buffer());
+            js_sys::Reflect::set(&message, &"payload".into(), &payload.to_string().into())
+                .and_then(|_| js_sys::Reflect::set(&message, &"bytes".into(), &buffer))
+                .and_then(|_| web_worker.post_message_with_transfer(&message, &transfer))
+        } else {
             web_worker.post_message(&wasm_bindgen::JsValue::from_str(&payload.to_string()))
-        {
+        };
+        if let Err(error) = dispatch {
             web_worker.set_onmessage(None);
             web_worker.set_onerror(None);
             web_worker.terminate();
@@ -1345,7 +1398,7 @@ impl Workbench {
         let Some(worker) = self.worker.as_ref().filter(|w| {
             matches!(
                 w.kind,
-                JobKind::Search | JobKind::Robustness | JobKind::Sweep
+                JobKind::Search | JobKind::Robustness | JobKind::Sweep | JobKind::Import
             )
         }) else {
             return;
@@ -1369,6 +1422,10 @@ impl Workbench {
                     }
                     JobKind::Sweep => {
                         "Margin sweep cancelled. The previous completed sweep is retained.".into()
+                    }
+                    JobKind::Import => {
+                        "Import cancelled. The active case and completed evidence are retained."
+                            .into()
                     }
                     _ => "Search cancelled. The previous completed result is retained.".into(),
                 },
@@ -2742,11 +2799,16 @@ impl Workbench {
         let Some(worker) = &self.worker else {
             return;
         };
-        let result = match worker.receiver.try_recv() {
+        let mut result = match worker.receiver.try_recv() {
             Ok(result) => result,
             Err(TryRecvError::Empty) => return,
             Err(TryRecvError::Disconnected) => Err("Background task stopped unexpectedly.".into()),
         };
+        if worker.kind == JobKind::Import && worker.cancel.load(Ordering::Relaxed) {
+            result = Err(
+                "Import cancelled. The active case and completed evidence are retained.".into(),
+            );
+        }
         #[cfg(target_arch = "wasm32")]
         let keep_browser_worker = matches!(
             &result,
@@ -2770,6 +2832,11 @@ impl Workbench {
     }
 
     fn apply_result(&mut self, ctx: &egui::Context, result: Result<JobResult, String>) {
+        if let Err(error) = &result
+            && let Some(draft) = &mut self.material_import
+        {
+            draft.error = Some(error.clone());
+        }
         match result {
             Ok(JobResult::Loaded(data, path)) => {
                 (self.case, self.baseline) = *data;
@@ -2810,6 +2877,9 @@ impl Workbench {
                 self.resolve_case_datasets(&case, &path);
                 self.search_case = Some(case);
                 self.search_json = json;
+                if let Some(bundle) = self.pending_import_bundle.take() {
+                    self.install_workspace_bundles(&[bundle]);
+                }
                 self.study_summary = None;
                 self.register_active_variant();
                 if let Some(previous) = self.search_record.take() {
@@ -3043,6 +3113,7 @@ impl Workbench {
                 }
             }
             Ok(JobResult::WorkspaceWritten(path)) => {
+                self.mark_study_exported();
                 self.message = (
                     false,
                     format!("Study workspace saved to {}.", path.display()),
@@ -3212,6 +3283,32 @@ impl Workbench {
                     }
                 }
             }
+            Ok(JobResult::TablePicked(name, bytes)) => {
+                if let Some(draft) = &mut self.material_import {
+                    match draft.set_file(name, bytes) {
+                        Ok(()) => self.preview_import_table(ctx),
+                        Err(error) => draft.error = Some(error),
+                    }
+                }
+            }
+            Ok(JobResult::TablePreview(preview)) => {
+                if let Some(draft) = &mut self.material_import {
+                    draft.set_preview(*preview);
+                }
+            }
+            Ok(JobResult::ImportMetadataLoaded(json)) => {
+                if let Some(draft) = &mut self.material_import
+                    && let Err(error) = draft.load_metadata(&json)
+                {
+                    draft.error = Some(error);
+                }
+            }
+            Ok(JobResult::MaterialImported(bundle)) => {
+                if let Some(draft) = &mut self.material_import {
+                    draft.validated = Some(*bundle);
+                    draft.error = None;
+                }
+            }
             Ok(JobResult::LibraryPicked(path)) => {
                 self.library_dir = Some(path);
                 self.rescan_library();
@@ -3268,6 +3365,12 @@ impl Workbench {
                     self.open_study_workspace(ui.ctx());
                     ui.close();
                 }
+                if self.has_recovered_history() && ui.button("Export recovered historical evidence…").clicked() { self.export_recovered_history(ui.ctx()); ui.close(); }
+                if self.recovery.error.is_some() && ui.button("Retry draft autosave").clicked() { self.retry_recovery_save(); ui.close(); }
+                if ui.add_enabled(self.worker.is_none(), egui::Button::new("Import spreadsheet / CSV…")).clicked() {
+                    self.open_material_import();
+                    ui.close();
+                }
                 if ui.add_enabled(self.worker.is_none() && !self.study_workspace.variants.is_empty(), egui::Button::new("Save study workspace…"))
                     .on_hover_text("Portable workspace with named cases, exact bundle bytes, options and attached results")
                     .clicked() {
@@ -3296,6 +3399,10 @@ impl Workbench {
                     }
                     if ui.add_enabled(self.worker.is_none(), egui::Button::new("Synthetic allocation reference")).clicked() {
                         self.open_example(ui.ctx(), false); ui.close();
+                    }
+                    if ui.add_enabled(self.worker.is_none(), egui::Button::new("Measured supported comparison (2 candidates)")).on_hover_text("Measured OC-007 inputs with unchanged gates. Review its work estimate before running; duration depends on the host.").clicked() {
+                        self.apply_result(ui.ctx(), load_project_json(include_str!("../../../benchmarks/self-directed/oc007-two-candidate.json").into(), PathBuf::from("oc007-two-candidate.json")));
+                        ui.close();
                     }
                 });
                 if ui
@@ -3550,6 +3657,7 @@ impl Workbench {
                         JobKind::Queue => "Choosing queue files…",
                         JobKind::Workspace => "Loading or saving study workspace…",
                         JobKind::Robustness => "Running named what-if scenarios…",
+                        JobKind::Import => "Importing measurement data…",
                     },
                 );
                 if worker.kind == JobKind::Search
@@ -3578,7 +3686,7 @@ impl Workbench {
                     };
                     ui.colored_label(brand::MUTED, detail);
                 }
-                if matches!(worker.kind, JobKind::Search | JobKind::Robustness | JobKind::Sweep)
+                if matches!(worker.kind, JobKind::Search | JobKind::Robustness | JobKind::Sweep | JobKind::Import)
                     && ui.button("Cancel").clicked()
                 {
                     self.cancel_search();
@@ -3638,6 +3746,13 @@ impl Workbench {
                 "Wait for the current task to finish."
             });
         }
+        response.widget_info(|| {
+            egui::WidgetInfo::labeled(
+                egui::WidgetType::Button,
+                enabled,
+                if coupled { "Run search" } else { "Optimize" },
+            )
+        });
         response
     }
 
@@ -3979,6 +4094,11 @@ impl eframe::App for Workbench {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.poll(&ctx);
+        #[cfg(not(target_arch = "wasm32"))]
+        self.native_close_guard(&ctx);
+        self.recovery_tick();
+        self.recovery_window(&ctx);
+        self.import_window(&ctx);
         // egui redraws on events; a live worker produces none, so ask for
         // periodic repaints while one is in flight — this drives the
         // search progress bar and spinner.
@@ -4130,7 +4250,15 @@ impl eframe::App for Workbench {
             let result = draft.show(&ctx);
             let closed = draft.closed();
             if let Some((_case, json)) = result {
-                self.save_case(&ctx, json);
+                if self.worker.is_some() {
+                    self.message = (true, "Finish or cancel the current task before accepting the case. Your draft is retained.".into());
+                } else {
+                    self.pending_import_bundle = self
+                        .author
+                        .as_ref()
+                        .and_then(|draft| draft.imported_bundle_json().map(str::to_owned));
+                    self.save_case(&ctx, json);
+                }
             }
             if closed {
                 self.author = None;
@@ -4205,6 +4333,10 @@ impl eframe::App for Workbench {
                         },
                         &self.message.1,
                     );
+                    if self.recovery.enabled_for_ui() {
+                        ui.separator();
+                        ui.label(self.recovery_label());
+                    }
                 });
             });
         egui::Panel::left("navigation")
@@ -4285,7 +4417,7 @@ impl eframe::App for Workbench {
                 ui.label("Plots: drag to pan, scroll/pinch to zoom, double-click to reset. Click legend entries to hide a series. Hover data for values.");
                 ui.label("Tables: click a module row to inspect it. Drag column boundaries to resize. Filter by module name or sort by field.");
                 ui.label("Ctrl+O: open project · Ctrl+Shift+S: export run · F1: help");
-                ui.label("Import accepts allocation cases, coupled-search cases and saved run records. Materials accepts validated dataset bundles or metadata/CSV pairs. Declared field maps use the case builder. Browser searches use a background worker; folder features require desktop. STEP, arbitrary Excel column mapping and native solver APIs are planned.");
+                ui.label("File → Import spreadsheet / CSV previews measurement tables, maps columns and units, and validates source declarations. Validated imports stay with the case and study. Materials also accepts dataset bundles or metadata/CSV pairs. Drafts are protected on this device; export a study workspace for a portable copy. Declared field maps use the case builder. Browser calculations use background workers; folder features require desktop. STEP and native solver APIs remain planned.");
             });
         }
         let files_hovered = ctx.input(|i| !i.raw.hovered_files.is_empty());
@@ -4312,6 +4444,9 @@ impl eframe::App for Workbench {
             // fully idle otherwise.
             ctx.request_repaint_after(std::time::Duration::from_millis(16));
         }
+        self.recovery_tick();
+        #[cfg(target_arch = "wasm32")]
+        self.publish_browser_status();
         if let Some(capture) = &mut self.capture {
             // Coupled pages render meaningfully before a run (case summary),
             // so a loaded coupled project counts as ready immediately.
@@ -4323,6 +4458,8 @@ impl eframe::App for Workbench {
 
 impl Drop for Workbench {
     fn drop(&mut self) {
+        #[cfg(not(target_arch = "wasm32"))]
+        self.flush_recovery_on_close();
         if let Some(worker) = &self.worker {
             worker.cancel.store(true, Ordering::Relaxed);
             #[cfg(target_arch = "wasm32")]

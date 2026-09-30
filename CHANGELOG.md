@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- Import bounded CSV, TSV and XLSX measurement tables with a source preview,
+  explicit column/unit/nominal-coordinate mapping and source declarations.
+  Portable dataset bundles retain the upload hash, import recipe and subsequent
+  Ic scaling receipts; imported data binds directly into new or revised cases.
+- Present the decision, reason and first next action together. Label independent
+  recomputation agreement separately from the engineering outcome, and include
+  an optional measured two-candidate comparison example.
+- Recover device-local studies, exact inputs, completed evidence, unfinished
+  case edits and import forms after restart. Atomic desktop writes and browser
+  transactions protect previous drafts and detect competing windows/tabs.
+  Failed saves remain visible; desktop close waits for a saved draft or an
+  explicit user choice.
+- Add real browser workflow checks and native action/recovery regressions for
+  importing, running, cancellation, revision, comparison, export and reopening.
+
 - Fix browser margin sweeps freezing the page by running them in the existing
   calculation worker. Add cancellation on web and desktop, retaining the prior
   completed sweep when cancelled.

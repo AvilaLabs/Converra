@@ -237,6 +237,51 @@ Every delivered SHA must pass GitHub CI before completion is reported.
 - [x] Verify the complete extension through local formatting, workspace
   Clippy/tests, wasm and release builds, and observed browser workflows.
 
+## Self-directed engineering workflow — September 30, 2026
+
+Implemented software milestone: an engineer can bring existing material data
+into the existing egui application, understand a supported or unresolved
+decision, and recover or share the complete study without author assistance.
+
+Implementation and exercised scope are recorded in the
+[self-directed workflow evidence](docs/SELF_DIRECTED_WORKFLOW_EVIDENCE.md).
+
+### SD-01 — Existing measurement files
+
+- [x] Preview CSV/TSV and Excel workbooks with explicit sheet, column and unit
+  mapping, required source attribution, and physical measurement declarations.
+- [x] Validate canonical derived data before binding it to a case; retain the
+  source identity and transformation recipe in portable evidence.
+- [x] Carry imported material bundles through case authoring, running, saving,
+  and reopening without a second manual dataset-loading step.
+
+### SD-02 — Understand the outcome
+
+- [x] Present the decision, why it holds or remains unresolved, and the first
+  prioritized next action together; retain the complete diagnostic ledger.
+- [x] Label recomputation agreement precisely and distinguish saved evidence
+  from currently runnable input dependencies.
+- [x] Provide a guided first journey with useful supported and unresolved
+  examples while preserving every engineering gate.
+
+### SD-03 — Protect work
+
+- [x] Autosave bounded project/study state and unfinished editable drafts on
+  native and web, using atomic writes or browser transactions.
+- [x] Offer restore/discard after restart, preserve exact source identities and
+  completed evidence, and expose saved/unsaved/recovery-error state.
+- [x] Preserve the last valid recovery snapshot when a write or validation
+  fails, and avoid attaching partial calculation results.
+
+### SD-04 — Verify the user journey
+
+- [x] Exercise import, run, cancellation, revision, comparison, save, reopen and
+  recovery through meaningful desktop action tests and real browser checks.
+- [x] Check navigation responsiveness during long worker jobs and retain
+  completed evidence after cancellation.
+- [x] Run native formatting/Clippy/workspace tests, wasm/release builds and
+  browser regression checks; verify GitHub CI for every delivered commit.
+
 ## Domain coverage (the real frontier)
 
 - **Wider measured domains.** Embedded datasets currently cover

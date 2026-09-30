@@ -10,11 +10,16 @@ publish.workspace = true
 
 [dependencies]
 csv.workspace = true
+calamine = { version = "0.36.1", default-features = false }
+crc32fast = "1.5.0"
+quick-xml = "0.41.0"
 ed25519-dalek.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
+
+zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
 
 [lints]
 workspace = true

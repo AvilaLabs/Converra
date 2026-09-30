@@ -24,6 +24,24 @@ own declarations and are carried through to the record.
 
 ## Supplying a dataset
 
+For a raw measurement table, the workbench's **File → Import spreadsheet / CSV**
+flow accepts UTF-8 CSV and TSV or Excel XLSX files. It previews rows and headers,
+supports worksheet selection, and asks you to map columns and choose units for
+temperature (K/°C), field (T/mT/G), angle (degrees/radians) and Ic (A/kA/A/m/A/cm).
+The n-value must come from a column or an explicitly supplied constant. Nominal
+coordinates must be mapped separately or explicitly set to reuse measured
+coordinates. The flow also collects provenance and physical declarations and
+exports a canonical material bundle; metadata JSON is optional as a starting
+point, not a required authoring step. The uploaded file hash, table format,
+sheet and transformation mapping are retained in the bundle receipt.
+
+Imports are limited to 32 MiB and structurally bounded. The importer converts
+only declared units, applies the declared measured bridge width when relating
+bridge current to current per width, and runs canonical material validation.
+It rejects duplicate identities/coordinates and unsupported domains rather than
+silently choosing or extrapolating data. See the [first study walkthrough](TUTORIAL.md)
+for the complete GUI sequence.
+
 Two equivalent paths; both run the same validation as `material-validate`
 (exact SI column headers, metadata hash match, domain checks, 32 MiB cap).
 

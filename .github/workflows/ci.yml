@@ -27,6 +27,38 @@ jobs:
       - run: rustup target add wasm32-unknown-unknown
       - run: cargo check --target wasm32-unknown-unknown -p optcoil-app
 
+  # Exercise the real egui application in an isolated browser: spreadsheet
+  # intake, measured search, cancel/revision, variant comparison, export,
+  # reopen, and recovery. The launcher builds the WASM bundle itself.
+  browser-workflow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: browser-actions/setup-chrome@v1
+        id: setup-chrome
+      - name: Install Trunk
+        run: cargo install trunk --locked --version 0.21.14
+      - name: Run the browser workflow
+        env:
+          CHROME_BIN: ${{ steps.setup-chrome.outputs.chrome-path }}
+          CONVERRA_GUI_ARTIFACTS: ${{ runner.temp }}/converra-gui-workflow
+        run: node tools/run_gui_workflow_check.mjs
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: converra-browser-workflow
+          path: ${{ runner.temp }}/converra-gui-workflow/
+          if-no-files-found: warn
+
   # Cross-platform compilation is intentionally reserved for pull requests
   # and deliberate manual validation so ordinary pushes do not spend Windows
   # and macOS Actions minutes.

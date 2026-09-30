@@ -28,6 +28,25 @@ Before finishing changes:
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
+cargo check --target wasm32-unknown-unknown -p optcoil-app
 ```
 
-During core work the app can be excluded from tests, but compile it before finalizing changes to shared APIs. Generated run files are excluded from source control; checked-in expected results must include provenance and a documented derivation.
+The browser workflow is also a required CI gate for GUI changes. With Node 22+,
+Trunk 0.21.14, the wasm target and Chrome/Chromium installed, run:
+
+```bash
+CHROME_BIN=/path/to/chrome node tools/run_gui_workflow_check.mjs
+```
+
+The launcher builds the real egui application and uses an isolated browser
+profile and loopback server. The checked-in plan performs actual file uploads,
+canvas actions, calculations, cancellation, study export/reopening and draft
+recovery. Screenshots, accessibility trees and state receipts go to ignored
+`runs/gui-workflow/`; set `CONVERRA_GUI_ARTIFACTS` to choose another location.
+The `?verify=1` bridge exposes read-only state and does not provide action hooks.
+When controls move, recalibrate the plan against the actual interface and keep
+its input/result identities and recovery assertions meaningful.
+
+During core work the app can be excluded from tests, but run the full workspace
+suite before pushing. Generated run files are excluded from source control;
+checked-in expected results must include provenance and a documented derivation.

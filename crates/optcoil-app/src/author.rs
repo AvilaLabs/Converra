@@ -46,7 +46,8 @@ use parse::{
 /// Centerline family: the racetrack pair, a planar `path` (schema v9),
 /// or a non-planar helix `path3d` (schema v9 — requires a declared
 /// field map and a radial tape normal).
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 enum CenterlineKind {
     Racetrack,
     Path,
@@ -56,7 +57,8 @@ enum CenterlineKind {
 /// Station addressing: racetrack cases sample straights by x and arcs
 /// by azimuth; `path`/`path3d` cases (schema v9) address the centerline
 /// by arc length `s_m`.
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 enum StationKind {
     Straight,
     Arc,
@@ -64,6 +66,8 @@ enum StationKind {
 }
 
 /// One editable station row.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 struct StationRow {
     id: String,
     kind: StationKind,
@@ -96,6 +100,8 @@ impl StationRow {
 /// One editable `path` segment row: `Line { length_m }` or
 /// `Arc { radius_m, sweep_deg }`. Both fields stay in the row; the
 /// non-applicable one is ignored on emit.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 struct PathSegmentRow {
     /// 0 = line, 1 = arc.
     kind: usize,
@@ -148,6 +154,8 @@ enum PendingMaterialPair {
 }
 
 /// One editable `path3d` helix segment — the CCT/CORC element.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 struct HelixSegmentRow {
     axis_origin_m: [f64; 3],
     axis_dir: [f64; 3],
@@ -184,6 +192,8 @@ impl HelixSegmentRow {
 }
 
 /// One editable opex heat-load term row.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 struct HeatLoadRow {
     id: String,
     power_w: f64,
@@ -192,6 +202,8 @@ struct HeatLoadRow {
 /// One editable tape-spec row: the dataset + price that distinguish a
 /// purchasable conductor variant; screening policies inherit the
 /// case-level material declaration.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 struct TapeSpecRow {
     id: String,
     /// Index into `DATASET_CHOICES`; `DATASET_CUSTOM` means free-text id+sha.
@@ -209,6 +221,8 @@ struct TapeSpecRow {
 }
 
 /// One editable grading region row.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 struct GradingRow {
     /// Turn-range fraction bounds (inner face → outer).
     lo: f64,
@@ -218,6 +232,8 @@ struct GradingRow {
     specs_text: String,
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CaseDraft {
     id: String,
     provenance: String,
@@ -285,7 +301,9 @@ pub struct CaseDraft {
     preset_choice: usize,
     /// The last sizing estimate and its render — kept so the search-space
     /// step can show the derivation, not just the numbers it proposed.
+    #[serde(skip)]
     sizing_hint: Option<optcoil_search::sizing::SizingHint>,
+    #[serde(skip)]
     sizing_error: Option<String>,
     low_field_clamp_t: f64,
     monotonicity_tolerance: f64,
@@ -341,6 +359,9 @@ pub struct CaseDraft {
     /// The CSV sidecar a generated map binds — keepable as the
     /// provenance artifact; `None` for imported maps.
     field_map_source_csv: Option<Vec<u8>>,
+    /// Validated external bundle bytes retained across interrupted authoring.
+    #[serde(default)]
+    imported_material_bundle_json: Option<String>,
     /// Filament-model generation controls (path3d only).
     map_gen_spacing_m: f64,
     map_gen_margin_m: f64,
@@ -348,7 +369,9 @@ pub struct CaseDraft {
     /// Async field-map work — the browser's file pick and (on both
     /// targets) the filament generator's result land here and apply at
     /// the top of `show`.
+    #[serde(skip)]
     field_map_pending: Option<std::sync::mpsc::Receiver<PendingFieldMap>>,
+    #[serde(skip)]
     material_pair_pending: Option<std::sync::mpsc::Receiver<PendingMaterialPair>>,
     imported_material_label: Option<String>,
     field_map_bore_field_t: f64,
@@ -437,6 +460,7 @@ pub struct CaseDraft {
     use_pressure: bool,
     max_pressure_mpa: f64,
     max_threads: u32,
+    #[serde(skip)]
     error: Option<String>,
 }
 
@@ -562,6 +586,7 @@ impl Default for CaseDraft {
             field_map: None,
             field_map_label: String::new(),
             field_map_source_csv: None,
+            imported_material_bundle_json: None,
             map_gen_spacing_m: 0.005,
             map_gen_margin_m: 0.01,
             map_gen_reference_ni: 1.0e4,
@@ -653,6 +678,93 @@ impl Default for CaseDraft {
 }
 
 impl CaseDraft {
+    /// Serialize the complete editable surface for crash recovery. This does
+    /// not validate the case or discard invalid unsaved JSON edits.
+    pub fn recovery_json(&self) -> Result<String, String> {
+        let json = serde_json::to_string(self).map_err(|error| error.to_string())?;
+        if json.len() > crate::recovery::MAX_AUTHOR_BYTES {
+            return Err("author draft exceeds recovery size limit".into());
+        }
+        Ok(json)
+    }
+
+    /// Restore editable fields while leaving async work and derived estimates
+    /// reset. Invalid case content is preserved exactly for further editing.
+    pub fn from_recovery_json(json: &str) -> Result<Self, String> {
+        if json.len() > crate::recovery::MAX_AUTHOR_BYTES {
+            return Err("author draft exceeds recovery size limit".into());
+        }
+        let draft: Self = serde_json::from_str(json).map_err(|error| error.to_string())?;
+        if let Some(bundle_json) = &draft.imported_material_bundle_json {
+            MaterialBundle::from_json(bundle_json)
+                .map_err(|error| format!("invalid retained material bundle: {error}"))?;
+        }
+        Ok(draft)
+    }
+
+    /// Bundle imported into this draft, if any. The workspace coordinator can
+    /// install it when the draft is saved, avoiding a second file selection.
+    pub fn imported_bundle_json(&self) -> Option<&str> {
+        let json = self.imported_material_bundle_json.as_deref()?;
+        let bundle = MaterialBundle::from_json(json).ok()?;
+        (bundle.dataset.metadata.id == self.dataset_id
+            && bundle.dataset.metadata.csv_sha256 == self.dataset_sha)
+            .then_some(json)
+    }
+
+    /// Apply a previously validated imported bundle through the same field
+    /// binding used by the metadata/CSV intake flow.
+    pub fn apply_imported_material(
+        &mut self,
+        bundle: MaterialBundle,
+        label: String,
+    ) -> Result<(), String> {
+        let bundle_json = bundle.to_json().map_err(|error| error.to_string())?;
+        if self.advanced_json.is_some() {
+            if self.revision_json_invalid {
+                let message = "cannot bind imported material while advanced case JSON is invalid";
+                self.error = Some(message.into());
+                return Err(message.into());
+            }
+            let mut value = self
+                .revision_value
+                .clone()
+                .ok_or_else(|| "revision source JSON is unavailable".to_string())?;
+            let material = value
+                .get_mut("material")
+                .and_then(serde_json::Value::as_object_mut)
+                .ok_or_else(|| "revision case has no material object to update".to_string())?;
+            material.insert(
+                "dataset_id".into(),
+                serde_json::Value::String(bundle.dataset.metadata.id.clone()),
+            );
+            material.insert(
+                "csv_sha256".into(),
+                serde_json::Value::String(bundle.dataset.metadata.csv_sha256.clone()),
+            );
+            let advanced_json =
+                serde_json::to_string_pretty(&value).map_err(|error| error.to_string())?;
+            self.dataset_id = bundle.dataset.metadata.id.clone();
+            self.dataset_sha = bundle.dataset.metadata.csv_sha256.clone();
+            self.dataset_choice = DATASET_CUSTOM;
+            self.imported_material_bundle_json = Some(bundle_json);
+            self.imported_material_label = Some(format!(
+                "Validated {label}: {} — {:?}",
+                bundle.dataset.metadata.id, bundle.dataset.metadata.data_class
+            ));
+            self.revision_value = Some(value);
+            self.advanced_json = Some(advanced_json);
+            self.revision_dirty = true;
+            self.error = None;
+            return Ok(());
+        }
+        self.apply_material_pair(Ok(bundle), label);
+        if let Some(error) = &self.error {
+            return Err(error.clone());
+        }
+        Ok(())
+    }
+
     /// Open a validated loaded case in the lossless advanced JSON editor.
     pub fn revision(json: &str) -> Result<Self, String> {
         let case = CoupledSearchCase::from_json(json).map_err(|e| e.to_string())?;
@@ -1700,6 +1812,13 @@ impl CaseDraft {
     fn apply_material_pair(&mut self, result: Result<MaterialBundle, String>, label: String) {
         match result {
             Ok(bundle) => {
+                self.imported_material_bundle_json = match bundle.to_json() {
+                    Ok(json) => Some(json),
+                    Err(error) => {
+                        self.error = Some(format!("material bundle serialization: {error}"));
+                        return;
+                    }
+                };
                 self.dataset_id = bundle.dataset.metadata.id.clone();
                 self.dataset_sha = bundle.dataset.metadata.csv_sha256.clone();
                 self.dataset_choice = DATASET_CUSTOM;
@@ -4775,6 +4894,93 @@ mod tests {
         assert_eq!(draft.dataset_id, expected_id);
         assert_eq!(draft.dataset_sha, expected_sha);
         assert!(draft.imported_material_label.is_some());
+    }
+
+    #[test]
+    fn recovery_round_trips_invalid_and_unsaved_author_fields() {
+        let draft = CaseDraft {
+            id: "unfinished draft".into(),
+            price_usd_per_m: -12.5,
+            advanced_json: Some("{ invalid edit".into()),
+            revision_json_invalid: true,
+            ..CaseDraft::default()
+        };
+        let encoded = draft.recovery_json().unwrap();
+        let restored = CaseDraft::from_recovery_json(&encoded).unwrap();
+        assert_eq!(restored.id, "unfinished draft");
+        assert_eq!(restored.price_usd_per_m, -12.5);
+        assert_eq!(restored.advanced_json.as_deref(), Some("{ invalid edit"));
+        assert!(restored.revision_json_invalid);
+        assert!(restored.sizing_hint.is_none());
+        assert!(restored.field_map_pending.is_none());
+    }
+
+    #[test]
+    fn imported_material_bundle_survives_draft_recovery() {
+        let bundle = material_bundle_from_pair(
+            optcoil_model::material::SUPERPOWER_METADATA,
+            optcoil_model::material::SUPERPOWER_CSV,
+        )
+        .unwrap();
+        let mut draft = CaseDraft::default();
+        draft
+            .apply_imported_material(bundle, "metadata + csv".into())
+            .unwrap();
+        let expected = draft.imported_bundle_json().unwrap().to_owned();
+        let restored = CaseDraft::from_recovery_json(&draft.recovery_json().unwrap()).unwrap();
+        assert_eq!(restored.imported_bundle_json(), Some(expected.as_str()));
+    }
+
+    #[test]
+    fn recovery_rejects_malformed_retained_material_bundle() {
+        let draft = CaseDraft {
+            imported_material_bundle_json: Some("{ malformed bundle".into()),
+            ..CaseDraft::default()
+        };
+        assert!(CaseDraft::from_recovery_json(&draft.recovery_json().unwrap()).is_err());
+    }
+
+    #[test]
+    fn imported_material_updates_revision_binding_and_preserves_other_declarations() {
+        let mut draft = CaseDraft::revision(optcoil_model::coupled_search::OC008_JSON).unwrap();
+        let old_provenance = draft.provenance.clone();
+        let old_cost = draft.revision_value.as_ref().unwrap()["cost"].clone();
+        let bundle = material_bundle_from_pair(
+            optcoil_model::material::SUPERPOWER_METADATA,
+            optcoil_model::material::SUPERPOWER_CSV,
+        )
+        .unwrap();
+        let expected_id = bundle.dataset.metadata.id.clone();
+        let expected_hash = bundle.dataset.metadata.csv_sha256.clone();
+        draft
+            .apply_imported_material(bundle, "validated pair".into())
+            .unwrap();
+        let case = CoupledSearchCase::from_json(draft.advanced_json.as_deref().unwrap()).unwrap();
+        assert_eq!(case.material.dataset_id, expected_id);
+        assert_eq!(case.material.csv_sha256, expected_hash);
+        assert_eq!(draft.revision_value.as_ref().unwrap()["cost"], old_cost);
+        assert_eq!(draft.provenance, old_provenance);
+        assert!(draft.revision_dirty);
+    }
+
+    #[test]
+    fn imported_material_does_not_overwrite_invalid_revision_json() {
+        let mut draft = CaseDraft::revision(optcoil_model::coupled_search::OC008_JSON).unwrap();
+        draft.advanced_json = Some("{ invalid unsaved case".into());
+        draft.revision_json_invalid = true;
+        let original = draft.advanced_json.clone();
+        let bundle = material_bundle_from_pair(
+            optcoil_model::material::SUPERPOWER_METADATA,
+            optcoil_model::material::SUPERPOWER_CSV,
+        )
+        .unwrap();
+        assert!(
+            draft
+                .apply_imported_material(bundle, "validated pair".into())
+                .is_err()
+        );
+        assert_eq!(draft.advanced_json, original);
+        assert!(draft.imported_bundle_json().is_none());
     }
 
     /// The shipped defaults must produce a case the runner accepts —

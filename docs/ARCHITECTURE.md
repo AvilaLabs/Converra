@@ -121,7 +121,7 @@ Allsolve is the provisional first integration target from the product research. 
 
 ## Intended extensions
 
-Internal project storage stays deliberately separate from engineering inputs: CSV/Excel tables, STEP CAD and native solver connections. The desktop accepts case JSON; the CLI additionally accepts measured-material CSV plus versioned provenance metadata. General spreadsheet/CAD workflows remain future work.
+Internal project storage stays deliberately separate from engineering inputs. The workbench can import bounded CSV, TSV and XLSX material tables through an explicit column/unit mapping and provenance form; it also accepts canonical dataset bundles and metadata/CSV pairs. STEP CAD and native solver connections remain future work. See [material dataset intake](DATASETS.md) for the supported tabular flow.
 
 Extend the implemented canonical racetrack pack with tape orientation and permitted winding operations, then connect those decisions to the field evaluator and measured material data. Coordinate transforms and other geometries can follow concrete requirements. Define derivative and fidelity interfaces around actual implemented models. Add continuous refinement, structured discrete optimization, caching and parallel evaluations only when profiling and benchmarks justify them.
 

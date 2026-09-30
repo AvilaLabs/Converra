@@ -22,9 +22,11 @@ Use the desktop workbench to explore designs, the CLI to run reproducible studie
 
 - **Search coil designs.** Compare turn counts, tape counts, parallel strands, and permitted geometry choices while holding field, aperture, operating point, and declared constraints fixed. Planar racetrack, circular, and piecewise line-and-arc paths use the built-in field evaluator; non-planar helical paths require a declared field map.
 - **Compare conductors and grading.** Evaluate material datasets and product options, or assign different conductor specifications to winding regions. Embedded REBCO data includes measured characterizations and explicitly labeled model fits; you can also load your own datasets.
+- **Import material tables.** Preview CSV, TSV or Excel XLSX data, map measured and nominal coordinates, choose units, and record source attribution and measurement declarations without authoring metadata JSON by hand.
 - **Screen operating limits.** Couple magnetic-field evaluation to critical-current data at sampled tape positions and orientations, with declared utilization, bend, and first-order mechanical limits. Optional screens cover thermal margin, AC loss, and quench bounds. Unsupported material queries produce an explicit unresolved result.
 - **Explore tradeoffs.** Run sensitivity sweeps, compare vendor options, and reprice completed studies with documented price provenance. Source builds also compare named alternatives across explicit supplier-price, conductor-Ic and temperature scenarios; see [scenario studies](docs/ROBUSTNESS.md).
 - **Keep an engineering study together.** Name and revise variants, retain their exact source data and historical results, compare decisions, and calculate explicit follow-up experiments in the GUI or through MCP.
+- **Protect unfinished work.** Device-local recovery retains studies, completed evidence, case edits and import forms on desktop and web. Export a study workspace to keep a portable copy.
 - **Export design evidence.** Save JSON run records, standalone HTML reports, conductor bills of materials, and procurement summaries with piece and splice schedules when declared by the case.
 - **Check the result.** A separate acceptance path recomputes costs and screening checks, including a finer sampling plan where declared. Offline verification checks input hashes and ledger arithmetic; signed dataset bundles support provenance verification.
 
@@ -43,7 +45,11 @@ Prebuilt desktop, CLI and local MCP binaries are available from [GitHub Releases
 
 Extract the archive and launch `Converra` on Windows/Linux or `Converra.app` on macOS. No Rust installation is needed for these builds. The command-line executable is named `optcoil` (`optcoil.exe` on Windows); the MCP server is `optcoil-mcp` (`optcoil-mcp.exe`). Archives include setup guides, examples and dataset attribution. Verify downloaded archives against the release's `SHA256SUMS` file.
 
-The workbench starts with a small attributed measured-conductor study and explicitly illustrative prices. Review **Applicability and work estimate**, run, inspect the decision, then **Revise** or **Duplicate** and export a **Review package**. **Engineering study** keeps named variants, diagnoses, comparisons and saved workspaces together. **File → Examples** also offers the synthetic allocation reference. The guided builder authors supported racetrack and helix cases; loaded cases have structured controls for routine revisions and an advanced JSON editor for other declarations. Linux desktop use requires a graphical session and graphics drivers.
+The spreadsheet importer, draft recovery and newer scenario-study features
+postdate the v0.2.0 desktop archives. Use the current source build or hosted
+workbench for those additions until the next desktop release.
+
+The workbench starts with a small attributed measured-conductor study and explicitly illustrative prices. Review **Applicability and work estimate**, run, inspect the decision, then **Revise** or **Duplicate** and export a **Review package**. Use **File → Import spreadsheet / CSV** to map and validate a material table, then attach it to a case. **Engineering study** keeps named variants, diagnoses, comparisons and saved workspaces together. **File → Examples** also offers the synthetic allocation reference. The guided builder authors supported racetrack and helix cases; loaded cases have structured controls for routine revisions and an advanced JSON editor for other declarations. Linux desktop use requires a graphical session and graphics drivers.
 
 ### Build from source
 
@@ -62,7 +68,7 @@ cd crates/optcoil-app && trunk serve
 
 The engine crates retain the `optcoil-*` names. Cargo defaults to the CLI, so headless commands build without the desktop graphics dependencies.
 
-The browser workbench — hosted at [converra.avilalabs.org](https://converra.avilalabs.org), or `trunk serve` in `crates/optcoil-app` for a local build — opens, revises and searches cases using a background Web Worker. Cancellation terminates that worker. It accepts dataset bundles and attributed metadata/CSV pairs and downloads review packages as a single tar archive. Folder libraries, directory bake-offs, watch mode, queues and persisted desktop settings require the desktop build.
+The browser workbench — hosted at [converra.avilalabs.org](https://converra.avilalabs.org), or `trunk serve` in `crates/optcoil-app` for a local build — opens, revises and searches cases using a background Web Worker. Cancellation terminates that worker. It imports CSV, TSV and XLSX tables, accepts dataset bundles and attributed metadata/CSV pairs, and downloads review packages as a single tar archive. Draft recovery is stored in this browser on this device; export a study workspace for a portable copy. Folder libraries, directory bake-offs, watch mode and queues require the desktop build.
 
 ### Run a study from the CLI
 

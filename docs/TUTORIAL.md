@@ -48,16 +48,41 @@ piece-priced cases require editing the per-spec declaration and rerunning. A
 scenario's cheapest screening candidate has `NOT_EVALUATED` selection acceptance;
 the original refined recommendation stays attached to the original record.
 
+To compare two explicit alternatives, open **Engineering study**, keep the
+first-study case as the baseline, and duplicate it as a named variant. Revise
+one declared choice or requirement on the variant, review its applicability,
+and run it. The study comparison shows both input differences and their own
+calculated decisions; an unrun variant has no result to compare.
+
 ## Bring conductor evidence
 
-The builder and Materials view accept a dataset bundle or two files: attributed
-metadata JSON followed by canonical measurement CSV. The CSV hash is computed
-when metadata omits it or declares null; an existing mismatched hash is rejected.
-This does not infer units, attribution or validity from arbitrary spreadsheets.
-For a graded case, load every external dependency shown on Materials. Each source
-must match its declared id and CSV hash. The workbench retains matching sources
-when you revise the case and uses all of them in searches and margin sweeps.
-See [datasets](DATASETS.md) for canonical columns and required provenance.
+Use **File → Import spreadsheet / CSV** to import a UTF-8 CSV, TSV or Excel XLSX
+table. The import flow previews the source, lets you choose a worksheet when
+needed, and requires explicit mappings for temperature, applied field, angle,
+critical current and either an n-value column or a declared constant. Choose
+units for each measured quantity. Supply nominal coordinates as columns or
+explicitly select **use measured coordinates as the nominal grid**; commanded
+and measured coordinates are not assumed to be interchangeable.
+
+The source step asks for attribution, usage terms, material identity and
+measurement declarations. You do not need to create metadata JSON first. The
+workbench records the uploaded file hash and mapping/unit receipt, converts to
+canonical SI data, and applies the same material validation used by other
+datasets. Ic per width uses the declared **measured bridge width** to derive
+bridge current; original tape width does not imply full-width capacity. The
+importer does not fill missing attribution, infer unsupported measurement
+conventions, hide duplicate coordinates or extrapolate outside the observed
+domain. Files are bounded to 32 MiB; malformed or unsupported tables must be
+corrected or converted before import. A validated import can be applied to a
+case draft or exported as a dataset bundle.
+
+The Materials view also accepts an existing dataset bundle or an attributed
+metadata JSON plus canonical measurement CSV. The CSV hash is computed when
+metadata omits it or declares null; an existing mismatched hash is rejected.
+For a graded case, load every external dependency shown on Materials. Each
+source must match its declared id and CSV hash. The workbench retains matching
+sources when you revise the case and uses all of them in searches and margin
+sweeps. See [datasets](DATASETS.md) for canonical columns and provenance.
 
 Document a price category and its source or assumptions. Placeholder prices,
 published estimates and actual supplier quotes remain distinguishable. A price

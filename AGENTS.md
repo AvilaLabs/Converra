@@ -11,4 +11,12 @@ Read `README.md`, `CONTRIBUTING.md` and the relevant benchmark before changing c
 - Use the ACTINV light theme: Avila blue `#1800AD`, background `#F7F8FC`, and the supplied Avila Labs logo beside the software name. Prefer egui's existing panels, tables, plots and native file dialogs where they help engineering work.
 - User-supplied cases and datasets stay out of source control — keep them under ignored `customer-data/`; generated runs go to ignored `runs/`.
 - Run formatting, appropriate numerical/regression tests and Clippy for changed targets. Report checks actually run and missing physics honestly.
-- Every push must pass CI. Before pushing, run exactly what `.github/workflows/ci.yml` runs — `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace` — not narrower variants. After pushing, watch `gh run list` until the pushed commit's CI run is green; a red run is a broken push, fix it immediately and re-verify. Never report a push as done while its CI is still queued or failing.
+- Every push must pass CI. Before pushing, run the gates in `.github/workflows/ci.yml`: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`, the app's wasm check, and `node tools/run_gui_workflow_check.mjs` with Chrome available. Use the complete suites. After pushing, watch `gh run list` until the pushed commit's CI run is green; a red run is a broken push, fix it immediately and re-verify. Never report a push as done while its CI is still queued or failing.
+
+## Product assessment preference
+
+The user understands that independent external validation is required. Treat it
+as implicit in product assessments and next-step discussions; do not repeatedly
+list it as a generic caveat or outstanding task. Discuss it when a concrete
+action, result, or decision requires that information. Preserve existing
+engineering gates and evidence labels.

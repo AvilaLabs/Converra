@@ -358,7 +358,7 @@ impl Workbench {
     }
 
     fn study_diagnosis(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Constraint diagnosis");
+        ui.heading("Decision · why · next action");
         if let Some(summary) = &self.study_summary {
             ui.small(format!(
                 "Case identity {}",
@@ -367,13 +367,13 @@ impl Workbench {
             if let Some(decision) = &summary.latest_decision {
                 ui.group(|ui| {
                     ui.horizontal_wrapped(|ui| {
-                        ui.label("Search status:");
+                        ui.label("Search result:");
                         if let Some(status) = summary.latest_search_status {
                             ui.colored_label(status_color(status), status_label(status));
                         } else {
                             ui.label("unavailable");
                         }
-                        ui.label("Selected candidate:");
+                        ui.label("Candidate result:");
                         if decision.selected_candidate_index.is_some() {
                             ui.colored_label(
                                 status_color(decision.selected_status),
@@ -384,7 +384,7 @@ impl Workbench {
                         }
                     });
                     ui.label(format!(
-                        "Baseline ${:.2} · candidate {}",
+                        "Declared cost basis: baseline ${:.2} · candidate {}",
                         decision.baseline_total_usd,
                         decision
                             .selected_total_usd
@@ -504,7 +504,7 @@ impl Workbench {
                 });
             }
             egui::CollapsingHeader::new(format!(
-                "Raw checks and statuses ({})",
+                "Evidence ledger · all checks and statuses ({})",
                 summary.diagnosis.issues.len()
             ))
             .id_salt("study_raw_diagnosis_issues")
@@ -1529,24 +1529,31 @@ impl Workbench {
         }
     }
 
-    pub(super) fn integrations(&self, ui: &mut egui::Ui) {
+    pub(super) fn integrations(&mut self, ui: &mut egui::Ui) {
         title(
             ui,
             "Imports & solver connections",
             "A project combines geometry, material data, requirements and analysis settings.",
         );
-        ui.heading("Available now");
-        ui.label("Open or drop an allocation case, coupled-search case, or saved run record (.json). The builder loads dataset bundles or validated metadata/CSV pairs and imports declared field maps. Export a review package with inputs and evidence from Reports.");
+        ui.heading("Start with supported intake");
+        if ui
+            .add_enabled(
+                self.worker.is_none(),
+                egui::Button::new("Import spreadsheet / CSV…"),
+            )
+            .clicked()
+        {
+            self.open_material_import();
+        }
+        ui.label("Preview a UTF-8 CSV/TSV table or Excel (.xlsx) worksheet, map columns and units, declare the source and measurement conventions, then validate and use it directly in the case builder.");
+        ui.label("Open or drop an allocation case, coupled-search case, or saved run record (.json). For coupled search, load the case’s matching material dataset bundle or validated metadata + CSV pair in Material & operating point, review applicability, then run the declared candidate set. Export a review package with inputs and evidence from Reports.");
+        ui.small("A saved run record preserves historical evidence. Running again requires the case inputs and any external material data to be available in this workspace.");
         ui.add_space(12.0);
         ui.heading("Planned engineering imports");
         for (name, purpose) in [
             (
                 "STEP / STP",
                 "CAD solids and assemblies. Imported parts will need coil, orientation and current assignments.",
-            ),
-            (
-                "Excel and arbitrary CSV mapping",
-                "Map existing column names and units to the canonical material format; attribution and validation remain required.",
             ),
             (
                 "Native solver models / APIs",
@@ -1560,7 +1567,7 @@ impl Workbench {
             ui.group(|ui| {
                 ui.strong(name);
                 ui.label(purpose);
-                ui.colored_label(brand::MUTED, "Planned — import not implemented");
+                ui.colored_label(brand::MUTED, "Not supported yet · use the intake options above for cases, datasets and review packages");
             });
         }
         ui.add_space(12.0);
@@ -1574,7 +1581,7 @@ impl Workbench {
             });
         }
         ui.add_space(8.0);
-        ui.small("Materials accepts attributed metadata/CSV pairs now. Arbitrary Excel mapping, STEP CAD and solver connections are planned.");
+        ui.small("Mapped CSV/TSV and XLSX intake and attributed metadata/CSV pairs are available. STEP CAD and native solver connections remain planned.");
     }
 
     // ---- Coupled-search project pages ------------------------------------
@@ -1625,6 +1632,12 @@ impl Workbench {
                     if let Some(correction) = &item.correction { ui.small(correction); }
                 }
                 ui.small("Readiness checks inputs. Field/material coverage and engineering acceptance remain unresolved until evaluated.");
+            });
+        }
+        if self.search_record.is_none() && self.search_case.is_some() {
+            ui.group(|ui| {
+                ui.strong("First run");
+                ui.label("Review applicability and material inputs, then run the declared candidates. The result will identify a screening recommendation when one resolves, or show the blocking and unresolved checks when none does.");
             });
         }
         if self.worker.is_some() && self.search_record.is_some() {
@@ -1855,7 +1868,11 @@ impl Workbench {
             ui.separator();
             ui.label(RichText::new("Search").color(brand::MUTED).small());
             status_chip(ui, record.search_status);
-            ui.label(RichText::new("Acceptance").color(brand::MUTED).small());
+            ui.label(
+                RichText::new("Recomputation agreement")
+                    .color(brand::MUTED)
+                    .small(),
+            );
             status_chip(ui, record.acceptance.agreement_status);
         });
         ui.add_space(6.0);
@@ -2449,7 +2466,7 @@ impl Workbench {
                 });
             });
         ui.add_space(14.0);
-        egui::CollapsingHeader::new("Independent acceptance")
+        egui::CollapsingHeader::new("Independent cost recomputation")
             .default_open(true)
             .show(ui, |ui| {
                 ui.set_opacity(reveal.max(0.15));
@@ -2494,17 +2511,22 @@ impl Workbench {
                 ui.label(format!("{} turns × {} tapes{} · {} · baseline {}", geometry.turns_along_normal, geometry.tapes_along_width,
                     strands_suffix(geometry.strands_parallel), summary.selected_total_usd.map(usd).unwrap_or_default(), usd(summary.baseline_total_usd)));
             } else { ui.label("No resolved screening recommendation in this candidate set."); }
+            ui.strong("Why");
             if let Some(cost) = &summary.cost_components {
                 ui.small(format!("Conductor {} · scrap {} · assembly {} · joints {}", usd(cost.conductor_usd), usd(cost.scrap_usd), usd(cost.assembly_usd), usd(cost.joints_usd)));
             }
             if let Some(utilization) = summary.current_utilization {
                 ui.label(format!("Current utilization {:.4} / limit {:.4} · {}", utilization, summary.utilization_limit, summary.limiting_location.as_deref().unwrap_or("location unavailable")));
             }
-            if self.reprice_usd_per_m.is_some() && scalar_repricing_supported(record) { ui.colored_label(brand::MUTED, "The price scenario below is screening arithmetic. Its selected option has acceptance NOT_EVALUATED; this decision retains the original recomputation."); }
+            if self.reprice_usd_per_m.is_some() && scalar_repricing_supported(record) { ui.colored_label(brand::MUTED, "The price scenario below is screening arithmetic. Checker recomputation for its selected option is NOT_EVALUATED; this decision retains the original result."); }
+            if let Some(action) = summary.next_actions.first() {
+                ui.strong("Next action");
+                ui.label(format!("→ {action}"));
+            }
             ui.collapsing("Unresolved work and next actions", |ui| {
                 for basis in &summary.price_basis { ui.small(basis); }
                 for gate in &summary.unresolved_gates { ui.label(gate); }
-                for action in &summary.next_actions { ui.label(format!("→ {action}")); }
+                for action in summary.next_actions.iter().skip(1) { ui.label(format!("→ {action}")); }
                 for limitation in &summary.limitations { ui.small(limitation); }
             });
             ui.small("Cost recomputation is separate. Shared physics agreement does not establish independent physical validation or production acceptance.");
@@ -2528,7 +2550,11 @@ impl Workbench {
             ui.label(RichText::new("Search").color(brand::MUTED).small());
             status_chip(ui, record.search_status);
             ui.add_space(6.0);
-            ui.label(RichText::new("Acceptance").color(brand::MUTED).small());
+            ui.label(
+                RichText::new("Recomputation agreement")
+                    .color(brand::MUTED)
+                    .small(),
+            );
             status_chip(ui, record.acceptance.agreement_status);
         });
         // Status strip: every recorded check as a status-proportioned
@@ -2600,7 +2626,7 @@ impl Workbench {
             "Show only failed or unresolved checks",
         );
         ui.add_space(6.0);
-        ui.strong("Acceptance checks");
+        ui.strong("Independent cost recomputation checks");
         for check in record
             .acceptance
             .checks
@@ -3277,7 +3303,7 @@ impl Workbench {
                         None => {
                             ui.colored_label(
                                 status_color(Status::Inconclusive),
-                                "Not embedded — load a dataset bundle to run this case",
+                                "No material input is loaded for a new run. A saved run record keeps its historical evidence; load this case’s matching dataset bundle to rerun.",
                             );
                         }
                     }

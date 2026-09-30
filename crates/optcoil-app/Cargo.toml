@@ -24,6 +24,8 @@ egui_plot.workspace = true
 image.workspace = true
 rfd = { workspace = true, features = ["file-handle-inner"] }
 serde_json.workspace = true
+serde.workspace = true
+base64 = "0.22.1"
 sha2.workspace = true
 optcoil-model.workspace = true
 optcoil-physics.workspace = true
