@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 
 //! Browser entry point. The app code is target-agnostic — this module
-//! only hosts it on a canvas. Filesystems and worker threads do not
-//! exist here: files arrive as picker/drag-drop bytes and leave as
-//! browser downloads.
+//! hosts it on a canvas and dispatches numerical work inside Web Workers.
+//! Files arrive as picker/drag-drop bytes and leave as browser downloads.
 
 #![cfg(target_arch = "wasm32")]
 
@@ -119,6 +118,10 @@ fn run_request(text: &str) -> String {
         },
         "study-robustness" => match run_study_robustness(&request) {
             Ok(record) => serde_json::json!({"status":"robustness_ok", "record":record}).to_string(),
+            Err(error) => serde_json::json!({"status":"err", "error":error}).to_string(),
+        },
+        "margin-sweep" => match run_margin_sweep(&request) {
+            Ok(record) => serde_json::json!({"status":"sweep_ok", "record":record}).to_string(),
             Err(error) => serde_json::json!({"status":"err", "error":error}).to_string(),
         },
         _ => match run_search(&request) {
@@ -240,6 +243,34 @@ fn run_search(request: &serde_json::Value) -> Result<String, String> {
         &datasets,
         &cancel,
         None,
+    )
+    .map_err(|e| e.to_string())?;
+    serde_json::to_string(&record).map_err(|e| e.to_string())
+}
+
+fn run_margin_sweep(request: &serde_json::Value) -> Result<String, String> {
+    let case_json = request
+        .get("case_json")
+        .and_then(|v| v.as_str())
+        .ok_or("margin worker request lacks case_json")?;
+    let spec_json = request
+        .get("spec_json")
+        .and_then(|v| v.as_str())
+        .ok_or("margin worker request lacks spec_json")?;
+    let datasets: std::collections::BTreeMap<String, optcoil_model::material::MaterialDataset> =
+        serde_json::from_str(
+            request
+                .get("datasets_json")
+                .and_then(|v| v.as_str())
+                .ok_or("margin worker request lacks datasets_json")?,
+        )
+        .map_err(|e| format!("margin worker datasets parse: {e}"))?;
+    let record = optcoil_search::sensitivity::run_sensitivity_sweep_with_datasets(
+        case_json,
+        spec_json,
+        &optcoil_search::coupled_search::CoupledSearchOptions { threads: Some(1) },
+        &datasets,
+        &std::sync::atomic::AtomicBool::new(false),
     )
     .map_err(|e| e.to_string())?;
     serde_json::to_string(&record).map_err(|e| e.to_string())

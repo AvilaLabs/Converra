@@ -3,6 +3,7 @@
 // worker attaches the verified record and retains its private exact-input
 // session while idle. The page terminates it on cancellation/error/workspace
 // replacement, which also clears the live cache.
+// Margin sweeps and named what-if analyses use the same worker dispatcher.
 //
 // The wasm-bindgen assets ship unhashed ([build] filehash = false in
 // Trunk.toml) so this module can name them.

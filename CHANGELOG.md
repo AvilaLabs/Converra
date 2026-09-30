@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fix browser margin sweeps freezing the page by running them in the existing
+  calculation worker. Add cancellation on web and desktop, retaining the prior
+  completed sweep when cancelled.
 - Rank study diagnoses into actionable groups, retaining the raw check ledger
   and separating required gates, selected candidates, rejected alternatives and
   optional unperformed checks.

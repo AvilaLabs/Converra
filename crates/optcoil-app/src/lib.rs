@@ -1038,6 +1038,20 @@ impl Workbench {
         if self.worker.is_some() {
             return;
         }
+        // Numerical jobs must use a Web Worker in the browser. Refuse an
+        // accidental inline dispatch before it can block the page's event loop.
+        #[cfg(target_arch = "wasm32")]
+        if matches!(
+            kind,
+            JobKind::Search
+                | JobKind::Sweep
+                | JobKind::Bakeoff
+                | JobKind::Profile
+                | JobKind::Robustness
+        ) {
+            self.message = (true, "This calculation requires a browser worker.".into());
+            return;
+        }
         let cancel = Arc::new(AtomicBool::new(false));
         let worker_cancel = Arc::clone(&cancel);
         let (sender, receiver) = mpsc::channel();
@@ -1047,10 +1061,8 @@ impl Workbench {
             let _ = sender.send(work(worker_cancel));
             ctx.request_repaint();
         });
-        // The browser is single-threaded: cheap jobs (open, verify,
-        // export) run inline and complete inside the frame. Long jobs —
-        // Search, Sweep, Bakeoff — are refused by their callers before
-        // reaching here.
+        // Cheap browser jobs (open, verify, export) run inline. Numerical
+        // jobs dispatch through worker.js instead.
         #[cfg(target_arch = "wasm32")]
         {
             let _ = sender.send(work(worker_cancel));
@@ -1192,6 +1204,27 @@ impl Workbench {
         variant_ids: Vec<String>,
         spec: optcoil_search::robustness::RobustnessSpec,
     ) {
+        self.launch_analysis_worker(
+            ctx,
+            JobKind::Robustness,
+            "What-if",
+            serde_json::json!({
+                "kind": "study-robustness",
+                "workspace_json": workspace_json,
+                "variant_ids": variant_ids,
+                "spec": spec,
+            }),
+        );
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn launch_analysis_worker(
+        &mut self,
+        ctx: &egui::Context,
+        kind: JobKind,
+        label: &'static str,
+        payload: serde_json::Value,
+    ) {
         use wasm_bindgen::JsCast as _;
         if self.worker.is_some() {
             return;
@@ -1207,7 +1240,7 @@ impl Workbench {
                     self.message = (
                         true,
                         format!(
-                            "Could not start the what-if worker ({error:?}). Serve the built bundle, then retry."
+                            "Could not start the {label} worker ({error:?}). Serve the built bundle, then retry."
                         ),
                     );
                     return;
@@ -1227,17 +1260,23 @@ impl Workbench {
                     .and_then(|text| {
                         let payload: serde_json::Value =
                             serde_json::from_str(&text).map_err(|e| e.to_string())?;
-                        if payload.get("status").and_then(|v| v.as_str()) == Some("robustness_ok") {
-                            serde_json::from_str(payload["record"].as_str().unwrap_or_default())
-                                .map(|record| {
-                                    JobResult::BrowserRobustnessCompleted(Box::new(record))
-                                })
-                                .map_err(|e| e.to_string())
-                        } else {
-                            Err(payload["error"]
+                        match (kind, payload.get("status").and_then(|v| v.as_str())) {
+                            (JobKind::Robustness, Some("robustness_ok")) => {
+                                serde_json::from_str(payload["record"].as_str().unwrap_or_default())
+                                    .map(|record| {
+                                        JobResult::BrowserRobustnessCompleted(Box::new(record))
+                                    })
+                                    .map_err(|e| e.to_string())
+                            }
+                            (JobKind::Sweep, Some("sweep_ok")) => {
+                                serde_json::from_str(payload["record"].as_str().unwrap_or_default())
+                                    .map(|record| JobResult::SweepDone(Box::new(record)))
+                                    .map_err(|e| e.to_string())
+                            }
+                            _ => Err(payload["error"]
                                 .as_str()
-                                .unwrap_or("what-if worker error")
-                                .to_owned())
+                                .unwrap_or("analysis worker error")
+                                .to_owned()),
                         }
                     });
                 let _ = sender.send(result);
@@ -1247,31 +1286,25 @@ impl Workbench {
         let onerror = wasm_bindgen::closure::Closure::wrap(Box::new(
             move |_event: wasm_bindgen::JsValue| {
                 let _ = error_sender.send(Err(
-                    "What-if worker failed. Check the browser console and served worker bundle; prior results are retained.".into(),
+                    format!("{label} worker failed. Check the browser console and served worker bundle; prior results are retained."),
                 ));
                 error_ctx.request_repaint();
             },
         ) as Box<dyn FnMut(_)>);
         web_worker.set_onerror(Some(onerror.as_ref().unchecked_ref()));
-        let payload = serde_json::json!({
-            "kind": "study-robustness",
-            "workspace_json": workspace_json,
-            "variant_ids": variant_ids,
-            "spec": spec,
-        });
         if let Err(error) =
             web_worker.post_message(&wasm_bindgen::JsValue::from_str(&payload.to_string()))
         {
             web_worker.set_onmessage(None);
             web_worker.set_onerror(None);
             web_worker.terminate();
-            self.message = (true, format!("Could not send the what-if run: {error:?}"));
+            self.message = (true, format!("Could not send the {label} run: {error:?}"));
             return;
         }
         self.worker = Some(Worker {
             receiver,
             cancel: Arc::new(AtomicBool::new(false)),
-            kind: JobKind::Robustness,
+            kind,
             web_worker: Some(web_worker),
             _web_callbacks: Some(BrowserWorkerCallbacks {
                 _message: onmessage,
@@ -1309,15 +1342,16 @@ impl Workbench {
     }
 
     fn cancel_search(&mut self) {
-        let Some(worker) = self
-            .worker
-            .as_ref()
-            .filter(|w| matches!(w.kind, JobKind::Search | JobKind::Robustness))
-        else {
+        let Some(worker) = self.worker.as_ref().filter(|w| {
+            matches!(
+                w.kind,
+                JobKind::Search | JobKind::Robustness | JobKind::Sweep
+            )
+        }) else {
             return;
         };
         #[cfg(target_arch = "wasm32")]
-        let robustness = worker.kind == JobKind::Robustness;
+        let kind = worker.kind;
         worker.cancel.store(true, Ordering::Relaxed);
         self.package_after_search = false;
         self.queue_active = false;
@@ -1329,10 +1363,14 @@ impl Workbench {
             self.search_progress = None;
             self.message = (
                 false,
-                if robustness {
-                    "What-if run cancelled. Earlier robustness results are retained.".into()
-                } else {
-                    "Search cancelled. The previous completed result is retained.".into()
+                match kind {
+                    JobKind::Robustness => {
+                        "What-if run cancelled. Earlier robustness results are retained.".into()
+                    }
+                    JobKind::Sweep => {
+                        "Margin sweep cancelled. The previous completed sweep is retained.".into()
+                    }
+                    _ => "Search cancelled. The previous completed result is retained.".into(),
                 },
             );
             self.message_fade_start = Instant::now();
@@ -1655,6 +1693,9 @@ impl Workbench {
     /// Utilization-limit frontier — the workbench synthesizes a v3
     /// sensitivity spec over a default margin grid and runs the sweep.
     fn run_frontier(&mut self) {
+        if self.worker.is_some() {
+            return;
+        }
         let Some(case_json) = self.case_json() else {
             return;
         };
@@ -1669,6 +1710,44 @@ impl Workbench {
             }],
         });
         let ctx = self.ctx.clone();
+        self.message = (
+            false,
+            "Running the margin sweep in the background; you can cancel it above.".into(),
+        );
+        #[cfg(target_arch = "wasm32")]
+        {
+            if let Some(id) = &self.study_variant_id
+                && self
+                    .study_workspace
+                    .variant(id)
+                    .is_ok_and(|variant| variant.options.threads != Some(1))
+            {
+                self.message = (true, "Browser margin sweeps use one thread. Review the explicit override on the Engineering study page before running this imported variant.".into());
+                return;
+            }
+            let datasets_json = match serde_json::to_string(&datasets) {
+                Ok(json) => json,
+                Err(error) => {
+                    self.message = (
+                        true,
+                        format!("Could not serialize margin sweep datasets: {error}"),
+                    );
+                    return;
+                }
+            };
+            self.launch_analysis_worker(
+                &ctx,
+                JobKind::Sweep,
+                "Margin sweep",
+                serde_json::json!({
+                    "kind": "margin-sweep",
+                    "case_json": case_json,
+                    "spec_json": spec.to_string(),
+                    "datasets_json": datasets_json,
+                }),
+            );
+        }
+        #[cfg(not(target_arch = "wasm32"))]
         self.launch(&ctx, JobKind::Sweep, move |cancel| {
             optcoil_search::sensitivity::run_sensitivity_sweep_with_datasets(
                 &case_json,
@@ -3499,7 +3578,7 @@ impl Workbench {
                     };
                     ui.colored_label(brand::MUTED, detail);
                 }
-                if matches!(worker.kind, JobKind::Search | JobKind::Robustness)
+                if matches!(worker.kind, JobKind::Search | JobKind::Robustness | JobKind::Sweep)
                     && ui.button("Cancel").clicked()
                 {
                     self.cancel_search();

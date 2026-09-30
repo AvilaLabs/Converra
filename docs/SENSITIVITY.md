@@ -64,6 +64,12 @@ distinct, declared-synthetic identity bound by its own `dataset_csv_sha256`).
 
 ## Running
 
+In the workbench's **Reports & artifacts** page, **Run margin sweep** evaluates
+ten utilization limits from 0.50 to 0.95. The browser runs it in a Web Worker
+with one calculation thread; desktop uses a background thread. The page remains
+usable during calculation. **Cancel** stops the sweep and retains the previous
+completed sweep, without publishing partial points as a completed result.
+
 ```bash
 optcoil sensitivity case.json sweep.json \
   --output runs/my-sweep.json      # complete record, all point results

@@ -15,6 +15,52 @@ fn wait_for_idle(app: &mut Workbench, ctx: &egui::Context) {
 }
 
 #[test]
+fn margin_sweep_dispatches_in_background_and_cancel_retains_completed_evidence() {
+    let ctx = egui::Context::default();
+    let mut app = Workbench::new(&ctx).expect("headless workbench");
+    wait_for_idle(&mut app, &ctx);
+    // Retain a genuine prior sweep with an unsupported temperature point.
+    // Its unresolved outcome needs no long field calculation.
+    let previous = optcoil_search::sensitivity::run_sensitivity_sweep_with_datasets(
+        &app.search_json,
+        r#"{"schema":"optcoil-sensitivity/v1","id":"previous-sweep",
+            "provenance":"Cancellation regression, not a qualified design",
+            "axes":[{"kind":"temperature_k","values":[100.0]}]}"#,
+        &CoupledSearchOptions { threads: Some(1) },
+        &app.resolved_search_datasets(),
+        &AtomicBool::new(false),
+    )
+    .expect("previous sweep artifact");
+    assert_eq!(previous.points.len(), 1);
+    assert!(previous.points[0].error.is_some());
+    let previous_json = serde_json::to_string(&previous).unwrap();
+    app.sweep_record = Some(previous);
+    let source_json = app.search_json.clone();
+
+    let started = std::time::Instant::now();
+    app.run_frontier();
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(2),
+        "dispatch blocked the UI thread"
+    );
+    assert!(
+        app.worker
+            .as_ref()
+            .is_some_and(|worker| worker.kind == JobKind::Sweep)
+    );
+    app.cancel_search();
+    assert!(app.worker.as_ref().unwrap().cancel.load(Ordering::Relaxed));
+    wait_for_idle(&mut app, &ctx);
+    assert_eq!(
+        serde_json::to_string(app.sweep_record.as_ref().unwrap()).unwrap(),
+        previous_json
+    );
+    assert_eq!(app.search_json, source_json);
+    assert!(!app.message.0, "{}", app.message.1);
+    assert!(app.message.1.contains("cancelled"), "{}", app.message.1);
+}
+
+#[test]
 fn robustness_editor_builds_bounded_named_preflight_scenarios() {
     let ctx = egui::Context::default();
     let mut app = Workbench::new(&ctx).expect("headless workbench");
