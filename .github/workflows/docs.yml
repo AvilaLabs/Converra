@@ -1,0 +1,45 @@
+name: Build handbook
+
+on:
+  push:
+    branches: [main]
+    paths: ['book.toml', 'docs/guide/**', 'docs/checks/**', 'docs/maintainers/DOCUMENTATION.md', 'scripts/check_handbook.py', 'scripts/docs_smoke.mjs', 'Cargo.toml', '.github/workflows/docs.yml']
+  pull_request:
+    paths: ['book.toml', 'docs/guide/**', 'docs/checks/**', 'docs/maintainers/DOCUMENTATION.md', 'scripts/check_handbook.py', 'scripts/docs_smoke.mjs', 'Cargo.toml', '.github/workflows/docs.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: handbook-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: taiki-e/install-action@7623a79cdfecb99d681017af368ca353d9f49bb5 # v2.87.19
+        with:
+          tool: mdbook@0.5.4
+      - name: Build and check handbook
+        run: |
+          mdbook build
+          python3 scripts/check_handbook.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check navigation, search, themes and mobile layout
+        run: |
+          npm ci --prefix docs/checks --ignore-scripts
+          docs/checks/node_modules/.bin/playwright install --with-deps chromium
+          python3 -m http.server 8080 --directory dist --bind 127.0.0.1 &
+          server_pid=$!
+          trap 'kill "$server_pid"; wait "$server_pid" || true' EXIT
+          timeout 120s node scripts/docs_smoke.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: converra-handbook
+          path: dist/docs

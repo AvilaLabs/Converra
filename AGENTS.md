@@ -1,5 +1,7 @@
 # Working on Converra (optcoil)
 
+The maintained user handbook is `docs/guide/`, built with mdBook 0.5.4 using `book.toml`. Update its task pages when behavior changes. Keep dated benchmark records outside the handbook, preserve their verdicts, and distinguish current source from packaged releases. Publishing and checks are in `docs/maintainers/DOCUMENTATION.md`.
+
 Read `README.md`, `CONTRIBUTING.md` and the relevant benchmark before changing calculations.
 
 - Keep authoritative case and manufacturing semantics in `optcoil-model`, numerical models in `optcoil-physics`, and headless operations in `optcoil-search`. CLI and egui are clients.

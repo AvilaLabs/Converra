@@ -1,4 +1,6 @@
-# Supported domains — what OptCoil can and cannot certify
+# Supported domains — Converra screening boundaries
+
+For the current user workflow, start with the [Converra Handbook](https://converra.avilalabs.org/docs/models.html). This reference describes declared screening boundaries; a screening pass does not establish engineering qualification.
 
 The honest spec sheet. Every boundary below is enforced by a verdict,
 not a disclaimer: candidates outside a supported domain come back
@@ -11,7 +13,9 @@ extrapolated, never a soft fail.
 |---|---|
 | Racetrack (straight + semicircular arcs) | **Supported** — primary family |
 | Circular coil | **Supported** — the L→0 limit; kernel-validated against the closed-form loop (OC-011 self-test: 2.09446 vs 2.09440 T) |
-| D-shaped / TF coils, non-planar windings | **Not supported** — different geometry family; future work via Bluemira parameterization |
+| Planar piecewise line-and-arc paths | **Supported** — declared planar path and sampling contract |
+| Non-planar helix paths | **Declared-map screening supported** — `pack.path3d` requires a compatible Cartesian field map; see [OC-031](OC031.md) |
+| General CAD / arbitrary non-planar solids | **Not supported** as an automatic built-in field model |
 
 ## Material (embedded measured datasets)
 

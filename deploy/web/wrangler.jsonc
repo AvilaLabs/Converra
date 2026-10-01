@@ -4,6 +4,10 @@
   "compatibility_date": "2026-09-28",
   "routes": [{ "pattern": "converra.avilalabs.org", "custom_domain": true }],
   // Static bundle only — the wasm app talks to no backend.
-  "assets": { "directory": "./public" },
+  "assets": {
+    "directory": "./public",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "none"
+  },
   "observability": { "enabled": true }
 }

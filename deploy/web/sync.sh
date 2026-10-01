@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the browser workbench and stage it for `wrangler deploy`.
+# Build the browser workbench and handbook and stage them for `wrangler deploy`.
 # Usage: deploy/web/sync.sh [verified-build-directory]
 # Without an argument, build into a unique directory so concurrent dev builds
 # cannot replace Trunk's staging files. An argument stages an already checked
@@ -22,9 +22,14 @@ fi
 for asset in index.html optcoil-app.js optcoil-app_bg.wasm worker.js; do
   [[ -f "$build_dist/$asset" ]] || { echo "Missing browser asset: $asset" >&2; exit 1; }
 done
+# Validate the handbook before replacing the deployed bundle. Clearing the
+# complete destination also removes retired chapters and old search indexes.
+mdbook build
+python3 scripts/check_handbook.py dist/docs
 rm -rf deploy/web/public
 mkdir -p deploy/web/public
 cp -R "$build_dist/." deploy/web/public/
+cp -R dist/docs deploy/web/public/docs
 python3 - <<'PY'
 import hashlib, json, pathlib, subprocess, tomllib
 

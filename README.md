@@ -12,7 +12,7 @@ Converra helps magnet engineers and researchers compare coil designs against a f
 
 Use the desktop workbench to explore designs, the CLI to run reproducible studies, the local MCP server for AI agents, or the Python bindings to integrate the engine into your own workflow. All calculations run locally through the same Rust engine.
 
-[Download](https://github.com/AvilaLabs/Converra/releases/latest) · [Try in your browser](https://converra.avilalabs.org) · [Quick start](#quick-start) · [Documentation](#documentation) · [Contributing](CONTRIBUTING.md)
+[Download](https://github.com/AvilaLabs/Converra/releases/latest) · [Try in your browser](https://converra.avilalabs.org) · [Handbook](https://converra.avilalabs.org/docs/) · [Quick start](#quick-start) · [Contributing](CONTRIBUTING.md)
 
 ![Converra desktop workbench comparing the costs and conductor allocations of a baseline and candidate design.](docs/images/design-comparison.png)
 
@@ -182,6 +182,10 @@ The repository includes frozen cases, independent reference tools, and reports d
 These results describe the individual benchmark cases. Dollar savings depend on the declared prices, manufacturing costs, and baseline; conductor comparisons depend on the stated geometry and material assumptions.
 
 ## Documentation
+
+Start with the **[Converra Handbook](https://converra.avilalabs.org/docs/)**: installation, your first study, conductor imports, design comparisons, CLI/Python/MCP and [benchmark interpretation](https://converra.avilalabs.org/docs/benchmarks.html). Its source is [`docs/guide/`](docs/guide/); it describes current source/hosted behavior and identifies differences from published archives.
+
+The references below retain detailed schemas, benchmark contracts and development evidence. Individual OC records describe the versions and inputs recorded there.
 
 - [Scenario studies](docs/ROBUSTNESS.md) — explicit what-ifs and portable replay evidence.
 - [Workflow comparison](docs/WORKFLOW_COMPARISON.md) — frozen inputs and matched software measurements.

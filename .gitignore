@@ -11,3 +11,7 @@ __pycache__/
 .DS_Store
 deploy/web/public/
 deploy/web/.wrangler/
+
+# Built handbook and browser-check dependencies
+/dist/
+/docs/checks/node_modules/

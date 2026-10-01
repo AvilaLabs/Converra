@@ -1,0 +1,21 @@
+[book]
+title = "Converra Handbook"
+authors = ["Avila Labs"]
+description = "Design superconducting magnets, compare conductor choices, and interpret screening results."
+language = "en"
+src = "docs/guide"
+
+[build]
+build-dir = "dist/docs"
+create-missing = false
+
+[output.html]
+default-theme = "rust"
+preferred-dark-theme = "navy"
+mathjax-support = true
+git-repository-url = "https://github.com/AvilaLabs/Converra"
+edit-url-template = "https://github.com/AvilaLabs/Converra/edit/main/{path}"
+site-url = "/docs/"
+
+[output.html.playground]
+runnable = false

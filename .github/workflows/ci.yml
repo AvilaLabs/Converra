@@ -46,11 +46,26 @@ jobs:
         id: setup-chrome
       - name: Install Trunk
         run: cargo install trunk --locked --version 0.21.14
+      - name: Install mdBook
+        uses: taiki-e/install-action@7623a79cdfecb99d681017af368ca353d9f49bb5 # v2.87.19
+        with:
+          tool: mdbook@0.5.4
+      - name: Build browser bundle
+        working-directory: crates/optcoil-app
+        run: trunk build --release --dist ../../dist/workbench
       - name: Run the browser workflow
         env:
           CHROME_BIN: ${{ steps.setup-chrome.outputs.chrome-path }}
           CONVERRA_GUI_ARTIFACTS: ${{ runner.temp }}/converra-gui-workflow
+          CONVERRA_GUI_PREBUILT_DIST: ${{ github.workspace }}/dist/workbench
         run: node tools/run_gui_workflow_check.mjs
+      - name: Stage workbench and handbook
+        run: deploy/web/sync.sh dist/workbench
+      - name: Upload complete web bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: converra-web
+          path: deploy/web/public/
       - name: Upload browser evidence
         if: always()
         uses: actions/upload-artifact@v4

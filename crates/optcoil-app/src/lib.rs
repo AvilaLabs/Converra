@@ -4412,6 +4412,7 @@ impl eframe::App for Workbench {
         if self.help {
             egui::Window::new("Using Converra").open(&mut self.help).default_width(490.0).show(ui, |ui| {
                 ui.heading("Complete a supported coil study");
+                ui.hyperlink_to("Converra Handbook", "https://converra.avilalabs.org/docs/");
                 ui.label("1. Open a case or select the measured first study from File → Examples.\n2. Review inputs and applicability, then run.\n3. Inspect the decision and unresolved checks.\n4. Revise or duplicate the case, compare inputs, and export a review package. Prices in the examples are illustrative.");
                 ui.separator();
                 ui.label("Plots: drag to pan, scroll/pinch to zoom, double-click to reset. Click legend entries to hide a series. Hover data for values.");
