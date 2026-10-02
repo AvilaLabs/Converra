@@ -425,6 +425,8 @@ struct Workbench {
     bakeoff_record: Option<BakeoffRecord>,
     message: (bool, String),
     capture: Option<capture::Capture>,
+    #[cfg(target_arch = "wasm32")]
+    suite: avila_suite::ui_web::WebSuite,
     page_fade_start: Instant,
     last_page: Page,
     results_reveal_start: Option<Instant>,
@@ -866,6 +868,8 @@ impl Workbench {
                 "Open a project, drop a case file here, or run the bundled example.".into(),
             ),
             capture: capture::Capture::from_env(),
+            #[cfg(target_arch = "wasm32")]
+            suite: avila_suite::ui_web::WebSuite::new(ctx, "converra"),
             page_fade_start: Instant::now(),
             last_page: Page::Overview,
             results_reveal_start: None,
@@ -3582,6 +3586,8 @@ impl Workbench {
             if ui.button("Help    F1").clicked() {
                 self.help = !self.help;
             }
+            #[cfg(target_arch = "wasm32")]
+            self.suite.header_right(ui);
         });
         ui.horizontal_wrapped(|ui| {
             ui.add(egui::Image::new(&self.logo).fit_to_exact_size(egui::vec2(52.0, 52.0)));
@@ -4276,7 +4282,8 @@ impl eframe::App for Workbench {
             self.last_selected_candidate = self.selected_candidate;
             self.inspector_fade_start = Instant::now();
         }
-        egui::Panel::top("header").show(ui, |ui| {
+        #[cfg_attr(not(target_arch = "wasm32"), allow(unused_variables))]
+        let header_panel = egui::Panel::top("header").show(ui, |ui| {
             self.header(ui);
             // Indeterminate progress shimmer while a worker runs: a short
             // bright segment sweeping the header's bottom edge.
@@ -4296,6 +4303,9 @@ impl eframe::App for Workbench {
                 );
             }
         });
+        #[cfg(target_arch = "wasm32")]
+        self.suite
+            .prompt(ui.ctx(), header_panel.response.rect.bottom());
         egui::Panel::bottom("status")
             .frame(
                 egui::Frame::new()

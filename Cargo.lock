@@ -522,6 +522,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
+name = "avila-suite"
+version = "0.1.0-dev"
+dependencies = [
+ "egui",
+ "image",
+ "serde",
+ "serde_json",
+ "sha2",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
 name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2840,6 +2854,7 @@ dependencies = [
 name = "optcoil-app"
 version = "0.2.0"
 dependencies = [
+ "avila-suite",
  "base64",
  "console_error_panic_hook",
  "eframe",
