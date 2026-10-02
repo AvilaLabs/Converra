@@ -11,7 +11,7 @@
 | BOM is unavailable | Whether the record contains an eligible passing optimum. |
 | Review package cannot rerun | Attach the exact original case and every matching external dataset. |
 | Scenario ranking is unresolved | Incompatible requirements, missing dependencies or unresolved alternatives. |
-| A documented feature is absent | The installed version; v0.2.0 archives predate newer source/hosted workflows. |
+| A documented feature is absent | The installed version; v0.2.0 archives predate the workflows added in v0.3.0. |
 
 Browser recovery belongs to one browser/device. Keep exported workspaces and review packages for portable studies. Cancellation can retain previous completed evidence; wait for the job's final state before starting another calculation.
 

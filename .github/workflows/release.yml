@@ -1,6 +1,6 @@
 name: release
 
-# Tag a release: `git tag v0.2.0 && git push origin v0.2.0`. Builds the
+# Tag a release: `git tag v0.3.0 && git push origin v0.3.0`. Builds the
 # workbench, CLI and local MCP server on every supported platform, packages them (.app on
 # macOS, .zip/.tar.gz elsewhere), and attaches everything to a draft release.
 #

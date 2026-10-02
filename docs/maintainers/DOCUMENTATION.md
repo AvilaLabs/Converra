@@ -42,6 +42,6 @@ After deployment, open the workbench, its Help → Handbook link, the handbook, 
 
 ## Keep content current
 
-Check commands against `optcoil-cli`, Python examples against `optcoil-py`, and MCP tools against `optcoil-mcp`. Check geometry and material limits against model/physics declarations rather than old OC prose. Distinguish source and hosted additions from the v0.2.0 archives, and keep the overview version synchronized with the workspace.
+Check commands against `optcoil-cli`, Python examples against `optcoil-py`, and MCP tools against `optcoil-mcp`. Check geometry and material limits against model/physics declarations rather than old OC prose. Distinguish source and hosted additions from the v0.2.0 archives (later additions ship from v0.3.0), and keep the overview version synchronized with the workspace.
 
 Document benchmark metric, baseline, inputs and verdict together. Shared physics acceptance is not independent physical validation; cache reuse is not a fresh-solve speed comparison. Never turn a failed or inconclusive historical result into a current recommendation.

@@ -20,10 +20,10 @@ cp "$BINARY" "$APP/Contents/MacOS/Converra"
 chmod +x "$APP/Contents/MacOS/Converra"
 sed "s/{{VERSION}}/$VERSION/g" "$HERE/Info.plist" > "$APP/Contents/Info.plist"
 
-# .icns from the bundled Avila Labs logo via a .iconset.
+# .icns from the Converra tile icon via a .iconset.
 ICONSET="$(mktemp -d)/icon.iconset"
 mkdir -p "$ICONSET"
-SRC="$ROOT/crates/optcoil-app/assets/avila-labs-logo.png"
+SRC="$ROOT/crates/optcoil-app/assets/converra-icon-512.png"
 for px in 16 32 128 256 512; do
     sips -z "$px" "$px" "$SRC" --out "$ICONSET/icon_${px}x${px}.png" >/dev/null
     dbl=$((px * 2))

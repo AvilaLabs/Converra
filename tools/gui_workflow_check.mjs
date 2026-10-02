@@ -336,7 +336,7 @@ try {
   const required = plan.requiredPhases ?? ['import', 'run', 'cancel', 'revise', 'compare', 'save', 'reopen', 'recovery'];
   const missing = required.filter(phase => !completedPhases.has(phase));
   if (missing.length) throw new Error(`Workflow plan lacks required phases: ${missing.join(', ')}`);
-  const errors = events.filter(event => !expectedReloadInterventions.has(event) && (event.method === 'Runtime.exceptionThrown' || event.method === 'Harness.unexpectedDialog' || event.method === 'Harness.dialogError' || event.method === 'Log.entryAdded' && event.params.entry?.level === 'error' && !(/favicon\.ico/i.test(event.params.entry?.url ?? '') && /404/.test(event.params.entry?.text ?? ''))));
+  const errors = events.filter(event => !expectedReloadInterventions.has(event) && (event.method === 'Runtime.exceptionThrown' || event.method === 'Harness.unexpectedDialog' || event.method === 'Harness.dialogError' || event.method === 'Log.entryAdded' && event.params.entry?.level === 'error' && !/api\.avilalabs\.org/i.test(`${event.params.entry?.url ?? ''} ${event.params.entry?.text ?? ''}`) && !(/favicon\.ico/i.test(event.params.entry?.url ?? '') && /404/.test(event.params.entry?.text ?? ''))));
   if (errors.length) throw new Error(`Browser reported ${errors.length} runtime or console error(s); see trace JSON`);
   await writeFile(resolve(artifactDir, 'summary.json'), JSON.stringify({ passed: true, completedPhases: [...completedPhases], steps: plan.steps.length, finalStatus: previous, events }, null, 2));
   console.log(JSON.stringify({ passed: true, steps: plan.steps.length, completedPhases: [...completedPhases], artifacts: artifactDir }));

@@ -4,7 +4,7 @@ Converra helps you design high-temperature superconducting magnets and compare w
 
 This handbook is the starting point for using Converra. It follows a study from requirements and conductor data to a calculated decision and a review package.
 
-**Converra 0.2.0** is the current workspace version. The handbook describes the current source and hosted workbench. Spreadsheet imports, draft recovery, diagnosis and scenario studies were added after the v0.2.0 desktop archives; build current source to use them on desktop. Python bindings currently require a source build.
+**Converra 0.3.0** is the current workspace version. The handbook describes the current source and hosted workbench. Spreadsheet imports, draft recovery, diagnosis and scenario studies were added after v0.2.0 and ship in the v0.3.0 desktop archives. Python bindings currently require a source build.
 
 ## Choose where to begin
 

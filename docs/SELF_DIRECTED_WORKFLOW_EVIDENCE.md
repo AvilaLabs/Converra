@@ -1,8 +1,8 @@
 # Self-directed study workflow: software verification
 
 This records the September 30, 2026 importer, decision presentation and draft
-recovery milestone in the existing egui workbench. These features postdate the
-v0.2.0 desktop archives.
+recovery milestone in the existing egui workbench. These features were added
+after v0.2.0 and ship from v0.3.0.
 
 ## Observed checks
 

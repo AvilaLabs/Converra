@@ -6,8 +6,7 @@ the full declared candidate search at its original numerical fidelity. Results
 describe those scenarios and that bounded search space; they assign no
 probabilities and do not establish engineering qualification.
 
-These extensions are available in source builds. The published v0.2.0 archives
-predate them.
+These extensions ship from v0.3.0; the v0.2.0 archives predate them.
 
 ## Existing GUI
 

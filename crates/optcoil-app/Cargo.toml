@@ -32,7 +32,11 @@ optcoil-physics.workspace = true
 optcoil-search.workspace = true
 optcoil-adapters.workspace = true
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+avila-account = { version = "0.1", default-features = false, features = ["ui", "client"] }
+
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+avila-account = { version = "0.1", default-features = false, features = ["ui"] }
 console_error_panic_hook = "0.1"
 js-sys = "0.3"
 wasm-bindgen = "0.2"

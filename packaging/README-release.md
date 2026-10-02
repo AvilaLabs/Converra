@@ -1,4 +1,4 @@
-# Converra 0.2.0
+# Converra 0.3.0
 
 Design and cost optimization for high-temperature superconducting magnets.
 All calculations use the same local Rust engine. No Rust installation is needed
@@ -65,11 +65,11 @@ licenses and attribution in `data/materials/`; see also
 [supported domains](docs/SUPPORTED_DOMAINS.md) and [the changelog](CHANGELOG.md).
 
 Download `SHA256SUMS` beside your archive from
-[the release](https://github.com/AvilaLabs/Converra/releases/tag/v0.2.0).
+[the release](https://github.com/AvilaLabs/Converra/releases/tag/v0.3.0).
 Compare its digest with `sha256sum <archive>` on Linux,
 `shasum -a 256 <archive>` on macOS, or `Get-FileHash <archive> -Algorithm SHA256`
 in Windows PowerShell.
 
 [Browser workbench](https://converra.avilalabs.org) ·
-[Source and full documentation](https://github.com/AvilaLabs/Converra/tree/v0.2.0) ·
+[Source and full documentation](https://github.com/AvilaLabs/Converra/tree/v0.3.0) ·
 [Report a problem](https://github.com/AvilaLabs/Converra/issues)

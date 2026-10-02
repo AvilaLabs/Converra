@@ -19,7 +19,7 @@ Download an archive from [GitHub Releases](https://github.com/AvilaLabs/Converra
 
 Extract and launch `Converra` or `Converra.app`. The CLI is `optcoil`; the local agent server is `optcoil-mcp`. Windows adds `.exe`. No Rust installation is needed for these binaries. Verify the archives against the release's `SHA256SUMS`. Linux desktop needs a graphical session and working graphics drivers.
 
-The v0.2.0 archives predate several workflows documented here. The hosted workbench and current source contain the newer features.
+The v0.2.0 archives predate several workflows documented here. v0.3.0 and later archives, the hosted workbench and current source contain them.
 
 ## Build current source
 
