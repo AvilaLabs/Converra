@@ -1,7 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.3.0 — 2026-10-02
 
+- Add an optional Avila Labs sign-in. The browser workbench has a Sign in
+  button and a first-visit prompt; the desktop app signs in with a device code
+  approved in the browser. A tool launcher links the other Avila Labs tools.
+  Nothing from your work is sent, and every feature works without an account.
+  Includes a new application icon.
 - Import bounded CSV, TSV and XLSX measurement tables with a source preview,
   explicit column/unit/nominal-coordinate mapping and source declarations.
   Portable dataset bundles retain the upload hash, import recipe and subsequent

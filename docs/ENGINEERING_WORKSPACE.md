@@ -2,9 +2,9 @@
 
 An engineering study keeps a baseline and proposed alternatives together with
 their exact source data and calculated evidence. The GUI and local MCP server
-use `optcoil-search::study`. Source builds save `optcoil-study-workspace/v2`,
+use `optcoil-search::study`. Builds from v0.3.0 save `optcoil-study-workspace/v2`,
 including retained scenario evidence, and import older v1 workspaces. The
-published v0.2.0 archives use v1 and predate the scenario extension.
+v0.2.0 archives use v1 and predate the scenario extension.
 
 The extension's local gates and observed GUI workflows are recorded in
 [decision clarity verification](DECISION_CLARITY_EVIDENCE.md).

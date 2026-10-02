@@ -48,9 +48,9 @@ use web_time::Instant;
 /// Avila Labs sign-in controls: device sign-in on the desktop, the account
 /// service's session cookie in the browser.
 #[cfg(target_arch = "wasm32")]
-type Suite = avila_suite::ui_web::WebSuite;
+type Suite = avila_account::ui_web::WebSuite;
 #[cfg(not(target_arch = "wasm32"))]
-type Suite = avila_suite::ui_desktop::DesktopSuite;
+type Suite = avila_account::ui_desktop::DesktopSuite;
 
 /// Native entry point — the browser build enters through `web::start_web`.
 #[cfg(not(target_arch = "wasm32"))]

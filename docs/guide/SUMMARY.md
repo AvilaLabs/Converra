@@ -27,4 +27,5 @@
 - [Models and supported domains](models.md)
 - [Benchmarks and comparisons](benchmarks.md)
 - [Troubleshooting](troubleshooting.md)
+- [Avila Labs account (optional)](avila-account.md)
 - [Contribute and cite](contributing.md)

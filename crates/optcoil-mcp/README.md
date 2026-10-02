@@ -110,7 +110,7 @@ source cases, material bundles, transformed inputs and calculation records.
 bindings with full-record resource locators. Resources survive server restart;
 up to three analyses fit within the workspace payload limit. Cancelled jobs do
 not attach partial evidence. See [scenario studies](../../docs/ROBUSTNESS.md).
-These tools postdate the published v0.2.0 binaries and require a source build.
+These tools were added after v0.2.0 and ship from v0.3.0.
 
 ## Limits and result meaning
 

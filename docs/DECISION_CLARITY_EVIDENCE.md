@@ -2,7 +2,7 @@
 
 This records software checks for the September 2026 diagnosis, scenario-study
 and workflow-comparison extension. It does not close the external engineer
-validation gate PC-08. These changes postdate the published v0.2.0 archives.
+validation gate PC-08. These changes were added after v0.2.0 and ship from v0.3.0.
 
 ## Local gates
 

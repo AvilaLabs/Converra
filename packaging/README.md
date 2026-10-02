@@ -5,7 +5,7 @@
 and packaged by `.github/workflows/release.yml` on every `v*` tag:
 
 ```bash
-git tag v0.2.0 && git push origin v0.2.0
+git tag v0.3.0 && git push origin v0.3.0
 ```
 
 Artifacts attached to the GitHub Release:
@@ -82,7 +82,7 @@ wire it by replacing the "Sign the binaries" step with the
 ```bash
 # macOS (on a Mac):
 cargo build --release -p optcoil-app
-packaging/make-app.sh target/release/optcoil-app 0.2.0
+packaging/make-app.sh target/release/optcoil-app 0.3.0
 open Converra.app
 
 # Windows: the .exe is portable — no packaging needed beyond zipping it.

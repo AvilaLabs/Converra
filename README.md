@@ -46,8 +46,8 @@ Prebuilt desktop, CLI and local MCP binaries are available from [GitHub Releases
 Extract the archive and launch `Converra` on Windows/Linux or `Converra.app` on macOS. No Rust installation is needed for these builds. The command-line executable is named `optcoil` (`optcoil.exe` on Windows); the MCP server is `optcoil-mcp` (`optcoil-mcp.exe`). Archives include setup guides, examples and dataset attribution. Verify downloaded archives against the release's `SHA256SUMS` file.
 
 The spreadsheet importer, draft recovery and newer scenario-study features
-postdate the v0.2.0 desktop archives. Use the current source build or hosted
-workbench for those additions until the next desktop release.
+were added after v0.2.0 and are included in the v0.3.0 desktop archives and
+later. The v0.2.0 archives do not have them.
 
 The workbench starts with a small attributed measured-conductor study and explicitly illustrative prices. Review **Applicability and work estimate**, run, inspect the decision, then **Revise** or **Duplicate** and export a **Review package**. Use **File → Import spreadsheet / CSV** to map and validate a material table, then attach it to a case. **Engineering study** keeps named variants, diagnoses, comparisons and saved workspaces together. **File → Examples** also offers the synthetic allocation reference. The guided builder authors supported racetrack and helix cases; loaded cases have structured controls for routine revisions and an advanced JSON editor for other declarations. Linux desktop use requires a graphical session and graphics drivers.
 
@@ -123,7 +123,7 @@ decisions and resources for full records. It shares the GUI's workspace format;
 no hosted account or remote desktop connection is required.
 
 Scenario analysis and prioritized diagnosis are available in the current source
-build; the published v0.2.0 archives predate these extensions.
+build; these extensions were added after v0.2.0 and ship from v0.3.0.
 
 See [MCP setup and tool workflow](crates/optcoil-mcp/README.md) and
 [engineering study workspaces](docs/ENGINEERING_WORKSPACE.md).
