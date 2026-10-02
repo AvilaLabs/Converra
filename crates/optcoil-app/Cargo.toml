@@ -32,6 +32,9 @@ optcoil-physics.workspace = true
 optcoil-search.workspace = true
 optcoil-adapters.workspace = true
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+avila-suite = { path = "/home/connoravila/Documents/Avila-Labs/development/avila-suite-web", default-features = false, features = ["ui", "client"] }
+
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 avila-suite = { path = "/home/connoravila/Documents/Avila-Labs/development/avila-suite-web", default-features = false, features = ["ui"] }
 console_error_panic_hook = "0.1"

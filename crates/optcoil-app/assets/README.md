@@ -1,1 +1,3 @@
 `avila-labs-logo.png` is the Avila Labs brand asset, copied without modification from the ACTINV desktop at `crates/actinv-gui/assets/avila-labs-logo.png`. It is used beside the OptCoil name and as the application window icon. The Avila blue is RGB (24, 0, 173), `#1800AD`, matching ACTINV.
+
+`converra-mark.png`, `converra-icon.png`, `converra-icon-512.png` and the favicon files are rendered from the Avila Labs tool marks (`web-suite/icons/converra.svg` and `converra-tile.svg`). The mark sits beside the name; the tile is the window, taskbar and favicon icon. `avila-labs-logo.png` is kept as the suite brand asset.

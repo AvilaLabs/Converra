@@ -45,10 +45,17 @@ use std::{
 #[cfg(target_arch = "wasm32")]
 use web_time::Instant;
 
+/// Avila Labs sign-in controls: device sign-in on the desktop, the account
+/// service's session cookie in the browser.
+#[cfg(target_arch = "wasm32")]
+type Suite = avila_suite::ui_web::WebSuite;
+#[cfg(not(target_arch = "wasm32"))]
+type Suite = avila_suite::ui_desktop::DesktopSuite;
+
 /// Native entry point — the browser build enters through `web::start_web`.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn run_native() -> eframe::Result {
-    let icon = eframe::icon_data::from_png_bytes(brand::LOGO).expect("embedded Avila Labs icon");
+    let icon = eframe::icon_data::from_png_bytes(brand::ICON).expect("embedded Converra icon");
     // Renderer escape hatch: wgpu is the default, but on weak integrated
     // graphics (or a software-rasterizer fallback like llvmpipe) Glow's
     // OpenGL path is noticeably lighter for a UI this simple.
@@ -425,8 +432,7 @@ struct Workbench {
     bakeoff_record: Option<BakeoffRecord>,
     message: (bool, String),
     capture: Option<capture::Capture>,
-    #[cfg(target_arch = "wasm32")]
-    suite: avila_suite::ui_web::WebSuite,
+    suite: Suite,
     page_fade_start: Instant,
     last_page: Page,
     results_reveal_start: Option<Instant>,
@@ -868,8 +874,7 @@ impl Workbench {
                 "Open a project, drop a case file here, or run the bundled example.".into(),
             ),
             capture: capture::Capture::from_env(),
-            #[cfg(target_arch = "wasm32")]
-            suite: avila_suite::ui_web::WebSuite::new(ctx, "converra"),
+            suite: Suite::new(ctx, "converra"),
             page_fade_start: Instant::now(),
             last_page: Page::Overview,
             results_reveal_start: None,
@@ -3586,7 +3591,6 @@ impl Workbench {
             if ui.button("Help    F1").clicked() {
                 self.help = !self.help;
             }
-            #[cfg(target_arch = "wasm32")]
             self.suite.header_right(ui);
         });
         ui.horizontal_wrapped(|ui| {
@@ -4282,7 +4286,6 @@ impl eframe::App for Workbench {
             self.last_selected_candidate = self.selected_candidate;
             self.inspector_fade_start = Instant::now();
         }
-        #[cfg_attr(not(target_arch = "wasm32"), allow(unused_variables))]
         let header_panel = egui::Panel::top("header").show(ui, |ui| {
             self.header(ui);
             // Indeterminate progress shimmer while a worker runs: a short
@@ -4303,9 +4306,12 @@ impl eframe::App for Workbench {
                 );
             }
         });
-        #[cfg(target_arch = "wasm32")]
         self.suite
             .prompt(ui.ctx(), header_panel.response.rect.bottom());
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(notice) = self.suite.take_notice() {
+            self.message = (true, notice);
+        }
         egui::Panel::bottom("status")
             .frame(
                 egui::Frame::new()

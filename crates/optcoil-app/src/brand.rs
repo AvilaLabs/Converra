@@ -7,7 +7,9 @@ pub const BACKGROUND: Color32 = Color32::from_rgb(247, 248, 252);
 pub const MUTED: Color32 = Color32::from_rgb(95, 105, 124);
 pub const BASELINE: Color32 = Color32::from_rgb(142, 154, 180);
 pub const LINE: Color32 = Color32::from_rgb(220, 220, 226);
-pub const LOGO: &[u8] = include_bytes!("../assets/avila-labs-logo.png");
+/// The Converra mark shown beside the name, and the tile used as the window icon.
+pub const LOGO: &[u8] = include_bytes!("../assets/converra-mark.png");
+pub const ICON: &[u8] = include_bytes!("../assets/converra-icon.png");
 
 /// Gamma-space blend for animated hover/fade states.
 pub fn mix(a: Color32, b: Color32, t: f32) -> Color32 {
