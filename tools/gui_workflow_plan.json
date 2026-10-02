@@ -35,7 +35,7 @@
     { "phase": "revise", "name": "review-price-only-revision", "action": { "type": "drag", "fromX": 1071, "fromY": 430, "toX": 1071, "toY": 780, "steps": 20 } },
     { "phase": "revise", "name": "accept-price-only-variant", "action": { "type": "click", "x": 458, "y": 789 }, "waitFor": { "editorOpen": false }, "expect": { "activeVariantId": "variant-0002", "inputSha256": "c55301d1b9c7806619e9afe09f6182b2dac689ff32021b735108775ed25975e6" }, "identity": { "changed": ["inputSha256"], "unchanged": ["activeVariantId"] } },
     { "phase": "revise", "name": "name-price-variant", "action": { "type": "click", "x": 82, "y": 351 } },
-    { "phase": "revise", "name": "edit-variant-label", "action": { "type": "click", "x": 420, "y": 311 } },
+    { "phase": "revise", "name": "edit-variant-label", "action": { "type": "click", "x": 420, "y": 327 } },
     { "phase": "revise", "name": "replace-variant-label", "action": { "type": "key", "key": "a", "modifiers": 2 } },
     { "phase": "revise", "name": "name-measured-price-scenario", "action": { "type": "text", "text": "Measured tape price +$5/m" } },
     { "phase": "revise", "name": "finish-variant-label", "action": { "type": "key", "key": "Enter" } },
