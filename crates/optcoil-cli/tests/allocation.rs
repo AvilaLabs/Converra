@@ -221,3 +221,184 @@ fn allocation_demand_refuses_a_substituted_map_without_the_flag() {
     assert!(!bad.status.success());
     fs::remove_dir_all(dir).unwrap();
 }
+
+const INVENTORY_SPEC: &str = r#"{
+  "schema": "optcoil-synthetic-inventory-spec/v1",
+  "inventory_id": "CLI-ALLOCATION",
+  "seed": 20261004,
+  "product": {
+    "vendor": "Illustrative Vendor",
+    "product": "Illustrative 12 mm REBCO",
+    "product_map": {
+      "dataset_id": "robinson-superpower-ap-v3",
+      "csv_sha256": "889cc2cf8b91b822cbc6cceb7388e5d8afcb8a8911bb20ab175e50c7e6dc0354"
+    }
+  },
+  "reel_count": 6,
+  "reel_length_m": { "min": 8.0, "max": 20.0 },
+  "width_m": 0.012,
+  "profile": {
+    "temperature_k": 20.0,
+    "field_t": 1.0,
+    "angle_from_normal_deg": 0.0,
+    "electric_field_criterion_v_per_m": 0.0001,
+    "resolution_m": 1.0,
+    "map_reference_row": 1817
+  },
+  "length_relative_sd": 0.025,
+  "length_correlation_m": 5.0,
+  "ab_offset_group": "cheng2025_F1"
+}"#;
+
+#[test]
+fn allocation_run_and_check_work_end_to_end() {
+    let dir = temp_dir("allocation-run");
+    let case_path = dir.join("case.json");
+    let record_path = dir.join("run.json");
+    fs::write(&case_path, SEARCH_CASE).unwrap();
+    cli()
+        .arg("coupled-search")
+        .arg(&case_path)
+        .arg("--output")
+        .arg(&record_path)
+        .output()
+        .unwrap();
+    let demand_path = dir.join("demand.json");
+    let demand = cli()
+        .args(["allocation", "demand"])
+        .arg(&record_path)
+        .arg("--output")
+        .arg(&demand_path)
+        .output()
+        .unwrap();
+    assert!(
+        demand.status.success(),
+        "{}",
+        String::from_utf8_lossy(&demand.stderr)
+    );
+
+    let spec_path = dir.join("spec.json");
+    let inventory_path = dir.join("inventory.json");
+    let truth_path = dir.join("truth.json");
+    fs::write(&spec_path, INVENTORY_SPEC).unwrap();
+    let synth = cli()
+        .args(["inventory", "synthesize"])
+        .arg(&spec_path)
+        .arg("--output")
+        .arg(&inventory_path)
+        .arg("--truth-output")
+        .arg(&truth_path)
+        .output()
+        .unwrap();
+    assert!(
+        synth.status.success(),
+        "{}",
+        String::from_utf8_lossy(&synth.stderr)
+    );
+
+    let params_path = dir.join("params.json");
+    fs::write(
+        &params_path,
+        r#"{"schema": "optcoil-allocation-params/v1", "margin": 0.05,
+            "transfer_derate": {"sigma": 0.15, "z": 1.0},
+            "min_piece_length_m": 3.0, "price_usd_per_m": 30.0,
+            "price_source": "CLI test price"}"#,
+    )
+    .unwrap();
+    let allocation_path = dir.join("allocation.json");
+    let run = cli()
+        .args(["allocation", "run"])
+        .arg(&demand_path)
+        .arg(&inventory_path)
+        .arg("--params")
+        .arg(&params_path)
+        .arg("--output")
+        .arg(&allocation_path)
+        .output()
+        .unwrap();
+    assert!(
+        run.status.success(),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    let bytes = fs::read(&allocation_path).unwrap();
+    assert!(bytes.ends_with(b"}\n"));
+    let record: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(record["schema"], "optcoil-allocation/v1");
+    assert_eq!(record["evidence_class"], "synthetic");
+    assert_eq!(record["money"]["price_source"], "CLI test price");
+    assert_eq!(record["streams_total"], 2);
+
+    // The output is a new file.
+    let again = cli()
+        .args(["allocation", "run"])
+        .arg(&demand_path)
+        .arg(&inventory_path)
+        .arg("--params")
+        .arg(&params_path)
+        .arg("--output")
+        .arg(&allocation_path)
+        .output()
+        .unwrap();
+    assert!(!again.status.success());
+    assert_eq!(bytes, fs::read(&allocation_path).unwrap());
+
+    let check = cli()
+        .args(["allocation", "check"])
+        .arg(&demand_path)
+        .arg(&inventory_path)
+        .arg(&allocation_path)
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&check.stdout);
+    assert!(
+        check.status.success(),
+        "{stdout}{}",
+        String::from_utf8_lossy(&check.stderr)
+    );
+    assert!(stdout.trim_end().ends_with("PASS"), "{stdout}");
+
+    // A tampered record fails with the mismatch named.
+    let mut tampered = record.clone();
+    tampered["allocation"]["splices"] = serde_json::json!(99);
+    let tampered_path = dir.join("tampered.json");
+    fs::write(
+        &tampered_path,
+        serde_json::to_vec_pretty(&tampered).unwrap(),
+    )
+    .unwrap();
+    let failed = cli()
+        .args(["allocation", "check"])
+        .arg(&demand_path)
+        .arg(&inventory_path)
+        .arg(&tampered_path)
+        .output()
+        .unwrap();
+    assert!(!failed.status.success());
+    let stdout = String::from_utf8_lossy(&failed.stdout);
+    assert!(stdout.contains("allocation splices"), "{stdout}");
+    assert!(stdout.trim_end().ends_with("FAIL"), "{stdout}");
+
+    // The derate is required.
+    let bad_params = dir.join("bad-params.json");
+    fs::write(
+        &bad_params,
+        r#"{"schema": "optcoil-allocation-params/v1", "margin": 0.0,
+            "min_piece_length_m": 3.0, "price_usd_per_m": 30.0,
+            "price_source": "x"}"#,
+    )
+    .unwrap();
+    let missing = cli()
+        .args(["allocation", "run"])
+        .arg(&demand_path)
+        .arg(&inventory_path)
+        .arg("--params")
+        .arg(&bad_params)
+        .arg("--output")
+        .arg(dir.join("never.json"))
+        .output()
+        .unwrap();
+    assert!(!missing.status.success());
+    assert!(!dir.join("never.json").exists());
+    fs::remove_dir_all(dir).unwrap();
+}

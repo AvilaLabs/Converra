@@ -636,31 +636,23 @@ fn rate_reel(
     }
 
     // Rule 7.
-    let mut chosen: Option<(&LengthProfile, f64, Option<u32>)> = None;
-    let mut reasons = Vec::new();
-    for profile in &passport.length_profiles {
-        match model.profile_value(profile) {
-            Ok((value, row)) => {
-                chosen = Some((profile, value, row));
-                break;
-            }
-            Err(reason) => reasons.push(reason),
+    let (profile, profile_map, reference_row) = match choose_profile(passport, model) {
+        Ok(chosen) => chosen,
+        Err(reasons) => {
+            let mut reel = unrated(
+                passport,
+                ReelRatingStatus::ProfileUnscalable,
+                format!(
+                    "None of the {} length profile(s) can be scaled against product map {map_label}: {}.",
+                    passport.length_profiles.len(),
+                    reasons.join("; ")
+                ),
+                "A length profile measured at a temperature, field, angle and criterion inside the product map's measured domain, or a map_reference to a map row that matches the profile condition.",
+            );
+            reel.map_ic_a_per_m = rating.map_ic_a_per_m;
+            reel.orientation = rating.orientation;
+            return Ok(reel);
         }
-    }
-    let Some((profile, profile_map, reference_row)) = chosen else {
-        let mut reel = unrated(
-            passport,
-            ReelRatingStatus::ProfileUnscalable,
-            format!(
-                "None of the {} length profile(s) can be scaled against product map {map_label}: {}.",
-                passport.length_profiles.len(),
-                reasons.join("; ")
-            ),
-            "A length profile measured at a temperature, field, angle and criterion inside the product map's measured domain, or a map_reference to a map row that matches the profile condition.",
-        );
-        reel.map_ic_a_per_m = rating.map_ic_a_per_m;
-        reel.orientation = rating.orientation;
-        return Ok(reel);
     };
 
     let profile_map_a = profile_map * width;
@@ -774,6 +766,69 @@ fn rate_reel(
     });
     rating.consistency_checks = consistency_checks;
     Ok(rating)
+}
+
+/// CR-02 rule 7's profile choice: the first length profile, in passport
+/// order, whose condition the map can evaluate (a valid `map_reference`, or
+/// the interpolator). Returns the profile, the map's Ic per width at its
+/// condition, and the referenced row. Err lists why each profile failed.
+fn choose_profile<'a>(
+    passport: &'a ReelPassport,
+    model: &MapModel,
+) -> Result<(&'a LengthProfile, f64, Option<u32>), Vec<String>> {
+    let mut reasons = Vec::new();
+    for profile in &passport.length_profiles {
+        match model.profile_value(profile) {
+            Ok((value, row)) => return Ok((profile, value, row)),
+            Err(reason) => reasons.push(reason),
+        }
+    }
+    Err(reasons)
+}
+
+/// A reel's scale factor s(x) = ic_a(x) / (map value at the profile
+/// condition x width) at the profile points (CR-02 rule 7). It does not
+/// depend on the operating point.
+#[derive(Debug, Clone)]
+pub(crate) struct ScaleSeries {
+    pub profile_id: String,
+    pub map_reference_row: Option<u32>,
+    /// `(position_m, s)` with strictly increasing positions.
+    pub points: Vec<(f64, f64)>,
+}
+
+/// Extracts the scale series with the CR-02 profile choice and map checks.
+/// Err is the CR-02 explanation of why the reel has no scaled basis.
+pub(crate) fn scale_series(
+    passport: &ReelPassport,
+    model: &MapModel,
+) -> Result<ScaleSeries, String> {
+    if passport.length_profiles.is_empty() {
+        return Err("The passport has no length profile, so only a product-level rating exists (CR-02 rule 6) and nothing about this reel's capacity along its length is known.".into());
+    }
+    let map_label = format!(
+        "{} (csv_sha256 {})",
+        model.identity.dataset_id,
+        &model.identity.csv_sha256[..16]
+    );
+    let (profile, profile_map, reference_row) =
+        choose_profile(passport, model).map_err(|reasons| {
+            format!(
+                "None of the {} length profile(s) can be scaled against product map {map_label}: {}.",
+                passport.length_profiles.len(),
+                reasons.join("; ")
+            )
+        })?;
+    let profile_map_a = profile_map * passport.geometry.width_m;
+    Ok(ScaleSeries {
+        profile_id: profile.id.clone(),
+        map_reference_row: reference_row,
+        points: profile
+            .points
+            .iter()
+            .map(|[x, ic]| (*x, ic / profile_map_a))
+            .collect(),
+    })
 }
 
 /// Linear-interpolated percentile of a sorted, non-empty slice (fraction in

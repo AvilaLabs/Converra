@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fix the allocation demand table at offset bounds above zero: angle samples
+  are now folded into [0, 180) like the engine's, so positions near the tape
+  normal are no longer reported as outside the map domain.
 - Add reel passports (`optcoil-reel-passport/v1`) and per-reel inventories
   (`optcoil-reel-inventory/v1`) with strict validation. Evidence classes are
   `measured`, `model_informed` and `synthetic`. A passport may not claim a
@@ -47,6 +50,22 @@
   racetrack or planar path only; a product map that differs from the one the
   record screened with is refused unless `--allow-map-substitution` is given.
   Every v1 scope limit is listed in the record.
+- Add `optcoil allocation run` and `optcoil allocation check` (CR-03 slice B,
+  `optcoil-allocation/v1`). Given a demand table, an inventory and declared
+  parameters (`optcoil-allocation-params/v1`: margin, a required transfer
+  derate, minimum piece length, price with its source), the run places reel
+  stretches along each (module, strand) conductor stream where the reel's
+  derated scale factor meets the demand with the margin, checked exactly on the
+  merged breakpoints of the reel and turn step functions. It reports the splice
+  schedule, reel usage, metres, and the shortfall and money difference against a
+  uniform worst-case baseline in which a reel is accepted only if its weakest
+  point meets the coil's highest requirement. The allocator is a deterministic
+  greedy with no optimality claim. Reels with no ab offsets, or an offset bound
+  beyond the tabulated range, are kept off offset-sensitive positions. A zero
+  derate is accepted but labelled unsafe in the record. The check is an
+  independent module that does not call the allocator: it recomputes every
+  piece's feasibility, coverage with no overlaps, reel-length conservation,
+  splice counts and all totals, and prints PASS or FAIL with each mismatch.
 - Fix the Python package metadata: `pyproject.toml` now takes its version from
   Cargo (`dynamic = ["version"]`), so `maturin develop` and `maturin build` run.
 

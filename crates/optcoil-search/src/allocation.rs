@@ -323,17 +323,21 @@ struct PointContext<'a> {
 }
 
 /// Fold-angle sample set for an offset bound: theta - delta, theta,
-/// theta + delta, and every integer degree strictly between the ends.
+/// theta + delta, and every integer degree strictly between the ends. The
+/// interval is defined on the raw angle; every offset sample goes through
+/// the engine's period-180 fold (`theta_fold_deg`) before it is queried.
+/// The point's own angle is already folded and is kept as is, so the
+/// zero-offset values stay bit-identical to the engine's.
 fn angle_samples(theta_deg: f64, delta_deg: f64) -> Vec<f64> {
     let mut samples = vec![theta_deg];
     if delta_deg > 0.0 {
         let (low, high) = (theta_deg - delta_deg, theta_deg + delta_deg);
-        samples.push(low);
-        samples.push(high);
+        samples.push(tape_frame::theta_fold_deg(low));
+        samples.push(tape_frame::theta_fold_deg(high));
         let mut k = low.floor() + 1.0;
         while k < high {
             if k > low {
-                samples.push(k);
+                samples.push(tape_frame::theta_fold_deg(k));
             }
             k += 1.0;
         }
@@ -1404,10 +1408,122 @@ mod tests {
     fn angle_samples_cover_the_interval_and_every_integer_degree() {
         assert_eq!(angle_samples(88.3, 0.0), vec![88.3]);
         let samples = angle_samples(88.3, 2.0);
+        // The offset samples go through the fold, which may move the last bit.
         for expected in [88.3, 86.3, 90.3, 87.0, 88.0, 89.0, 90.0] {
-            assert!(samples.contains(&expected), "{expected} in {samples:?}");
+            assert!(
+                samples.iter().any(|s| (s - expected).abs() < 1e-12),
+                "{expected} in {samples:?}"
+            );
         }
         assert_eq!(samples.len(), 7);
+    }
+
+    #[test]
+    fn angle_samples_are_folded_like_the_engine_across_both_seams() {
+        // Across 0: raw samples below zero fold to just under 180.
+        let samples = angle_samples(0.0697, 1.0);
+        assert_eq!(samples[0], 0.0697);
+        for raw in [0.0697 - 1.0, 0.0697 + 1.0, 0.0, 1.0] {
+            let folded = tape_frame::theta_fold_deg(raw);
+            assert!(samples.contains(&folded), "{folded} in {samples:?}");
+        }
+        assert!(samples.iter().all(|a| (0.0..180.0).contains(a)));
+        assert!(samples.iter().any(|&a| a > 179.0));
+        // Across 180: raw samples at and above 180 fold to just above zero.
+        let samples = angle_samples(179.4, 1.0);
+        assert_eq!(samples[0], 179.4);
+        assert!(samples.iter().all(|a| (0.0..180.0).contains(a)));
+        assert!(samples.contains(&tape_frame::theta_fold_deg(180.0)));
+        assert!(samples.contains(&tape_frame::theta_fold_deg(180.4)));
+        assert_eq!(samples.len(), 5);
+    }
+
+    #[test]
+    fn crossing_positions_are_not_blocked_and_take_the_minimum_over_folded_samples() {
+        let record: CoupledSearchRunRecord = serde_json::from_str(record_json()).unwrap();
+        let dataset = MaterialDataset::embedded_by_id(MAP_ID).unwrap();
+        let runtime = spec_runtime(
+            &record.case.material,
+            &dataset,
+            record.case.operating.temperature_k,
+            false,
+        )
+        .unwrap();
+        // Only the map query is exercised; the transport fields do not enter.
+        let context = PointContext {
+            runtime: &runtime,
+            temperature_k: record.case.operating.temperature_k,
+            clamp_t: record.case.material.low_field_clamp_t,
+            correction: None,
+            k_transport_a_per_m: 0.0,
+            width_m: 1.0,
+            strands: 1.0,
+            budget: 0.0,
+            map_id: MAP_ID,
+        };
+        // Fields and angles of the fixture's turn 36 and 37 positions that
+        // straddle the tape normal.
+        for (magnitude_t, theta_deg) in [(3.0, 0.0697), (3.0, 179.5), (5.0, 0.4), (5.0, 179.93)] {
+            let (_, k0) = context.point_k(magnitude_t, theta_deg).unwrap();
+            let mut expected = k0.expect("the point itself has a capacity");
+            let samples = angle_samples(theta_deg, 1.0);
+            for &fold in &samples {
+                assert!((0.0..180.0).contains(&fold));
+                let (basis, k) = context.point_k(magnitude_t, fold).unwrap();
+                assert_ne!(basis, QueryBasis::Unsupported, "{theta_deg} -> {fold}");
+                expected = expected.min(k.unwrap());
+            }
+            // Independent evaluation straight from the engine's functions.
+            let mut independent = f64::INFINITY;
+            let mut raws = vec![theta_deg, theta_deg - 1.0, theta_deg + 1.0];
+            let (lo, hi) = (theta_deg - 1.0, theta_deg + 1.0);
+            let mut k = lo.floor() + 1.0;
+            while k < hi {
+                raws.push(k);
+                k += 1.0;
+            }
+            for raw in raws {
+                let fold = if raw == theta_deg {
+                    raw
+                } else {
+                    tape_frame::theta_fold_deg(raw)
+                };
+                let pair = tape_frame::query_mirror_pair_with_clamp(
+                    &runtime.interpolator,
+                    record.case.operating.temperature_k,
+                    magnitude_t,
+                    fold,
+                    tape_frame::theta_mirror_deg(fold),
+                    record.case.material.low_field_clamp_t,
+                )
+                .unwrap();
+                let (_, k, _) = combine_mirror_pair(&pair.folded, &pair.mirror, magnitude_t);
+                independent = independent.min(k.expect("capacity at a folded sample"));
+            }
+            assert_eq!(expected, independent, "{theta_deg}");
+        }
+    }
+
+    #[test]
+    fn the_fixture_blocks_only_one_turn_and_only_at_the_widest_offset_bounds() {
+        // With folded samples nothing near the tape normal is blocked. The
+        // one remaining block is a real map limit: at 0.56 T the widest
+        // bounds sample 0.66 degrees, which the map does not measure at the
+        // clamped field.
+        let d = demand();
+        for (index, offset) in d.angle_offsets_deg.iter().enumerate() {
+            let blocked: Vec<u32> = d
+                .turns
+                .iter()
+                .filter(|t| t.modules.iter().any(|m| m.s_req[index].s_req.is_none()))
+                .map(|t| t.turn)
+                .collect();
+            if *offset < 5.0 {
+                assert!(blocked.is_empty(), "offset {offset}: {blocked:?}");
+            } else {
+                assert_eq!(blocked, vec![32], "offset {offset}");
+            }
+        }
     }
 
     #[test]

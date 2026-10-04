@@ -29,6 +29,8 @@ use optcoil_model::{
 use optcoil_search::{
     RunRecord, SearchOptions, acceptance,
     allocation::{DemandOptions, build_allocation_demand_json},
+    allocation_check::check_allocation_json,
+    allocation_run::run_allocation_json,
     coupled::{CoupledOptions, CoupledRunRecord, run_coupled_case, run_oc004},
     coupled_refine::{CoupledRefineOptions, CoupledRefineRunRecord, run_oc008},
     coupled_search::{
@@ -653,6 +655,34 @@ enum AllocationCommand {
         angle_offsets_deg: Option<Vec<f64>>,
         #[arg(long, short)]
         output: PathBuf,
+    },
+    /// Allocate the reels of an inventory to the positions of a coil design
+    /// (optcoil-allocation/v1) from a demand table and an inventory, with
+    /// the uniform worst-case baseline. The parameters
+    /// (optcoil-allocation-params/v1) declare the margin, the transfer
+    /// derate, the minimum piece length and the price with its source.
+    /// The output is a new file and is never overwritten.
+    Run {
+        demand: PathBuf,
+        inventory: PathBuf,
+        #[arg(long)]
+        params: PathBuf,
+        /// Supply a material dataset bundle for the product map (repeatable).
+        #[arg(long)]
+        dataset_bundle: Vec<PathBuf>,
+        #[arg(long, short)]
+        output: PathBuf,
+    },
+    /// Independently check an allocation record against its demand table and
+    /// inventory. Prints PASS or FAIL with every mismatch; the exit status is
+    /// nonzero unless PASS.
+    Check {
+        demand: PathBuf,
+        inventory: PathBuf,
+        allocation: PathBuf,
+        /// Supply a material dataset bundle for the product map (repeatable).
+        #[arg(long)]
+        dataset_bundle: Vec<PathBuf>,
     },
 }
 
@@ -2365,6 +2395,11 @@ fn write_new_file(path: &std::path::Path, bytes: &[u8]) -> Result<(), Box<dyn Er
     Ok(())
 }
 
+fn read_text(path: &std::path::Path) -> Result<String, Box<dyn Error>> {
+    String::from_utf8(fs::read(path)?)
+        .map_err(|e| format!("{} must be UTF-8 text: {e}", path.display()).into())
+}
+
 fn execute_allocation(command: AllocationCommand) -> Result<(), Box<dyn Error>> {
     match command {
         AllocationCommand::Demand {
@@ -2416,6 +2451,83 @@ fn execute_allocation(command: AllocationCommand) -> Result<(), Box<dyn Error>> 
                 eprintln!(
                     "Note: the product map differs from the material the record screened with; the substitution is recorded."
                 );
+            }
+        }
+        AllocationCommand::Run {
+            demand,
+            inventory,
+            params,
+            dataset_bundle,
+            output,
+        } => {
+            if output.exists() {
+                return Err("refusing to overwrite an existing output file".into());
+            }
+            let demand_text = read_text(&demand)?;
+            let inventory_text = read_text(&inventory)?;
+            let params_text = read_text(&params)?;
+            let bundles = dataset_bundle
+                .iter()
+                .map(fs::read_to_string)
+                .collect::<Result<Vec<_>, _>>()?;
+            let bundle_refs: Vec<&str> = bundles.iter().map(String::as_str).collect();
+            let record =
+                run_allocation_json(&demand_text, &inventory_text, &params_text, &bundle_refs)?;
+            record.write_new(&output)?;
+            eprintln!(
+                "Saved {} (evidence {}): allocation covers {} of {} stream(s), shortfall {:.3} m against the baseline's {:.3} m; difference {:.2} USD at {}",
+                output.display(),
+                record.evidence_class.as_str(),
+                record.allocation.streams_covered,
+                record.streams_total,
+                record.allocation.shortfall_m,
+                record.baseline.shortfall_m,
+                record.money.difference_usd,
+                record.money.price_source
+            );
+            if record.params.derate_is_unsafe() {
+                eprintln!("Warning: UNSAFE, no transfer derate was applied.");
+            }
+        }
+        AllocationCommand::Check {
+            demand,
+            inventory,
+            allocation,
+            dataset_bundle,
+        } => {
+            let demand_text = read_text(&demand)?;
+            let inventory_text = read_text(&inventory)?;
+            let allocation_text = read_text(&allocation)?;
+            let bundles = dataset_bundle
+                .iter()
+                .map(fs::read_to_string)
+                .collect::<Result<Vec<_>, _>>()?;
+            let bundle_refs: Vec<&str> = bundles.iter().map(String::as_str).collect();
+            let check = check_allocation_json(
+                &demand_text,
+                &inventory_text,
+                &allocation_text,
+                &bundle_refs,
+            )?;
+            for group in &check.groups {
+                println!(
+                    "{}: {}",
+                    group.id,
+                    if group.status == Status::Pass {
+                        "PASS"
+                    } else {
+                        "FAIL"
+                    }
+                );
+                for mismatch in &group.mismatches {
+                    println!("  {mismatch}");
+                }
+            }
+            if check.verdict == Status::Pass {
+                println!("PASS");
+            } else {
+                println!("FAIL");
+                return Err("allocation check failed".into());
             }
         }
     }
