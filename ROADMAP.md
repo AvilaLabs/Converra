@@ -49,10 +49,13 @@ needs it.
 
 ### CR-02 — Reel passport schema and per-reel inventory
 
-- [ ] Versioned reel-evidence schema covering identity, length, length-resolved
+- [x] Versioned reel-evidence schema covering identity, length, length-resolved
   profiles, in-field points, ab-plane tilt, defects, vendor and batch,
-  provenance and evidence class. It builds on signed dataset bundles.
+  provenance and evidence class. It binds product maps by dataset identity;
+  signing passports is left to CR-07. See [docs/CR02.md](docs/CR02.md).
 - [ ] Inventory import and validation in the engine, CLI, Python and MCP.
+  Engine and CLI done, including per-reel rating at an operating point;
+  Python and MCP remain.
   Measured, model-informed and synthetic reels remain distinguishable.
 - [ ] Synthetic inventories generated from published variation statistics,
   labelled synthetic in every output.

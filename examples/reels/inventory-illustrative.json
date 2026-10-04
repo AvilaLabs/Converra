@@ -1,0 +1,242 @@
+{
+  "schema": "optcoil-reel-inventory/v1",
+  "inventory_id": "ILLUSTRATIVE-INVENTORY",
+  "evidence_class": "synthetic",
+  "passports": [
+    {
+      "schema": "optcoil-reel-passport/v1",
+      "reel_id": "ILLUSTRATIVE-REEL-A",
+      "evidence_class": "synthetic",
+      "product": {
+        "vendor": "Illustrative Vendor",
+        "product": "Illustrative 12 mm REBCO",
+        "batch": null,
+        "product_map": {
+          "dataset_id": "robinson-superpower-ap-v3",
+          "csv_sha256": "889cc2cf8b91b822cbc6cceb7388e5d8afcb8a8911bb20ab175e50c7e6dc0354"
+        }
+      },
+      "geometry": {
+        "length_m": 50.0,
+        "width_m": 0.012
+      },
+      "length_profiles": [
+        {
+          "id": "transport-1",
+          "method": "reel-to-reel transport (illustrative)",
+          "evidence_class": "synthetic",
+          "temperature_k": 20.0,
+          "field_t": 1.0,
+          "angle_from_normal_deg": 0.0,
+          "electric_field_criterion_v_per_m": 0.0001,
+          "resolution_m": 10.0,
+          "source_sha256": null,
+          "map_reference": {
+            "source_row": 1817
+          },
+          "points": [
+            [
+              0.0,
+              3510.0
+            ],
+            [
+              10.0,
+              3480.0
+            ],
+            [
+              20.0,
+              3320.0
+            ],
+            [
+              30.0,
+              3550.0
+            ],
+            [
+              40.0,
+              3490.0
+            ],
+            [
+              50.0,
+              3530.0
+            ]
+          ]
+        }
+      ],
+      "in_field_points": [
+        {
+          "sample_id": "ILLUSTRATIVE-SS-1",
+          "position_m": 10.0,
+          "temperature_k": 25.0,
+          "field_t": 2.0,
+          "angle_from_normal_deg": 0.0,
+          "ic_a": 2090.0,
+          "n_value": 22.0,
+          "electric_field_criterion_v_per_m": 0.0001,
+          "lab": "Illustrative Lab",
+          "evidence_class": "synthetic",
+          "source_sha256": null
+        }
+      ],
+      "ab_offsets": [
+        {
+          "position_m": 25.0,
+          "offset_deg": 1.2,
+          "uncertainty_deg": 0.3,
+          "method": "xrd_rocking_curve",
+          "evidence_class": "synthetic"
+        }
+      ],
+      "defects": [
+        {
+          "start_m": 18.0,
+          "end_m": 22.0,
+          "kind": "delamination",
+          "action": "accepted",
+          "min_ic_fraction": 0.9,
+          "note": "Illustrative accepted span."
+        },
+        {
+          "start_m": 45.0,
+          "end_m": 50.0,
+          "kind": "mechanical",
+          "action": "cut",
+          "min_ic_fraction": null,
+          "note": "Illustrative cut end."
+        }
+      ],
+      "provenance": {
+        "issuer": "Illustrative issuer",
+        "issued_at": "2026-10-01",
+        "sources": []
+      },
+      "limitations": [
+        "Values are illustrative only: invented for this example, not real vendor data, not a real reel and not a measurement of any product.",
+        "The profile condition (20 K, 1 T) is chosen to sit on row 1817 of the robinson-superpower-ap-v3 map so the example rates. No embedded dataset holds 77 K rows, so a 77 K self-field profile cannot be referenced here."
+      ]
+    },
+    {
+      "schema": "optcoil-reel-passport/v1",
+      "reel_id": "ILLUSTRATIVE-REEL-B",
+      "evidence_class": "synthetic",
+      "product": {
+        "vendor": "Illustrative Vendor",
+        "product": "Illustrative 4 mm REBCO",
+        "batch": null,
+        "product_map": null
+      },
+      "geometry": {
+        "length_m": 30.0,
+        "width_m": 0.004
+      },
+      "length_profiles": [],
+      "in_field_points": [],
+      "ab_offsets": [],
+      "defects": [],
+      "provenance": {
+        "issuer": "Illustrative issuer",
+        "issued_at": "2026-10-01",
+        "sources": []
+      },
+      "limitations": [
+        "Values are illustrative only: invented for this example, not real vendor data, not a real reel and not a measurement of any product.",
+        "This illustrative reel names no product map and so is not rated."
+      ]
+    },
+    {
+      "schema": "optcoil-reel-passport/v1",
+      "reel_id": "ILLUSTRATIVE-REEL-C",
+      "evidence_class": "synthetic",
+      "product": {
+        "vendor": "Illustrative Vendor",
+        "product": "Illustrative 12 mm REBCO",
+        "batch": null,
+        "product_map": {
+          "dataset_id": "robinson-superpower-ap-v3",
+          "csv_sha256": "889cc2cf8b91b822cbc6cceb7388e5d8afcb8a8911bb20ab175e50c7e6dc0354"
+        }
+      },
+      "geometry": {
+        "length_m": 50.0,
+        "width_m": 0.012
+      },
+      "length_profiles": [
+        {
+          "id": "synthetic-1",
+          "method": "reel-to-reel transport (illustrative)",
+          "evidence_class": "synthetic",
+          "temperature_k": 19.98,
+          "field_t": 1.0,
+          "angle_from_normal_deg": -0.64,
+          "electric_field_criterion_v_per_m": 0.0001,
+          "resolution_m": 10.0,
+          "source_sha256": null,
+          "map_reference": null,
+          "points": [
+            [
+              0.0,
+              3400.0
+            ],
+            [
+              10.0,
+              3300.0
+            ],
+            [
+              20.0,
+              3450.0
+            ],
+            [
+              30.0,
+              3380.0
+            ],
+            [
+              40.0,
+              3420.0
+            ],
+            [
+              50.0,
+              3390.0
+            ]
+          ]
+        }
+      ],
+      "in_field_points": [
+        {
+          "sample_id": "ILLUSTRATIVE-SS-1",
+          "position_m": 10.0,
+          "temperature_k": 25.0,
+          "field_t": 2.0,
+          "angle_from_normal_deg": 0.0,
+          "ic_a": 2090.0,
+          "n_value": 22.0,
+          "electric_field_criterion_v_per_m": 0.0001,
+          "lab": "Illustrative Lab",
+          "evidence_class": "synthetic",
+          "source_sha256": null
+        }
+      ],
+      "ab_offsets": [
+        {
+          "position_m": 25.0,
+          "offset_deg": 1.2,
+          "uncertainty_deg": 0.3,
+          "method": "xrd_rocking_curve",
+          "evidence_class": "synthetic"
+        }
+      ],
+      "defects": [],
+      "provenance": {
+        "issuer": "Illustrative issuer",
+        "issued_at": "2026-10-01",
+        "sources": []
+      },
+      "limitations": [
+        "Values are illustrative only: invented for this example, not real vendor data, not a real reel and not a measurement of any product.",
+        "This illustrative reel has no map_reference; its profile condition is a measured node of the map, so the interpolator evaluates it."
+      ]
+    }
+  ],
+  "limitations": [
+    "Values are illustrative only: invented for this example, not real vendor data, not a real reel and not a measurement of any product.",
+    "Illustrative example for the file format and the rating output only."
+  ]
+}

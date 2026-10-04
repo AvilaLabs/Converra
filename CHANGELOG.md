@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+- Add reel passports (`optcoil-reel-passport/v1`) and per-reel inventories
+  (`optcoil-reel-inventory/v1`) with strict validation. Evidence classes are
+  `measured`, `model_informed` and `synthetic`. A passport may not claim a
+  stronger class than its weakest section, and an inventory may not claim a
+  stronger class than its weakest passport. Totals count overlapping excluded
+  or cut spans once. New `optcoil reel validate` and `optcoil inventory
+  validate` commands.
+- Add `optcoil inventory rate`, which rates each reel at an operating point
+  (`optcoil-reel-rating/v1`) from its passport and a product map bound by
+  dataset id and CSV SHA-256. A reel's length profile only scales the map.
+  Every reel gets a status; each status other than `rated` carries an
+  explanation and the evidence that would allow a rating. Points outside the
+  map's measured cells are never extrapolated, near-tape-plane angles need
+  measured ab-plane offsets, and scaled ratings are labelled `model_informed`
+  because the transfer from the profile condition to the operating point is
+  untested. Records with scaled ratings quote the published within-product
+  transfer scatter of about 15%. A length profile can declare the product-map
+  row that represents its condition (`map_reference`), which is checked
+  against the row's nominal coordinates within tight tolerances. Synthetic,
+  illustrative examples are in `examples/reels/`.
+
 ## v0.3.0 — 2026-10-02
 
 - Add an optional Avila Labs sign-in. The browser workbench has a Sign in

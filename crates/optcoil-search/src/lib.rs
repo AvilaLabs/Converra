@@ -25,6 +25,7 @@ pub mod gradereport;
 pub mod kernel_crosscheck;
 pub mod material;
 pub mod preflight;
+pub mod reel;
 pub mod report;
 pub mod reprice;
 pub mod review;

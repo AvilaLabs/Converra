@@ -11,6 +11,7 @@ pub mod material;
 pub mod path;
 pub mod path3d;
 pub mod product;
+pub mod reel;
 pub mod sensitivity;
 pub mod tabular_import;
 
