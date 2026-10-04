@@ -24,9 +24,11 @@ use optcoil_model::{
         attestation_sha256, sha256_hex,
     },
     material::{MaterialBenchmark, MaterialBundle, MaterialDataset, MaterialQuery},
+    reel::ProductMapRef,
 };
 use optcoil_search::{
     RunRecord, SearchOptions, acceptance,
+    allocation::{DemandOptions, build_allocation_demand_json},
     coupled::{CoupledOptions, CoupledRunRecord, run_coupled_case, run_oc004},
     coupled_refine::{CoupledRefineOptions, CoupledRefineRunRecord, run_oc008},
     coupled_search::{
@@ -131,6 +133,11 @@ enum Command {
     Inventory {
         #[command(subcommand)]
         command: InventoryCommand,
+    },
+    /// Allocation of reels to coil positions (CR-03).
+    Allocation {
+        #[command(subcommand)]
+        command: AllocationCommand,
     },
     /// Evaluate a magnetic case; optional matching reference enables validation.
     /// Exit code is nonzero unless numerical validation passes.
@@ -620,6 +627,36 @@ enum InventoryCommand {
 }
 
 #[derive(Subcommand)]
+enum AllocationCommand {
+    /// Build the allocation demand table (optcoil-allocation-demand/v1) of a
+    /// coupled search record's selected optimum: for every turn and module,
+    /// the scale factor s_req a reel needs relative to the product map, at
+    /// each tabulated ab-plane offset bound. The product map defaults to the
+    /// record's own material; a different map needs --allow-map-substitution.
+    /// The output is a new file and is never overwritten.
+    Demand {
+        record: PathBuf,
+        /// Supply a material dataset bundle for the product map (repeatable).
+        #[arg(long)]
+        dataset_bundle: Vec<PathBuf>,
+        /// Product map as DATASET_ID:CSV_SHA256 (default: the record's base
+        /// material).
+        #[arg(long)]
+        product_map: Option<String>,
+        /// Allow the product map to differ from the material the record
+        /// screened with; the substitution is recorded.
+        #[arg(long)]
+        allow_map_substitution: bool,
+        /// Comma-separated offset bounds to tabulate, in degrees, ascending
+        /// (default: 0 to 6 in 0.5 steps). 0 is always tabulated.
+        #[arg(long, value_delimiter = ',')]
+        angle_offsets_deg: Option<Vec<f64>>,
+        #[arg(long, short)]
+        output: PathBuf,
+    },
+}
+
+#[derive(Subcommand)]
 enum DatasetCommand {
     /// Build a v2 dataset bundle from a metadata JSON + measurement CSV
     /// pair. The pair is fully validated before writing; the CSV text is
@@ -853,6 +890,7 @@ fn execute(cli: Cli) -> Result<(), Box<dyn Error>> {
         Command::Dataset { command } => execute_dataset(command)?,
         Command::Reel { command } => execute_reel(command)?,
         Command::Inventory { command } => execute_inventory(command)?,
+        Command::Allocation { command } => execute_allocation(command)?,
         Command::DatasetBundle {
             metadata,
             csv,
@@ -2324,6 +2362,63 @@ fn write_new_file(path: &std::path::Path, bytes: &[u8]) -> Result<(), Box<dyn Er
         .open(path)?;
     file.write_all(bytes)?;
     file.sync_all()?;
+    Ok(())
+}
+
+fn execute_allocation(command: AllocationCommand) -> Result<(), Box<dyn Error>> {
+    match command {
+        AllocationCommand::Demand {
+            record,
+            dataset_bundle,
+            product_map,
+            allow_map_substitution,
+            angle_offsets_deg,
+            output,
+        } => {
+            if output.exists() {
+                return Err("refusing to overwrite an existing output file".into());
+            }
+            let record_text = String::from_utf8(fs::read(&record)?)
+                .map_err(|e| format!("the run record must be UTF-8 text: {e}"))?;
+            let bundles = dataset_bundle
+                .iter()
+                .map(fs::read_to_string)
+                .collect::<Result<Vec<_>, _>>()?;
+            let bundle_refs: Vec<&str> = bundles.iter().map(String::as_str).collect();
+            let product_map = product_map
+                .map(|text| {
+                    text.split_once(':')
+                        .filter(|(id, sha)| !id.is_empty() && !sha.is_empty())
+                        .map(|(id, sha)| ProductMapRef {
+                            dataset_id: id.into(),
+                            csv_sha256: sha.into(),
+                        })
+                        .ok_or("--product-map must be DATASET_ID:CSV_SHA256")
+                })
+                .transpose()?;
+            let options = DemandOptions {
+                product_map,
+                allow_map_substitution,
+                angle_offsets_deg: angle_offsets_deg
+                    .unwrap_or_else(optcoil_search::allocation::default_angle_offsets_deg),
+            };
+            let demand = build_allocation_demand_json(&record_text, &options, &bundle_refs)?;
+            demand.write_new(&output)?;
+            eprintln!(
+                "Saved {} ({} turns x {} modules, {} blocked position(s), offset-0 gate max relative difference {:e})",
+                output.display(),
+                demand.geometry.turns_along_normal,
+                demand.geometry.modules,
+                demand.summary.blocked_positions,
+                demand.gate.max_relative_difference
+            );
+            if demand.identities.map_substituted {
+                eprintln!(
+                    "Note: the product map differs from the material the record screened with; the substitution is recorded."
+                );
+            }
+        }
+    }
     Ok(())
 }
 

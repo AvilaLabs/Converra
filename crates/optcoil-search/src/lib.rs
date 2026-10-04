@@ -14,6 +14,7 @@ pub(crate) mod time {
 }
 
 pub mod acceptance;
+pub mod allocation;
 pub mod bakeoff;
 pub mod bom;
 pub mod coupled;

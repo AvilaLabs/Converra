@@ -20,7 +20,7 @@ pub const REEL_RATING_SCHEMA: &str = "optcoil-reel-rating/v1";
 
 /// Half-width of the window around the tape plane (90 degrees from the tape
 /// normal) in which ab-plane offsets matter.
-const ORIENTATION_WINDOW_DEG: f64 = 15.0;
+pub(crate) const ORIENTATION_WINDOW_DEG: f64 = 15.0;
 const CONSISTENCY_TEMPERATURE_K: f64 = 0.5;
 const CONSISTENCY_FIELD_FRACTION: f64 = 0.02;
 const CONSISTENCY_ANGLE_DEG: f64 = 2.5;

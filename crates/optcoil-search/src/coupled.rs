@@ -1623,7 +1623,7 @@ fn to_point_basis(basis: tape_frame::QueryBasis) -> PointBasis {
 /// folded angle). Kept as a standalone pure function (mirroring
 /// `optcoil_physics::tape_frame`'s private combination) so the monotonicity
 /// gate can be re-applied to a mutated angle pair before recombining.
-fn combine_mirror_pair(
+pub(crate) fn combine_mirror_pair(
     folded: &tape_frame::AngleQuery,
     mirror: &tape_frame::AngleQuery,
     magnitude_t: f64,

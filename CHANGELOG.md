@@ -34,6 +34,19 @@
   or user-supplied label) around a product-map row, labels every output
   `synthetic`, and writes the drawn factors to a separate truth file that
   binds the inventory's SHA-256. Example spec in `examples/reels/`.
+- Add `optcoil allocation demand` (CR-03 slice A), which builds the allocation
+  demand table `optcoil-allocation-demand/v1` from a coupled-search record's
+  selected optimum. For every turn and module it gives the scale factor
+  `s_req` a reel needs relative to the product map, at each tabulated ab-plane
+  offset bound (default 0 to 6 degrees in 0.5 degree steps), with the turn
+  lengths and start coordinates along a conductor stream. The per-point
+  capacity is recomputed with the engine's own query, and the offset-0
+  recomputation must equal the engine's `allowed_screening_a` within 1e-12
+  relative or the build fails. Positions outside the map's measured cells
+  carry no value and an explanation. Radial tape normal with the legacy
+  racetrack or planar path only; a product map that differs from the one the
+  record screened with is refused unless `--allow-map-substitution` is given.
+  Every v1 scope limit is listed in the record.
 - Fix the Python package metadata: `pyproject.toml` now takes its version from
   Cargo (`dynamic = ["version"]`), so `maturin develop` and `maturin build` run.
 

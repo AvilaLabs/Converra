@@ -3899,6 +3899,32 @@ pub(crate) fn turn_ledger_rows(
     (rows, tapes_per_turn)
 }
 
+/// Conductor length (m) of each turn of one strand, in winding order
+/// (turn 1 first): the cost ledger's own walk (`turn_ledger_rows`) without
+/// the spec ids. `assignment` is the candidate's `tape_spec_ids` (empty on
+/// ungraded cases). Under a radial tape normal a turn's length is one
+/// hoop; the axial-normal fold of `tapes` hoops per turn is not undone
+/// here, so callers needing per-conductor lengths must refuse that geometry.
+pub fn turn_strand_lengths_m(
+    search: &CoupledSearchCase,
+    turns_along_normal: u32,
+    tapes_along_width: u32,
+    assignment: &[String],
+    dims: CandidateDims,
+) -> Vec<f64> {
+    turn_ledger_rows(
+        search,
+        turns_along_normal,
+        tapes_along_width,
+        assignment,
+        dims,
+    )
+    .0
+    .into_iter()
+    .map(|(_, length_m)| length_m)
+    .collect()
+}
+
 /// Schema v24: resolve a spec's piece catalogue — its own
 /// `piece_offerings` when declared, else the base catalogue
 /// (`cost.piece_offerings`), else the policy's `piece_length_m` as a
