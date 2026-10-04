@@ -34,6 +34,11 @@ needs it.
   in-field data for each REBCO product from the restricted subset only.
   The protocol, model, tolerances and falsifiers are frozen and hashed before
   the first scored run. A FAIL is recorded and replanned, not tuned away.
+  Protocol v1 (scanner-range fit with the three-parameter scaling law, with
+  and without one 30 K anchor) was scored on 2026-10-04: **FAIL** in every
+  scenario. Near-Tc data extrapolated to 20–40 K overpredicts unsafely. See
+  [docs/CR01.md](docs/CR01.md). A revised method needs a new protocol
+  version.
 - [ ] Document which measurements are sufficient, and which are not, for
   each product and regime. The answer defines what a reel passport must
   contain.
