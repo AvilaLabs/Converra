@@ -39,6 +39,10 @@ needs it.
   scenario. Near-Tc data extrapolated to 20–40 K overpredicts unsafely. See
   [docs/CR01.md](docs/CR01.md). A revised method needs a new protocol
   version.
+  Protocol v2 (development-grade, same targets) also FAILs at the headline,
+  but a four-point 20/40 K short sample to 5 T passes 12 of 18 products. Its
+  failures are all overprediction at 7–8 T, so short-sample evidence has to
+  reach the operating field.
 - [ ] Document which measurements are sufficient, and which are not, for
   each product and regime. The answer defines what a reel passport must
   contain.
