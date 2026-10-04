@@ -1043,6 +1043,12 @@ struct InventoryArgs {
     inventory_json: String,
 }
 #[derive(Debug, Deserialize, JsonSchema)]
+struct SynthesizeArgs {
+    spec_json: String,
+    #[serde(default)]
+    dataset_bundles: Vec<String>,
+}
+#[derive(Debug, Deserialize, JsonSchema)]
 struct RateInventoryArgs {
     inventory_json: String,
     temperature_k: f64,
@@ -1216,6 +1222,31 @@ impl McpServer {
         }
         match optcoil_search::reel::validate_inventory_json(&args.inventory_json) {
             Ok(v) => ok(v),
+            Err(e) => fail(e),
+        }
+    }
+
+    #[tool(
+        description = "Generate a synthetic reel inventory from an optcoil-synthetic-inventory-spec/v1 JSON document. The product map must be embedded or supplied as an exact bundle JSON string in dataset_bundles under the same id and CSV SHA-256. Returns inventory_json and truth_json; the truth file binds the SHA-256 of the exact inventory text and must not be shown to a rating. Same seed gives the same bytes. Every output is labelled synthetic."
+    )]
+    fn synthesize_reel_inventory(
+        &self,
+        Parameters(args): Parameters<SynthesizeArgs>,
+    ) -> CallToolResult {
+        if args.spec_json.len() > 1024 * 1024
+            || args
+                .dataset_bundles
+                .iter()
+                .any(|b| b.len() > MAX_REEL_JSON_BYTES)
+        {
+            return fail("spec exceeds 1 MiB or a dataset bundle exceeds the 8 MiB limit");
+        }
+        let bundles: Vec<&str> = args.dataset_bundles.iter().map(String::as_str).collect();
+        match optcoil_search::synthetic::synthesize_inventory_json(&args.spec_json, &bundles) {
+            Ok((inventory_json, truth_json)) => ok(json!({
+                "inventory_json": inventory_json,
+                "truth_json": truth_json
+            })),
             Err(e) => fail(e),
         }
     }

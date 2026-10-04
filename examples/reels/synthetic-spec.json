@@ -1,0 +1,27 @@
+{
+  "schema": "optcoil-synthetic-inventory-spec/v1",
+  "inventory_id": "ILLUSTRATIVE-SYNTHETIC",
+  "seed": 20261004,
+  "product": {
+    "vendor": "Illustrative Vendor",
+    "product": "Illustrative 12 mm REBCO",
+    "product_map": {
+      "dataset_id": "robinson-superpower-ap-v3",
+      "csv_sha256": "889cc2cf8b91b822cbc6cceb7388e5d8afcb8a8911bb20ab175e50c7e6dc0354"
+    }
+  },
+  "reel_count": 20,
+  "reel_length_m": { "min": 100.0, "max": 500.0 },
+  "width_m": 0.012,
+  "profile": {
+    "temperature_k": 20.0,
+    "field_t": 1.0,
+    "angle_from_normal_deg": 0.0,
+    "electric_field_criterion_v_per_m": 0.0001,
+    "resolution_m": 1.0,
+    "map_reference_row": 1817
+  },
+  "length_relative_sd": 0.025,
+  "length_correlation_m": 5.0,
+  "ab_offset_group": "cheng2025_HX"
+}

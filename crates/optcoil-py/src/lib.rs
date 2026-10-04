@@ -20,6 +20,7 @@ use optcoil_search::reel::{
 };
 use optcoil_search::report::render_search_report_html;
 use optcoil_search::sensitivity::run_sensitivity_sweep;
+use optcoil_search::synthetic::synthesize_inventory_json;
 use optcoil_search::verify::{verify_dataset_bundle, verify_record_checks};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
@@ -252,6 +253,22 @@ fn rate_reel_inventory(
     serde_json::to_string(&record).map_err(err)
 }
 
+/// Generate a synthetic reel inventory from a
+/// `optcoil-synthetic-inventory-spec/v1` document. `dataset_jsons` supply
+/// product maps that are not embedded; their id and CSV SHA-256 must match
+/// the spec. Returns `(inventory_json, truth_json)`; the truth file binds
+/// the SHA-256 of the exact inventory text. Same seed, same bytes.
+#[pyfunction]
+#[pyo3(signature = (spec_json, dataset_jsons=None))]
+fn synthesize_reel_inventory(
+    spec_json: &str,
+    dataset_jsons: Option<Vec<String>>,
+) -> PyResult<(String, String)> {
+    let bundles: Vec<String> = dataset_jsons.unwrap_or_default();
+    let refs: Vec<&str> = bundles.iter().map(String::as_str).collect();
+    synthesize_inventory_json(spec_json, &refs).map_err(err)
+}
+
 /// The Converra engine — same code as the `optcoil` CLI.
 #[pymodule]
 fn converra(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -265,5 +282,6 @@ fn converra(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(validate_reel_passport, m)?)?;
     m.add_function(wrap_pyfunction!(validate_reel_inventory, m)?)?;
     m.add_function(wrap_pyfunction!(rate_reel_inventory, m)?)?;
+    m.add_function(wrap_pyfunction!(synthesize_reel_inventory, m)?)?;
     Ok(())
 }

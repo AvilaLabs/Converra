@@ -66,3 +66,24 @@ def test_rate_inventory_and_dataset_identity():
         )
     )
     assert mismatched["reels"][0]["status"] == "map_unavailable"
+
+
+def test_synthesize_is_deterministic_and_rateable():
+    spec = (EXAMPLES / "synthetic-spec.json").read_text()
+    inventory_json, truth_json = converra.synthesize_reel_inventory(spec)
+    assert (inventory_json, truth_json) == converra.synthesize_reel_inventory(spec)
+    truth = json.loads(truth_json)
+    assert truth["inventory_sha256"] == hashlib.sha256(inventory_json.encode()).hexdigest()
+    assert len(truth["reels"]) == 20
+    summary = json.loads(converra.validate_reel_inventory(inventory_json))
+    assert summary["summary"]["evidence_class_counts"]["synthetic"] == 20
+    record = json.loads(converra.rate_reel_inventory(inventory_json, 25.0, 2.0, 0.0))
+    assert record["status_counts"] == {"rated": 20}
+
+    other = json.loads(spec)
+    other["seed"] += 1
+    assert converra.synthesize_reel_inventory(json.dumps(other))[0] != inventory_json
+
+    other["profile"]["map_reference_row"] = 999999
+    with pytest.raises(RuntimeError):
+        converra.synthesize_reel_inventory(json.dumps(other))

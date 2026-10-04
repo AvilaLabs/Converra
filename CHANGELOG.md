@@ -26,6 +26,14 @@
   `validate_reel_inventory`, `rate_reel_inventory`) and as local MCP tools of
   the same names. Both take the passport, inventory and dataset bundles as
   exact JSON text and share the CLI's code and dataset-identity checks.
+- Add a deterministic synthetic reel inventory generator
+  (`optcoil-synthetic-inventory-spec/v1`): `optcoil inventory synthesize`,
+  `synthesize_reel_inventory` in Python and an MCP tool of the same name. It
+  draws lot, along-length, hidden transfer and ab-plane offset variation from
+  published statistics (each recorded with its source and a published, derived
+  or user-supplied label) around a product-map row, labels every output
+  `synthetic`, and writes the drawn factors to a separate truth file that
+  binds the inventory's SHA-256. Example spec in `examples/reels/`.
 - Fix the Python package metadata: `pyproject.toml` now takes its version from
   Cargo (`dynamic = ["version"]`), so `maturin develop` and `maturin build` run.
 

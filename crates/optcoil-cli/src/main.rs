@@ -41,6 +41,7 @@ use optcoil_search::{
     },
     reel::{OperatingPoint, rate_inventory_json, validate_inventory_json, validate_passport_json},
     run,
+    synthetic::synthesize_inventory_json,
 };
 use rand_core::RngCore;
 
@@ -582,6 +583,19 @@ enum InventoryCommand {
         inventory: PathBuf,
         #[arg(long)]
         json: bool,
+    },
+    /// Generate a synthetic inventory from a specification
+    /// (optcoil-synthetic-inventory-spec/v1) and write the inventory and
+    /// its truth file. Both outputs are new files and are never overwritten.
+    Synthesize {
+        spec: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+        #[arg(long)]
+        truth_output: PathBuf,
+        /// Supply a material dataset bundle for the product map (repeatable).
+        #[arg(long)]
+        dataset_bundle: Vec<PathBuf>,
     },
     /// Rate every reel at an operating point from its passport and product
     /// map. Maps resolve from --dataset-bundle files or the embedded store;
@@ -2302,6 +2316,17 @@ fn execute_reel(command: ReelCommand) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn write_new_file(path: &std::path::Path, bytes: &[u8]) -> Result<(), Box<dyn Error>> {
+    use std::io::Write;
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    Ok(())
+}
+
 fn execute_inventory(command: InventoryCommand) -> Result<(), Box<dyn Error>> {
     match command {
         InventoryCommand::Validate { inventory, json } => {
@@ -2335,6 +2360,29 @@ fn execute_inventory(command: InventoryCommand) -> Result<(), Box<dyn Error>> {
                     println!("Limitation: {limitation}");
                 }
             }
+        }
+        InventoryCommand::Synthesize {
+            spec,
+            output,
+            truth_output,
+            dataset_bundle,
+        } => {
+            if output.exists() || truth_output.exists() {
+                return Err("refusing to overwrite an existing output file".into());
+            }
+            let spec_text = fs::read_to_string(&spec)?;
+            let bundles = dataset_bundle
+                .iter()
+                .map(fs::read_to_string)
+                .collect::<Result<Vec<_>, _>>()?;
+            let bundle_refs: Vec<&str> = bundles.iter().map(String::as_str).collect();
+            let (inventory_json, truth_json) = synthesize_inventory_json(&spec_text, &bundle_refs)?;
+            write_new_file(&output, inventory_json.as_bytes())?;
+            if let Err(error) = write_new_file(&truth_output, truth_json.as_bytes()) {
+                let _ = fs::remove_file(&output);
+                return Err(error);
+            }
+            eprintln!("Saved {} and {}", output.display(), truth_output.display());
         }
         InventoryCommand::Rate {
             inventory,

@@ -30,6 +30,7 @@ converra.validate_reel_passport(passport_json)                        # passport
 converra.validate_reel_inventory(inventory_json)                      # inventory totals
 converra.rate_reel_inventory(inventory_json, 25.0, 2.0, 0.0,          # per-reel ratings
                              dataset_jsons=[bundle_json])
+inventory_json, truth_json = converra.synthesize_reel_inventory(spec_json)  # synthetic inventory
 ```
 
 Every function raises `RuntimeError` on invalid input or a failed run.

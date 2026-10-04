@@ -874,6 +874,7 @@ async fn stdio_reel_tools_validate_and_rate() {
         "validate_reel_passport",
         "validate_reel_inventory",
         "rate_reel_inventory",
+        "synthesize_reel_inventory",
     ] {
         assert!(
             tools.iter().any(|tool| tool.name == name),
@@ -926,6 +927,36 @@ async fn stdio_reel_tools_validate_and_rate() {
     )
     .await;
     assert_eq!(outside["reels"][0]["status"], "outside_map_domain");
+
+    let spec = include_str!("../../../examples/reels/synthetic-spec.json");
+    let synthesized = call(
+        &client,
+        "synthesize_reel_inventory",
+        json!({ "spec_json": spec }),
+    )
+    .await;
+    let inventory_json = synthesized["inventory_json"].as_str().unwrap();
+    let truth: Value = serde_json::from_str(synthesized["truth_json"].as_str().unwrap()).unwrap();
+    assert_eq!(truth["reels"].as_array().unwrap().len(), 20);
+    let rated_synthetic = call(
+        &client,
+        "rate_reel_inventory",
+        json!({
+            "inventory_json": inventory_json,
+            "temperature_k": 25.0,
+            "field_t": 2.0,
+            "angle_deg": 0.0
+        }),
+    )
+    .await;
+    assert_eq!(rated_synthetic["status_counts"]["rated"], 20);
+    let again = call(
+        &client,
+        "synthesize_reel_inventory",
+        json!({ "spec_json": spec }),
+    )
+    .await;
+    assert_eq!(again["inventory_json"], synthesized["inventory_json"]);
 
     let invalid = client
         .call_tool(

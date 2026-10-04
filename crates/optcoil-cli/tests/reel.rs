@@ -278,3 +278,94 @@ fn inventory_rate_enforces_dataset_identity_for_supplied_bundles() {
     assert!(!cli().args(&args).output().unwrap().status.success());
     let _ = fs::remove_dir_all(dir);
 }
+
+#[test]
+fn inventory_synthesize_writes_two_new_files_and_the_output_validates_and_rates() {
+    let dir = temp_dir("reel-synth");
+    let spec = example("synthetic-spec.json");
+    let inventory = dir.join("inventory.json");
+    let truth = dir.join("truth.json");
+    let synth = |inventory: &Path, truth: &Path| {
+        cli()
+            .args(["inventory", "synthesize"])
+            .arg(&spec)
+            .arg("--output")
+            .arg(inventory)
+            .arg("--truth-output")
+            .arg(truth)
+            .output()
+            .unwrap()
+    };
+    let first = synth(&inventory, &truth);
+    assert!(
+        first.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+
+    let truth_json: Value = serde_json::from_slice(&fs::read(&truth).unwrap()).unwrap();
+    assert_eq!(truth_json["schema"], "optcoil-synthetic-truth/v1");
+    assert_eq!(
+        truth_json["inventory_sha256"].as_str().unwrap(),
+        sha256_hex(&fs::read(&inventory).unwrap())
+    );
+    assert_eq!(truth_json["reels"].as_array().unwrap().len(), 20);
+
+    let validated = stdout_json(
+        &cli()
+            .args(["inventory", "validate", "--json"])
+            .arg(&inventory)
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(
+        validated["summary"]["evidence_class_counts"]["synthetic"],
+        20
+    );
+    let rated = stdout_json(&cli().args(rate_args(&inventory)).output().unwrap());
+    assert_eq!(rated["status_counts"]["rated"], 20);
+
+    // Never overwritten: either output existing refuses, and nothing changes.
+    let before = fs::read(&inventory).unwrap();
+    assert!(
+        !synth(&inventory, &dir.join("other-truth.json"))
+            .status
+            .success()
+    );
+    assert!(
+        !synth(&dir.join("other-inventory.json"), &truth)
+            .status
+            .success()
+    );
+    assert_eq!(fs::read(&inventory).unwrap(), before);
+    assert!(!dir.join("other-truth.json").exists());
+
+    // Same spec, same bytes.
+    let (inv2, truth2) = (dir.join("inv2.json"), dir.join("truth2.json"));
+    assert!(synth(&inv2, &truth2).status.success());
+    assert_eq!(fs::read(&inv2).unwrap(), before);
+    assert_eq!(fs::read(&truth2).unwrap(), fs::read(&truth).unwrap());
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn inventory_synthesize_rejects_a_bad_spec_without_writing() {
+    let dir = temp_dir("reel-synth-bad");
+    let mut spec: Value =
+        serde_json::from_slice(&fs::read(example("synthetic-spec.json")).unwrap()).unwrap();
+    spec["profile"]["map_reference_row"] = Value::from(999_999);
+    let path = dir.join("spec.json");
+    fs::write(&path, spec.to_string()).unwrap();
+    let output = cli()
+        .args(["inventory", "synthesize"])
+        .arg(&path)
+        .arg("--output")
+        .arg(dir.join("i.json"))
+        .arg("--truth-output")
+        .arg(dir.join("t.json"))
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(!dir.join("i.json").exists() && !dir.join("t.json").exists());
+    let _ = fs::remove_dir_all(dir);
+}

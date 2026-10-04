@@ -56,8 +56,9 @@ needs it.
 - [x] Inventory import and validation in the engine, CLI, Python and MCP,
   including per-reel rating at an operating point.
   Measured, model-informed and synthetic reels remain distinguishable.
-- [ ] Synthetic inventories generated from published variation statistics,
-  labelled synthetic in every output.
+- [x] Synthetic inventories generated from published variation statistics,
+  labelled synthetic in every output. A separate truth file holds each reel's
+  hidden low-temperature transfer factor for CR-03 robustness studies.
 
 ### CR-03 — Allocation and orientation
 

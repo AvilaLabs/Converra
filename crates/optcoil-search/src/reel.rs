@@ -176,7 +176,7 @@ struct MapRow {
     ic_a_per_m: f64,
 }
 
-struct MapModel {
+pub(crate) struct MapModel {
     identity: RatingDatasetIdentity,
     rows: BTreeMap<u32, MapRow>,
     criterion: f64,
@@ -211,43 +211,62 @@ impl MapModel {
             .map(|e| e.ic_a_per_m))
     }
 
+    /// Checks a `map_reference` row against a profile condition under the
+    /// contract tolerances and returns the row's Ic per width, or why the
+    /// reference is rejected.
+    pub(crate) fn check_reference(
+        &self,
+        row: u32,
+        temperature_k: f64,
+        field_t: f64,
+        angle_deg: f64,
+        criterion: f64,
+    ) -> Result<f64, String> {
+        let Some(entry) = self.rows.get(&row) else {
+            return Err(format!("map_reference row {row} does not exist in the map"));
+        };
+        let [t, b, a] = entry.nominal;
+        if (temperature_k - t).abs() > 1.0 {
+            return Err(format!(
+                "map_reference row {row} (nominal {t} K) is more than 1.0 K from the profile temperature {temperature_k} K"
+            ));
+        }
+        let both_zero = field_t == 0.0 && b == 0.0;
+        if !both_zero && (b == 0.0 || (field_t / b - 1.0).abs() > 0.02) {
+            return Err(format!(
+                "map_reference row {row} (nominal {b} T) does not match the profile field {field_t} T (both 0 T, or within 2%)"
+            ));
+        }
+        if !both_zero && (angle_deg - a).abs() > 5.0 {
+            return Err(format!(
+                "map_reference row {row} (nominal {a} degrees) is more than 5 degrees from the profile angle {angle_deg} degrees"
+            ));
+        }
+        if (criterion / self.criterion - 1.0).abs() > 1e-12 {
+            return Err(format!(
+                "map_reference criterion check: profile criterion {criterion:e} V/m differs from the map's {:e} V/m",
+                self.criterion
+            ));
+        }
+        Ok(entry.ic_a_per_m)
+    }
+
     /// Map Ic per width representing a profile's condition, and the row used
     /// when the profile carries a `map_reference`. Err is why the profile is
     /// not evaluable. A valid reference is preferred over interpolation.
     fn profile_value(&self, profile: &LengthProfile) -> Result<(f64, Option<u32>), String> {
         let fail = |why: String| Err(format!("profile '{}': {why}", profile.id));
         if let Some(reference) = &profile.map_reference {
-            let row = reference.source_row;
-            let Some(entry) = self.rows.get(&row) else {
-                return fail(format!("map_reference row {row} does not exist in the map"));
-            };
-            let [t, b, a] = entry.nominal;
-            if (profile.temperature_k - t).abs() > 1.0 {
-                return fail(format!(
-                    "map_reference row {row} (nominal {t} K) is more than 1.0 K from the profile temperature {} K",
-                    profile.temperature_k
-                ));
-            }
-            let both_zero = profile.field_t == 0.0 && b == 0.0;
-            if !both_zero && (b == 0.0 || (profile.field_t / b - 1.0).abs() > 0.02) {
-                return fail(format!(
-                    "map_reference row {row} (nominal {b} T) does not match the profile field {} T (both 0 T, or within 2%)",
-                    profile.field_t
-                ));
-            }
-            if !both_zero && (profile.angle_from_normal_deg - a).abs() > 5.0 {
-                return fail(format!(
-                    "map_reference row {row} (nominal {a} degrees) is more than 5 degrees from the profile angle {} degrees",
-                    profile.angle_from_normal_deg
-                ));
-            }
-            if (profile.electric_field_criterion_v_per_m / self.criterion - 1.0).abs() > 1e-12 {
-                return fail(format!(
-                    "map_reference criterion check: profile criterion {:e} V/m differs from the map's {:e} V/m",
-                    profile.electric_field_criterion_v_per_m, self.criterion
-                ));
-            }
-            return Ok((entry.ic_a_per_m, Some(row)));
+            return self
+                .check_reference(
+                    reference.source_row,
+                    profile.temperature_k,
+                    profile.field_t,
+                    profile.angle_from_normal_deg,
+                    profile.electric_field_criterion_v_per_m,
+                )
+                .map(|value| (value, Some(reference.source_row)))
+                .or_else(fail);
         }
         match self.value(
             profile.temperature_k,
@@ -272,7 +291,7 @@ impl MapModel {
     }
 }
 
-enum Resolved {
+pub(crate) enum Resolved {
     Model(Box<MapModel>),
     Unavailable(String),
 }
@@ -369,7 +388,7 @@ pub fn rate_inventory(
     })
 }
 
-fn resolve_map(
+pub(crate) fn resolve_map(
     dataset_id: &str,
     csv_sha256: &str,
     supplied: &BTreeMap<String, MaterialDataset>,
