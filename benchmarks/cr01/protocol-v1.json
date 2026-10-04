@@ -1,0 +1,101 @@
+{
+  "schema": "converra-cr01-protocol/v1",
+  "id": "cr01-sparse-estimation-v1",
+  "frozen": "2026-10-04",
+  "question": "Can a small, cheaply measurable subset of a REBCO tape's critical-current data predict its withheld low-temperature, high-field critical current in perpendicular field?",
+  "evidence_class": "registered retrospective hold-out on public measured data",
+  "seen_status": "Ic values of every product are unanalysed at freeze time except the 20-40 K data of the products already embedded in data/materials (faraday-factory-japan-ybco, shanghai-superconductor-high-field-low-temperature, superpower-advanced-pinning, theva-pro-line-advanced-pinning), which earlier Converra studies used. Those four are reported as a separate 'previously_used' stratum.",
+  "data": {
+    "source": "Robinson Research Institute HTS critical current database, figshare collection 2861821 (CC BY 4.0)",
+    "prepared_by": "tools/cr01_prepare_robinson.py",
+    "location": ".local/research/cr01/robinson/<slug>/measurements.csv",
+    "source_manifest": ".local/research/cr01/robinson/sources.json",
+    "quantity": "ic_a_per_m (critical current per unit tape width, A/m)",
+    "products_in_headline": "every dataset in sources.json except those flagged not_a_tape",
+    "products_reported_separately": ["ceraco-m-type-ybco-film-on-sapphire"]
+  },
+  "node_definition": {
+    "temperature": "nominal_temperature_k when present; otherwise measured temperature_k rounded to the nearest 0.5 K",
+    "field": "nominal_field_t when present; otherwise measured applied_field_t snapped to the nearest value of the standard grid [0, 0.01, 0.015, 0.02, 0.03, 0.05, 0.07, 0.1, 0.15, 0.2, 0.3, 0.5, 0.7, 1, 1.5, 2, 3, 5, 7, 8] when within max(0.002 T, 2%) of it, else the row is not a node member",
+    "angle": "nominal_angle_deg when present; otherwise measured angle_from_normal_deg rounded to the nearest 5 deg",
+    "perpendicular": "angle node congruent to 0 modulo 180 deg (both field-normal orientations)",
+    "node_value": "minimum ic_a_per_m over all rows belonging to the (temperature, field, perpendicular) node, i.e. the weaker of the two normal orientations and of any repeated measurements",
+    "self_field_value": "median ic_a_per_m over rows at temperature node 77.5 K and field node 0 T, all angles"
+  },
+  "targets": {
+    "temperatures_k": [20, 25, 30, 35, 40],
+    "fields_t": [5, 7, 8],
+    "orientation": "perpendicular",
+    "rule": "every (T, B) target node present in the product's data"
+  },
+  "scenarios": {
+    "S0_self_field_lift": {
+      "role": "control: today's 77 K self-field specification",
+      "inputs": "the product's self_field_value only",
+      "prediction": "self_field_value(product) x median over all OTHER headline products having both quantities of [node_value(T,B) / self_field_value] at the same target node (leave-one-product-out population lift factor)",
+      "pre_declared_expectation": "FAIL, following Senatore et al. 2016 (no univocal correlation between 77 K self-field and low-temperature high-field Ic)"
+    },
+    "S1_scanner": {
+      "role": "what a reel-to-reel in-field scanner can provide",
+      "training_nodes": "perpendicular nodes with temperature in [65, 77.5] K and field in [0.5, 4] T",
+      "minimum_training_nodes": 6,
+      "model": "M1",
+      "pre_declared_expectation": "uncertain; extrapolation from 65-77.5 K to 20-40 K is a factor of roughly 3-5 in temperature distance to Tc"
+    },
+    "S2_scanner_plus_anchor": {
+      "role": "scanner data plus one short-sample in-field measurement at low temperature",
+      "training_nodes": "S1 training nodes plus the single perpendicular node at 30 K and 3 T",
+      "minimum_training_nodes": 7,
+      "model": "M1",
+      "missing_anchor_rule": "NOT_EVALUATED for that product",
+      "pre_declared_expectation": "better than S1"
+    }
+  },
+  "models": {
+    "M1": {
+      "status": "gating",
+      "form": "ln Ic = c0 - T / Tstar - alpha * ln B   (three parameters c0, Tstar, alpha; Senatore et al. 2016 Eq. 2 in log form, perpendicular field)",
+      "fit": "ordinary least squares in ln Ic over the scenario's training nodes, linear in (c0, 1/Tstar, alpha); B in tesla, T in kelvin",
+      "uncertainty": "95% prediction interval in ln Ic from the OLS residual variance, parameter covariance and the Student t quantile with (n_train - 3) degrees of freedom; reported, coverage is not gating"
+    },
+    "M2": {
+      "status": "secondary, reported only, cannot change any verdict",
+      "form": "ln Ic = c0 - T / Tstar - (a0 + a1 * T) * ln B   (four parameters)",
+      "fit": "ordinary least squares in ln Ic, same training nodes"
+    }
+  },
+  "metrics": {
+    "relative_error": "e = predicted / measured - 1 at each target node",
+    "worst_overprediction": "max e over the product's target nodes",
+    "p95_abs_error": "95th percentile of |e| over the product's target nodes (linear interpolation, numpy default)",
+    "interval_coverage": "fraction of target nodes whose measured value lies inside the 95% prediction interval (M1 only; reported)"
+  },
+  "verdicts": {
+    "product": {
+      "PASS": "worst_overprediction <= 0.10 AND p95_abs_error <= 0.20",
+      "FAIL": "either limit exceeded",
+      "NOT_EVALUATED": "fewer training nodes than the scenario minimum, no target nodes, a missing S2 anchor, or a missing self-field value for S0",
+      "INCONCLUSIVE": "fit numerically degenerate (non-finite parameters or Tstar <= 0)"
+    },
+    "scenario_headline": {
+      "PASS": "at least 80% of evaluated headline products PASS",
+      "FAIL": "otherwise",
+      "note": "per-product verdicts are the primary result; the headline summarises them"
+    },
+    "tolerance_rationale": "10% overprediction matches the declared conductor-capacity budget used in OC-005/OC-006; overprediction is limited more tightly than underprediction because overpredicted capacity is unsafe in allocation."
+  },
+  "software_gates": {
+    "G1_synthetic_recovery": "data generated exactly from M1 with known parameters on each product's training/target node layout is recovered to relative parameter error <= 1e-9 and target relative error <= 1e-9",
+    "G2_independent_checker": "a separate checker recomputes every node value, prediction, metric and verdict from the prepared CSVs and the protocol, and must agree exactly with the runner's output",
+    "G3_coverage_accounting": "every product appears with a verdict for every scenario; no product is dropped"
+  },
+  "falsifiers": [
+    "If S0 PASSes the headline, the stated premise that 77 K self-field does not predict in-field performance is contradicted for this database and must be reported as such.",
+    "If S1 or S2 FAIL, the failure stands; the model, tolerances and node definitions are not changed to recover a PASS. Any revised method is a new protocol version, run as a new scored attempt."
+  ],
+  "outputs": {
+    "runs": "runs/cr01/<attempt>/ (ignored): runner output JSON with every node value, prediction, interval, metric and verdict",
+    "checker": "runs/cr01/<attempt>/checker.json",
+    "summary": "docs/CR01.md result section"
+  }
+}
