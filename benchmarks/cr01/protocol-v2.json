@@ -1,0 +1,98 @@
+{
+  "schema": "converra-cr01-protocol/v2",
+  "id": "cr01-sparse-estimation-v2",
+  "frozen": "2026-10-04",
+  "supersedes": "none; protocol v1 (cr01-sparse-estimation-v1, sha256 f09d8331cdab54b6e4421d5fd11d186dc14e2adc1e3f817f9f3b1eb65e33915c) and its FAIL result stay as recorded",
+  "question": "Which sparse evidence could a reel passport carry instead of a 65-77.5 K scaling-law fit? (a) A few low-temperature short-sample points per product, fitted with the same scaling law and used inside the temperature range they span. (b) A single in-field scanner reading per tape, scaled to the operating point by a population lift factor.",
+  "evidence_class": "development-grade registered retrospective on public measured data. NOT blind: protocol v1 scored the same target nodes, and its per-product errors and a few target values were read before this protocol was written. A v2 PASS identifies a candidate method only; confirmation needs data used in neither v1 nor v2 (CR-04 or an external dataset).",
+  "seen_status": "All 20-40 K, 5/7/8 T perpendicular target values were used in v1 scoring and their per-product error summaries were read. The v2 training-node choices below were made from node coordinates (which (T, B) nodes exist per product), not from values.",
+  "data": {
+    "source": "Robinson Research Institute HTS critical current database, figshare collection 2861821 (CC BY 4.0)",
+    "prepared_by": "tools/cr01_prepare_robinson.py (unchanged from v1, sha256 8d26d427620da502b5a46e6053c6a1d744d856848fc8b218bcce986430716355)",
+    "location": ".local/research/cr01/robinson/<slug>/measurements.csv",
+    "source_manifest": ".local/research/cr01/robinson/sources.json (sha256 cb42c2f916d02d1c0c598ddbb213fe9f458d09d712201ce31fed54fe393eca7d)",
+    "quantity": "ic_a_per_m (critical current per unit tape width, A/m)",
+    "products_in_headline": "every dataset in sources.json except those flagged not_a_tape",
+    "products_reported_separately": ["ceraco-m-type-ybco-film-on-sapphire"]
+  },
+  "node_definition": "identical to protocol v1 node_definition (temperature, field, angle, perpendicular, node_value, self_field_value)",
+  "targets": {
+    "temperatures_k": [20, 25, 30, 35, 40],
+    "fields_t": [5, 7, 8],
+    "orientation": "perpendicular",
+    "rule": "every (T, B) target node present in the product's data, excluding any node that is a training node of the scenario"
+  },
+  "scenarios": {
+    "S3_short_sample_low_field": {
+      "role": "product short-sample characterisation at modest field: field extrapolation from <= 3 T to 5-8 T, temperature interpolation within 20-40 K",
+      "training_nodes": "the six perpendicular nodes (T, B) with T in {20, 30, 40} K and B in {2, 3} T",
+      "required": "all six present; otherwise NOT_EVALUATED",
+      "model": "M1",
+      "pre_declared_expectation": "uncertain; the field exponent fitted at 2-3 T may not hold to 8 T"
+    },
+    "S4_short_sample_two_temperatures": {
+      "role": "product short-sample characterisation at two temperatures reaching 5 T: field extrapolation 5 to 7-8 T, temperature interpolation 20-40 K",
+      "training_nodes": "the four perpendicular nodes (T, B) with T in {20, 40} K and B in {3, 5} T",
+      "required": "all four present; otherwise NOT_EVALUATED",
+      "model": "M1",
+      "pre_declared_expectation": "better than S3"
+    },
+    "S5_inField_lift_70K_3T": {
+      "role": "a single in-field scanner reading per tape (70 K, 3 T; every product has this node, 65 K / 3 T is missing for several), scaled by the population",
+      "base_value": "node_value(70 K, 3 T) of the product",
+      "required": "base node present; otherwise NOT_EVALUATED",
+      "prediction": "base_value(product) x median over all OTHER headline products having both quantities of [node_value(T,B) / base_value] at the same target node (leave-one-product-out lift, as v1 S0)",
+      "pre_declared_expectation": "better than v1 S0 (77 K self-field); PASS uncertain"
+    },
+    "S6_inField_lift_77K_1T": {
+      "role": "a single liquid-nitrogen in-field reading per tape (77.5 K, 1 T), scaled by the population",
+      "base_value": "node_value(77.5 K, 1 T) of the product",
+      "required": "base node present; otherwise NOT_EVALUATED",
+      "prediction": "as S5 with this base_value",
+      "pre_declared_expectation": "between v1 S0 and S5"
+    }
+  },
+  "models": {
+    "M1": {
+      "status": "gating for S3 and S4",
+      "form": "ln Ic = c0 - T / Tstar - alpha * ln B (as protocol v1)",
+      "fit": "ordinary least squares in ln Ic over the scenario's training nodes",
+      "uncertainty": "95% prediction interval with Student t at (n_train - 3) degrees of freedom; reported, coverage is not gating"
+    },
+    "M2": {
+      "status": "secondary, reported for S3 only (S4 has too few nodes), cannot change any verdict",
+      "form": "ln Ic = c0 - T / Tstar - (a0 + a1 * T) * ln B (as protocol v1)"
+    }
+  },
+  "metrics": "identical to protocol v1 (relative_error, worst_overprediction, p95_abs_error with numpy-default linear interpolation, interval_coverage for M1 scenarios)",
+  "verdicts": {
+    "product": {
+      "PASS": "worst_overprediction <= 0.10 AND p95_abs_error <= 0.20",
+      "FAIL": "either limit exceeded",
+      "NOT_EVALUATED": "a required training or base node is missing, or no target nodes remain",
+      "INCONCLUSIVE": "fit numerically degenerate (non-finite parameters or Tstar <= 0)"
+    },
+    "scenario_headline": {
+      "PASS": "at least 80% of evaluated headline products PASS; evaluated = PASS + FAIL + INCONCLUSIVE",
+      "FAIL": "otherwise"
+    },
+    "strata": "headline (20 tape products), previously_used (the four v1 stratum products), ceraco reported separately",
+    "tolerance_rationale": "unchanged from v1"
+  },
+  "implementation_conventions": "as recorded for v1 attempt 01: node rounding round-half-up; perpendicular means an exact multiple of 180 deg",
+  "software_gates": {
+    "G1_synthetic_recovery": "for S3 and S4, data generated exactly from M1 with known parameters on each product's training/target node layout is recovered to relative parameter error <= 1e-9 and target relative error <= 1e-9; for S5 and S6, a synthetic population in which every product's Ic is a fixed multiple of one common map is predicted to relative error <= 1e-9",
+    "G2_independent_checker": "a separate checker that does not import the runner recomputes every node value, prediction, metric and verdict; integers, strings and verdicts must match exactly and floating-point values to relative 1e-9",
+    "G3_coverage_accounting": "every product appears with a verdict for every scenario; no product is dropped"
+  },
+  "falsifiers": [
+    "A FAIL stands; the model, tolerances, node choices and targets are not changed to recover a PASS. Any revised method is a new protocol version.",
+    "S5 or S6 'improves on v1 S0' only if, over headline products evaluated in both, its median p95_abs_error is lower than S0's AND its count of products with worst_overprediction <= 0.10 is not lower than S0's (v1 S0 values recomputed by the v2 runner with the v1 rule). Otherwise an in-field reading is not shown to be a better per-tape base than the 77 K self-field rating for this database, and that is reported."
+  ],
+  "not_tested": "whether a scanner ranks or scales reels within one product; the database has one sample per product",
+  "outputs": {
+    "runs": "runs/cr01/v2-attempt-01/ (ignored)",
+    "checker": "runs/cr01/v2-attempt-01/checker.json",
+    "summary": "docs/CR01.md, section for protocol v2"
+  }
+}
