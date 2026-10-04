@@ -24,7 +24,6 @@ use optcoil_model::{
         attestation_sha256, sha256_hex,
     },
     material::{MaterialBenchmark, MaterialBundle, MaterialDataset, MaterialQuery},
-    reel::{ReelInventory, ReelPassport, passport_sha256},
 };
 use optcoil_search::{
     RunRecord, SearchOptions, acceptance,
@@ -40,7 +39,7 @@ use optcoil_search::{
         MaterialRunRecord, MaterialSuiteRecord, query_embedded_material_by_id, query_material,
         run_material_benchmark, run_material_suite,
     },
-    reel::{OperatingPoint, rate_inventory},
+    reel::{OperatingPoint, rate_inventory_json, validate_inventory_json, validate_passport_json},
     run,
 };
 use rand_core::RngCore;
@@ -2278,40 +2277,23 @@ fn execute_reel(command: ReelCommand) -> Result<(), Box<dyn Error>> {
     match command {
         ReelCommand::Validate { passport, json } => {
             let bytes = fs::read(&passport)?;
-            let parsed = ReelPassport::from_json(std::str::from_utf8(&bytes)?)?;
-            let sha256 = passport_sha256(&bytes);
+            let v = validate_passport_json(std::str::from_utf8(&bytes)?)?;
             if json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&serde_json::json!({
-                        "schema": parsed.schema,
-                        "reel_id": parsed.reel_id,
-                        "passport_sha256": sha256,
-                        "evidence_class": parsed.evidence_class,
-                        "length_m": parsed.geometry.length_m,
-                        "usable_length_m": parsed.usable_length_m(),
-                        "length_profiles": parsed.length_profiles.len(),
-                        "in_field_points": parsed.in_field_points.len(),
-                        "ab_offsets": parsed.ab_offsets.len(),
-                        "defects": parsed.defects.len(),
-                        "product_map": parsed.product.product_map,
-                        "limitations": parsed.limitations,
-                    }))?
-                );
+                println!("{}", serde_json::to_string_pretty(&v)?);
             } else {
                 println!(
                     "Reel passport {} is valid ({}); {:.3} m, {:.3} m usable; {} length profile(s), {} in-field point(s), {} ab offset(s), {} defect span(s)",
-                    parsed.reel_id,
-                    parsed.evidence_class.as_str(),
-                    parsed.geometry.length_m,
-                    parsed.usable_length_m(),
-                    parsed.length_profiles.len(),
-                    parsed.in_field_points.len(),
-                    parsed.ab_offsets.len(),
-                    parsed.defects.len()
+                    v.reel_id,
+                    v.evidence_class.as_str(),
+                    v.length_m,
+                    v.usable_length_m,
+                    v.length_profiles,
+                    v.in_field_points,
+                    v.ab_offsets,
+                    v.defects
                 );
-                println!("passport_sha256 {sha256}");
-                for limitation in &parsed.limitations {
+                println!("passport_sha256 {}", v.passport_sha256);
+                for limitation in &v.limitations {
                     println!("Limitation: {limitation}");
                 }
             }
@@ -2324,26 +2306,15 @@ fn execute_inventory(command: InventoryCommand) -> Result<(), Box<dyn Error>> {
     match command {
         InventoryCommand::Validate { inventory, json } => {
             let bytes = fs::read(&inventory)?;
-            let parsed = ReelInventory::from_json(std::str::from_utf8(&bytes)?)?;
-            let sha256 = passport_sha256(&bytes);
-            let summary = parsed.summary();
+            let v = validate_inventory_json(std::str::from_utf8(&bytes)?)?;
             if json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&serde_json::json!({
-                        "schema": parsed.schema,
-                        "inventory_id": parsed.inventory_id,
-                        "inventory_sha256": sha256,
-                        "evidence_class": parsed.evidence_class,
-                        "summary": summary,
-                        "limitations": parsed.limitations,
-                    }))?
-                );
+                println!("{}", serde_json::to_string_pretty(&v)?);
             } else {
+                let summary = &v.summary;
                 println!(
                     "Reel inventory {} is valid ({}); {} reel(s), {:.3} m total, {:.3} m usable",
-                    parsed.inventory_id,
-                    parsed.evidence_class.as_str(),
+                    v.inventory_id,
+                    v.evidence_class.as_str(),
                     summary.reel_count,
                     summary.total_length_m,
                     summary.usable_length_m
@@ -2359,8 +2330,8 @@ fn execute_inventory(command: InventoryCommand) -> Result<(), Box<dyn Error>> {
                     "  evidence: {} measured, {} model_informed, {} synthetic",
                     counts.measured, counts.model_informed, counts.synthetic
                 );
-                println!("inventory_sha256 {sha256}");
-                for limitation in &parsed.limitations {
+                println!("inventory_sha256 {}", v.inventory_sha256);
+                for limitation in &v.limitations {
                     println!("Limitation: {limitation}");
                 }
             }
@@ -2375,23 +2346,20 @@ fn execute_inventory(command: InventoryCommand) -> Result<(), Box<dyn Error>> {
             output,
         } => {
             let bytes = fs::read(&inventory)?;
-            let parsed = ReelInventory::from_json(std::str::from_utf8(&bytes)?)?;
-            let mut datasets = Vec::new();
-            for bundle in &dataset_bundle {
-                datasets.push(MaterialDataset::from_bundle_json(&fs::read_to_string(
-                    bundle,
-                )?)?);
-            }
-            let record = rate_inventory(
-                &parsed,
-                &passport_sha256(&bytes),
+            let bundles = dataset_bundle
+                .iter()
+                .map(fs::read_to_string)
+                .collect::<Result<Vec<_>, _>>()?;
+            let bundle_refs: Vec<&str> = bundles.iter().map(String::as_str).collect();
+            let record = rate_inventory_json(
+                std::str::from_utf8(&bytes)?,
                 OperatingPoint {
                     temperature_k,
                     field_t,
                     angle_from_normal_deg: angle_deg,
                     electric_field_criterion_v_per_m: criterion_v_per_m,
                 },
-                datasets,
+                &bundle_refs,
             )?;
             if let Some(path) = output {
                 record.write_new(&path)?;

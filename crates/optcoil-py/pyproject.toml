@@ -4,6 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "converra"
+dynamic = ["version"]
 description = "HTS coil cost optimization and screening engine — the same core the optcoil CLI and workbench run"
 readme = "README.md"
 requires-python = ">=3.10"

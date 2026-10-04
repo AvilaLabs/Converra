@@ -1021,6 +1021,8 @@ fn write_output(root: &Path, folder: &str, relative: &str, bytes: &[u8]) -> Resu
         .map_err(|e| format!("cannot write artifact: {e}"))
 }
 
+const MAX_REEL_JSON_BYTES: usize = 8 * 1024 * 1024;
+
 fn ok<T: Serialize>(value: T) -> CallToolResult {
     match serde_json::to_value(value) {
         Ok(value) => CallToolResult::structured(value),
@@ -1032,6 +1034,25 @@ fn fail(error: impl ToString) -> CallToolResult {
     CallToolResult::error(vec![ContentBlock::text(error.to_string())])
 }
 
+#[derive(Debug, Deserialize, JsonSchema)]
+struct PassportArgs {
+    passport_json: String,
+}
+#[derive(Debug, Deserialize, JsonSchema)]
+struct InventoryArgs {
+    inventory_json: String,
+}
+#[derive(Debug, Deserialize, JsonSchema)]
+struct RateInventoryArgs {
+    inventory_json: String,
+    temperature_k: f64,
+    field_t: f64,
+    angle_deg: f64,
+    #[serde(default)]
+    criterion_v_per_m: Option<f64>,
+    #[serde(default)]
+    dataset_bundles: Vec<String>,
+}
 #[derive(Debug, Deserialize, JsonSchema)]
 struct NameArgs {
     name: String,
@@ -1168,6 +1189,66 @@ impl McpServer {
         ok(
             json!({ "embedded_datasets": datasets, "external_datasets": "attach raw bundle JSON to a variant" }),
         )
+    }
+
+    #[tool(
+        description = "Validate a reel passport (optcoil-reel-passport/v1) given as exact JSON text. Returns a summary and passport_sha256, the SHA-256 of the text's exact bytes."
+    )]
+    fn validate_reel_passport(&self, Parameters(args): Parameters<PassportArgs>) -> CallToolResult {
+        if args.passport_json.len() > MAX_REEL_JSON_BYTES {
+            return fail("reel passport exceeds the 8 MiB limit");
+        }
+        match optcoil_search::reel::validate_passport_json(&args.passport_json) {
+            Ok(v) => ok(v),
+            Err(e) => fail(e),
+        }
+    }
+
+    #[tool(
+        description = "Validate a reel inventory (optcoil-reel-inventory/v1) given as exact JSON text. Returns totals, usable length, length by product and evidence-class counts."
+    )]
+    fn validate_reel_inventory(
+        &self,
+        Parameters(args): Parameters<InventoryArgs>,
+    ) -> CallToolResult {
+        if args.inventory_json.len() > MAX_REEL_JSON_BYTES {
+            return fail("reel inventory exceeds the 8 MiB limit");
+        }
+        match optcoil_search::reel::validate_inventory_json(&args.inventory_json) {
+            Ok(v) => ok(v),
+            Err(e) => fail(e),
+        }
+    }
+
+    #[tool(
+        description = "Rate every reel of an inventory at an operating point (optcoil-reel-rating/v1). Each product map must match its passport's dataset id and CSV SHA-256; embedded datasets are used unless exact bundle JSON strings are supplied in dataset_bundles. Points outside the map's measured domain are never extrapolated. A rating is not an engineering current allowance or an acceptance. criterion_v_per_m defaults to 1e-4."
+    )]
+    fn rate_reel_inventory(
+        &self,
+        Parameters(args): Parameters<RateInventoryArgs>,
+    ) -> CallToolResult {
+        if args.inventory_json.len() > MAX_REEL_JSON_BYTES
+            || args
+                .dataset_bundles
+                .iter()
+                .any(|b| b.len() > MAX_REEL_JSON_BYTES)
+        {
+            return fail("inventory or dataset bundle exceeds the 8 MiB limit");
+        }
+        let bundles: Vec<&str> = args.dataset_bundles.iter().map(String::as_str).collect();
+        match optcoil_search::reel::rate_inventory_json(
+            &args.inventory_json,
+            optcoil_search::reel::OperatingPoint {
+                temperature_k: args.temperature_k,
+                field_t: args.field_t,
+                angle_from_normal_deg: args.angle_deg,
+                electric_field_criterion_v_per_m: args.criterion_v_per_m.unwrap_or(1e-4),
+            },
+            &bundles,
+        ) {
+            Ok(v) => ok(v),
+            Err(e) => fail(e),
+        }
     }
 
     #[tool(

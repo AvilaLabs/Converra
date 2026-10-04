@@ -8,7 +8,7 @@ use optcoil_model::{
     material::{MaterialDataClass, MaterialDataset, MaterialQuery},
     reel::{
         AbOffset, DefectAction, DefectKind, EvidenceClass, EvidenceClassCounts, InventorySummary,
-        LengthProfile, ReelInventory, ReelPassport,
+        LengthProfile, ProductMapRef, ReelInventory, ReelPassport, passport_sha256,
     },
 };
 use optcoil_physics::critical_current::{IcInterpolationMethod, IcInterpolator, LOG_IC_MODEL_ID};
@@ -862,10 +862,91 @@ fn implementation_hash() -> Result<String, RunError> {
     ))?))
 }
 
+/// Result of validating one passport document.
+#[derive(Debug, Clone, Serialize)]
+pub struct PassportValidation {
+    pub schema: String,
+    pub reel_id: String,
+    /// SHA-256 of the document's exact bytes.
+    pub passport_sha256: String,
+    pub evidence_class: EvidenceClass,
+    pub length_m: f64,
+    pub usable_length_m: f64,
+    pub length_profiles: usize,
+    pub in_field_points: usize,
+    pub ab_offsets: usize,
+    pub defects: usize,
+    pub product_map: Option<ProductMapRef>,
+    pub limitations: Vec<String>,
+}
+
+/// Result of validating one inventory document.
+#[derive(Debug, Clone, Serialize)]
+pub struct InventoryValidation {
+    pub schema: String,
+    pub inventory_id: String,
+    /// SHA-256 of the document's exact bytes.
+    pub inventory_sha256: String,
+    pub evidence_class: EvidenceClass,
+    pub summary: InventorySummary,
+    pub limitations: Vec<String>,
+}
+
+/// Parses and validates a passport document given as text.
+pub fn validate_passport_json(json: &str) -> Result<PassportValidation, RunError> {
+    let passport = ReelPassport::from_json(json)?;
+    Ok(PassportValidation {
+        usable_length_m: passport.usable_length_m(),
+        passport_sha256: passport_sha256(json.as_bytes()),
+        schema: passport.schema,
+        reel_id: passport.reel_id,
+        evidence_class: passport.evidence_class,
+        length_m: passport.geometry.length_m,
+        length_profiles: passport.length_profiles.len(),
+        in_field_points: passport.in_field_points.len(),
+        ab_offsets: passport.ab_offsets.len(),
+        defects: passport.defects.len(),
+        product_map: passport.product.product_map,
+        limitations: passport.limitations,
+    })
+}
+
+/// Parses and validates an inventory document given as text.
+pub fn validate_inventory_json(json: &str) -> Result<InventoryValidation, RunError> {
+    let inventory = ReelInventory::from_json(json)?;
+    Ok(InventoryValidation {
+        summary: inventory.summary(),
+        inventory_sha256: passport_sha256(json.as_bytes()),
+        schema: inventory.schema,
+        inventory_id: inventory.inventory_id,
+        evidence_class: inventory.evidence_class,
+        limitations: inventory.limitations,
+    })
+}
+
+/// Rates an inventory given as text. `bundle_jsons` are dataset bundle
+/// documents; their identities are enforced exactly as for the CLI.
+pub fn rate_inventory_json(
+    inventory_json: &str,
+    operating: OperatingPoint,
+    bundle_jsons: &[&str],
+) -> Result<ReelRatingRecord, RunError> {
+    let inventory = ReelInventory::from_json(inventory_json)?;
+    let datasets = bundle_jsons
+        .iter()
+        .map(|bundle| MaterialDataset::from_bundle_json(bundle))
+        .collect::<Result<Vec<_>, _>>()?;
+    rate_inventory(
+        &inventory,
+        &passport_sha256(inventory_json.as_bytes()),
+        operating,
+        datasets,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use optcoil_model::reel::ReelPassport;
     use serde_json::{Value, json};
 
     const MAP_ID: &str = "robinson-superpower-ap-v3";
@@ -1402,6 +1483,43 @@ mod tests {
         )
         .unwrap();
         assert!(!none.limitations.iter().any(|l| l.contains(sentence)));
+    }
+
+    const EXAMPLE_INVENTORY: &str =
+        include_str!("../../../examples/reels/inventory-illustrative.json");
+    const EXAMPLE_PASSPORT: &str =
+        include_str!("../../../examples/reels/passport-illustrative.json");
+
+    #[test]
+    fn json_entry_points_hash_exact_text_and_match_the_struct_api() {
+        let passport = validate_passport_json(EXAMPLE_PASSPORT).unwrap();
+        assert_eq!(passport.reel_id, "ILLUSTRATIVE-REEL-A");
+        assert_eq!(passport.usable_length_m, 45.0);
+        assert_eq!(
+            passport.passport_sha256,
+            optcoil_model::attestation::sha256_hex(EXAMPLE_PASSPORT.as_bytes())
+        );
+        let inventory = validate_inventory_json(EXAMPLE_INVENTORY).unwrap();
+        assert_eq!(inventory.summary.reel_count, 3);
+        assert!(validate_passport_json("{}").is_err());
+        assert!(
+            validate_inventory_json(&EXAMPLE_INVENTORY.replace("reel_id", "reel_ident")).is_err()
+        );
+
+        let op = OperatingPoint {
+            temperature_k: 25.0,
+            field_t: 2.0,
+            angle_from_normal_deg: 0.0,
+            electric_field_criterion_v_per_m: 1e-4,
+        };
+        let record = rate_inventory_json(EXAMPLE_INVENTORY, op, &[]).unwrap();
+        assert_eq!(record.status_counts["rated"], 2);
+        assert_eq!(record.datasets[0].source, "embedded");
+
+        let genuine = MaterialDataset::embedded_bundle_json(MAP_ID).unwrap();
+        let supplied = rate_inventory_json(EXAMPLE_INVENTORY, op, &[genuine.as_str()]).unwrap();
+        assert_eq!(supplied.datasets[0].source, "supplied");
+        assert!(rate_inventory_json(EXAMPLE_INVENTORY, op, &["{}"]).is_err());
     }
 
     #[test]

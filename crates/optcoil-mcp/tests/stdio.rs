@@ -864,3 +864,77 @@ async fn stdio_robustness_preview_jobs_resources_and_history() {
     restarted.cancel().await.unwrap();
     fs::remove_dir_all(root).unwrap();
 }
+
+#[tokio::test]
+async fn stdio_reel_tools_validate_and_rate() {
+    let root = temp_workspace("reel");
+    let client = launch(&root).await;
+    let tools = client.list_all_tools().await.unwrap();
+    for name in [
+        "validate_reel_passport",
+        "validate_reel_inventory",
+        "rate_reel_inventory",
+    ] {
+        assert!(
+            tools.iter().any(|tool| tool.name == name),
+            "missing MCP tool {name}"
+        );
+    }
+    let passport = include_str!("../../../examples/reels/passport-illustrative.json");
+    let inventory = include_str!("../../../examples/reels/inventory-illustrative.json");
+
+    let validated = call(
+        &client,
+        "validate_reel_passport",
+        json!({ "passport_json": passport }),
+    )
+    .await;
+    assert_eq!(validated["reel_id"], "ILLUSTRATIVE-REEL-A");
+    assert_eq!(validated["usable_length_m"], 45.0);
+    let summary = call(
+        &client,
+        "validate_reel_inventory",
+        json!({ "inventory_json": inventory }),
+    )
+    .await;
+    assert_eq!(summary["summary"]["reel_count"], 3);
+
+    let rated = call(
+        &client,
+        "rate_reel_inventory",
+        json!({
+            "inventory_json": inventory,
+            "temperature_k": 25.0,
+            "field_t": 2.0,
+            "angle_deg": 0.0
+        }),
+    )
+    .await;
+    assert_eq!(rated["schema"], "optcoil-reel-rating/v1");
+    assert_eq!(rated["status_counts"]["rated"], 2);
+    assert_eq!(rated["reels"][0]["evidence_class"], "synthetic");
+
+    let outside = call(
+        &client,
+        "rate_reel_inventory",
+        json!({
+            "inventory_json": inventory,
+            "temperature_k": 25.0,
+            "field_t": 12.0,
+            "angle_deg": 0.0
+        }),
+    )
+    .await;
+    assert_eq!(outside["reels"][0]["status"], "outside_map_domain");
+
+    let invalid = client
+        .call_tool(
+            CallToolRequestParams::new("validate_reel_passport".to_owned())
+                .with_arguments(serde_json::from_value(json!({ "passport_json": "{}" })).unwrap()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(invalid.is_error, Some(true));
+    client.cancel().await.unwrap();
+    fs::remove_dir_all(root).unwrap();
+}

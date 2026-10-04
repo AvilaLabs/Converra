@@ -15,6 +15,9 @@ use optcoil_search::bakeoff::run_bakeoff;
 use optcoil_search::coupled_search::{
     CoupledSearchOptions, CoupledSearchRunRecord, run_coupled_search_case,
 };
+use optcoil_search::reel::{
+    OperatingPoint, rate_inventory_json, validate_inventory_json, validate_passport_json,
+};
 use optcoil_search::report::render_search_report_html;
 use optcoil_search::sensitivity::run_sensitivity_sweep;
 use optcoil_search::verify::{verify_dataset_bundle, verify_record_checks};
@@ -202,6 +205,53 @@ fn verify_dataset(
     serde_json::to_string(&checks).map_err(err)
 }
 
+/// Validate a reel passport (`optcoil-reel-passport/v1`) given as JSON
+/// text. Returns a JSON summary including `passport_sha256`, the SHA-256
+/// of the text's exact bytes.
+#[pyfunction]
+fn validate_reel_passport(passport_json: &str) -> PyResult<String> {
+    serde_json::to_string(&validate_passport_json(passport_json).map_err(err)?).map_err(err)
+}
+
+/// Validate a reel inventory (`optcoil-reel-inventory/v1`) given as JSON
+/// text. Returns a JSON summary with totals, length by product and
+/// evidence-class counts.
+#[pyfunction]
+fn validate_reel_inventory(inventory_json: &str) -> PyResult<String> {
+    serde_json::to_string(&validate_inventory_json(inventory_json).map_err(err)?).map_err(err)
+}
+
+/// Rate every reel of an inventory at an operating point. `dataset_jsons`
+/// are dataset bundle documents; each product map's id and CSV SHA-256
+/// must match the passport, otherwise the reel is `map_unavailable`.
+/// Embedded datasets are used for ids that are not supplied. Returns the
+/// `optcoil-reel-rating/v1` record JSON.
+#[pyfunction]
+#[pyo3(signature = (inventory_json, temperature_k, field_t, angle_deg, criterion_v_per_m=1e-4, dataset_jsons=None))]
+fn rate_reel_inventory(
+    inventory_json: &str,
+    temperature_k: f64,
+    field_t: f64,
+    angle_deg: f64,
+    criterion_v_per_m: f64,
+    dataset_jsons: Option<Vec<String>>,
+) -> PyResult<String> {
+    let bundles: Vec<String> = dataset_jsons.unwrap_or_default();
+    let refs: Vec<&str> = bundles.iter().map(String::as_str).collect();
+    let record = rate_inventory_json(
+        inventory_json,
+        OperatingPoint {
+            temperature_k,
+            field_t,
+            angle_from_normal_deg: angle_deg,
+            electric_field_criterion_v_per_m: criterion_v_per_m,
+        },
+        &refs,
+    )
+    .map_err(err)?;
+    serde_json::to_string(&record).map_err(err)
+}
+
 /// The Converra engine — same code as the `optcoil` CLI.
 #[pymodule]
 fn converra(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -212,5 +262,8 @@ fn converra(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(render_report, m)?)?;
     m.add_function(wrap_pyfunction!(list_datasets, m)?)?;
     m.add_function(wrap_pyfunction!(verify_dataset, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_reel_passport, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_reel_inventory, m)?)?;
+    m.add_function(wrap_pyfunction!(rate_reel_inventory, m)?)?;
     Ok(())
 }

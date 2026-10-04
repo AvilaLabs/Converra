@@ -22,6 +22,12 @@
   row that represents its condition (`map_reference`), which is checked
   against the row's nominal coordinates within tight tolerances. Synthetic,
   illustrative examples are in `examples/reels/`.
+- Expose the same three reel operations in Python (`validate_reel_passport`,
+  `validate_reel_inventory`, `rate_reel_inventory`) and as local MCP tools of
+  the same names. Both take the passport, inventory and dataset bundles as
+  exact JSON text and share the CLI's code and dataset-identity checks.
+- Fix the Python package metadata: `pyproject.toml` now takes its version from
+  Cargo (`dynamic = ["version"]`), so `maturin develop` and `maturin build` run.
 
 ## v0.3.0 — 2026-10-02
 

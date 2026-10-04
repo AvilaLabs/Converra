@@ -26,9 +26,20 @@ converra.list_datasets()                                              # embedded
 converra.run_sensitivity(case_json, spec_json)                        # sweep record
 converra.run_dataset_bakeoff(case_json, spec_json, "bundles/")        # bakeoff record
 converra.verify_dataset(bundle_json, registry_json=registry_json)     # bundle checks
+converra.validate_reel_passport(passport_json)                        # passport summary + sha256
+converra.validate_reel_inventory(inventory_json)                      # inventory totals
+converra.rate_reel_inventory(inventory_json, 25.0, 2.0, 0.0,          # per-reel ratings
+                             dataset_jsons=[bundle_json])
 ```
 
 Every function raises `RuntimeError` on invalid input or a failed run.
 `run_search`/`run_sensitivity`/`run_dataset_bakeoff` release the GIL —
 the module is safe to call from Python threads. Cancellation is not
 exposed; bound runs via the case's `search_limits`.
+
+## Tests
+
+`tests/test_reel.py` exercises the reel functions against the built
+module (`pytest crates/optcoil-py/tests` with `converra` importable). The
+extension crate has no Rust unit tests: as a cdylib it cannot link a test
+binary without libpython, and the reel logic is tested in `optcoil-search`.

@@ -53,9 +53,8 @@ needs it.
   profiles, in-field points, ab-plane tilt, defects, vendor and batch,
   provenance and evidence class. It binds product maps by dataset identity;
   signing passports is left to CR-07. See [docs/CR02.md](docs/CR02.md).
-- [ ] Inventory import and validation in the engine, CLI, Python and MCP.
-  Engine and CLI done, including per-reel rating at an operating point;
-  Python and MCP remain.
+- [x] Inventory import and validation in the engine, CLI, Python and MCP,
+  including per-reel rating at an operating point.
   Measured, model-informed and synthetic reels remain distinguishable.
 - [ ] Synthetic inventories generated from published variation statistics,
   labelled synthetic in every output.
