@@ -18,8 +18,8 @@ use crate::{
     synthetic::synthesize_inventory_json,
 };
 
-const MAP_ID: &str = "robinson-superpower-ap-v3";
-const MAP_SHA: &str = "889cc2cf8b91b822cbc6cceb7388e5d8afcb8a8911bb20ab175e50c7e6dc0354";
+pub(crate) const MAP_ID: &str = "robinson-superpower-ap-v3";
+pub(crate) const MAP_SHA: &str = "889cc2cf8b91b822cbc6cceb7388e5d8afcb8a8911bb20ab175e50c7e6dc0354";
 const WIDTH: f64 = 0.012;
 /// The embedded map's Ic per width at the profile condition below (rows
 /// 1817 and 1818), so a profile value of `s * PROFILE_MAP_A` is a scale
@@ -31,7 +31,7 @@ type TurnSpec = (f64, Vec<(bool, Vec<Option<f64>>)>);
 
 /// A hand-built demand: `turns` are `(length_m, per-module list of
 /// (offset_sensitive, s_req per tabulated offset))`.
-fn demand_json(offsets: &[f64], strands: u32, turns: &[TurnSpec]) -> String {
+pub(crate) fn demand_json(offsets: &[f64], strands: u32, turns: &[TurnSpec]) -> String {
     let mut start = 0.0_f64;
     let mut turn_values = Vec::new();
     for (index, (length, modules)) in turns.iter().enumerate() {
@@ -99,7 +99,7 @@ fn demand_json(offsets: &[f64], strands: u32, turns: &[TurnSpec]) -> String {
 }
 
 /// One module, no strands beyond 1; same requirement for every offset.
-fn flat_demand(turns: &[(f64, f64)]) -> String {
+pub(crate) fn flat_demand(turns: &[(f64, f64)]) -> String {
     let rows: Vec<_> = turns
         .iter()
         .map(|(length, s)| (*length, vec![(false, vec![Some(*s), Some(*s)])]))
@@ -107,17 +107,17 @@ fn flat_demand(turns: &[(f64, f64)]) -> String {
     demand_json(&[0.0, 2.0], 1, &rows)
 }
 
-struct Reel {
-    id: &'static str,
-    length: f64,
+pub(crate) struct Reel {
+    pub(crate) id: &'static str,
+    pub(crate) length: f64,
     /// `(position_m, s)` profile points.
-    points: Vec<(f64, f64)>,
-    defects: Vec<(f64, f64, &'static str)>,
-    offsets: Vec<(f64, f64)>,
+    pub(crate) points: Vec<(f64, f64)>,
+    pub(crate) defects: Vec<(f64, f64, &'static str)>,
+    pub(crate) offsets: Vec<(f64, f64)>,
 }
 
 impl Reel {
-    fn flat(id: &'static str, length: f64, s: f64) -> Self {
+    pub(crate) fn flat(id: &'static str, length: f64, s: f64) -> Self {
         Reel {
             id,
             length,
@@ -128,7 +128,7 @@ impl Reel {
     }
 }
 
-fn inventory_json(reels: &[Reel]) -> String {
+pub(crate) fn inventory_json(reels: &[Reel]) -> String {
     let passports: Vec<Value> = reels
         .iter()
         .map(|r| {
@@ -172,7 +172,7 @@ fn inventory_json(reels: &[Reel]) -> String {
     .unwrap()
 }
 
-fn params_json(margin: f64, sigma: f64, z: f64, min_piece: f64, price: f64) -> String {
+pub(crate) fn params_json(margin: f64, sigma: f64, z: f64, min_piece: f64, price: f64) -> String {
     json!({
         "schema": "optcoil-allocation-params/v1",
         "margin": margin,
@@ -184,11 +184,11 @@ fn params_json(margin: f64, sigma: f64, z: f64, min_piece: f64, price: f64) -> S
     .to_string()
 }
 
-fn run(demand: &str, inventory: &str, params: &str) -> AllocationRecord {
+pub(crate) fn run(demand: &str, inventory: &str, params: &str) -> AllocationRecord {
     run_allocation_json(demand, inventory, params, &[]).unwrap()
 }
 
-fn assert_check_passes(demand: &str, inventory: &str, record: &AllocationRecord) {
+pub(crate) fn assert_check_passes(demand: &str, inventory: &str, record: &AllocationRecord) {
     let text = record.to_json().unwrap();
     let check = check_allocation_json(demand, inventory, &text, &[]).unwrap();
     assert_eq!(check.verdict, Status::Pass, "{:#?}", check.mismatches());
@@ -689,7 +689,7 @@ fn the_checker_fails_a_piece_inside_a_cut_span() {
 // A binding scenario on a real slice-A demand.
 // ---------------------------------------------------------------------
 
-fn real_demand() -> &'static (String, String) {
+pub(crate) fn real_demand() -> &'static (String, String) {
     static FIXTURE: OnceLock<(String, String)> = OnceLock::new();
     FIXTURE.get_or_init(|| {
         let case = reduced_case_json("[70]", 30.0).replace(
@@ -706,7 +706,7 @@ fn real_demand() -> &'static (String, String) {
 
 /// A synthetic inventory with profile values scaled so reel scale factors
 /// straddle the demand's 0.067 to 0.069 range: the requirement binds.
-fn binding_inventory(scale: f64, seed: u64) -> String {
+pub(crate) fn binding_inventory(scale: f64, seed: u64) -> String {
     let spec = json!({
         "schema": "optcoil-synthetic-inventory-spec/v1",
         "inventory_id": "BINDING",

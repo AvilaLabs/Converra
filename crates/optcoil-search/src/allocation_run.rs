@@ -379,11 +379,11 @@ impl AllocationRecord {
 // ---------------------------------------------------------------------
 
 #[derive(Debug, Clone)]
-struct Segment {
-    a: f64,
-    b: f64,
+pub(crate) struct Segment {
+    pub(crate) a: f64,
+    pub(crate) b: f64,
     /// s after the transfer derate.
-    s: f64,
+    pub(crate) s: f64,
 }
 
 #[derive(Debug, Clone)]
@@ -394,11 +394,11 @@ struct SubReel {
     segments: Vec<Segment>,
 }
 
-struct Prepared {
-    code: ReelCode,
+pub(crate) struct Prepared {
+    pub(crate) code: ReelCode,
     explanation: Option<String>,
     next_evidence: Option<String>,
-    delta_index: Option<usize>,
+    pub(crate) delta_index: Option<usize>,
     offset_bound: Option<f64>,
     profile_id: Option<String>,
     map_reference_row: Option<u32>,
@@ -407,7 +407,7 @@ struct Prepared {
     /// this reel's offset; none when it cannot be placed somewhere.
     uniform: Option<f64>,
     usable_length: f64,
-    sub_reels: Vec<(f64, f64, Vec<Segment>)>,
+    pub(crate) sub_reels: Vec<(f64, f64, Vec<Segment>)>,
 }
 
 fn unallocatable(
@@ -438,7 +438,7 @@ fn offset_bound(passport: &ReelPassport) -> Option<f64> {
         .reduce(f64::max)
 }
 
-fn prepare_reel(
+pub(crate) fn prepare_reel(
     passport: &ReelPassport,
     demand: &AllocationDemand,
     factor: f64,
@@ -612,9 +612,54 @@ struct RunEval {
     turn_to: usize,
 }
 
-fn segment_at(segments: &[Segment], x: f64) -> &Segment {
+pub(crate) fn segment_at(segments: &[Segment], x: f64) -> &Segment {
     let index = segments.partition_point(|seg| seg.b <= x);
     &segments[index.min(segments.len() - 1)]
+}
+
+/// The demand's requirement for a reel at (module, turn), before the margin.
+pub(crate) fn position_requirement(
+    demand: &AllocationDemand,
+    reel: &Prepared,
+    module: usize,
+    turn: usize,
+) -> Option<f64> {
+    let entry = &demand.turns[turn].modules[module];
+    match reel.delta_index {
+        Some(index) => entry.s_req[index].s_req,
+        None if entry.offset_sensitive => None,
+        None => entry.s_req[0].s_req,
+    }
+}
+
+/// The merged breakpoints (offsets from the piece start, ascending) of a
+/// piece of length `limit` that begins at reel coordinate `head` and stream
+/// coordinate `ell`: the reel's step edges and the turn boundaries.
+pub(crate) fn merged_cuts(
+    segments: &[Segment],
+    head: f64,
+    turn_ends: &[f64],
+    ell: f64,
+    limit: f64,
+) -> Vec<f64> {
+    let mut cuts = vec![0.0, limit];
+    for seg in segments {
+        for edge in [seg.a, seg.b] {
+            let u = edge - head;
+            if u > 0.0 && u < limit {
+                cuts.push(u);
+            }
+        }
+    }
+    for end in turn_ends {
+        let u = end - ell;
+        if u > 0.0 && u < limit {
+            cuts.push(u);
+        }
+    }
+    cuts.sort_by(f64::total_cmp);
+    cuts.dedup();
+    cuts
 }
 
 /// The longest feasible run from sub-reel head `sub.head` placed at stream
@@ -628,23 +673,7 @@ fn evaluate_run(
     ell: f64,
     limit: f64,
 ) -> RunEval {
-    let mut cuts = vec![0.0, limit];
-    for seg in &sub.segments {
-        for edge in [seg.a, seg.b] {
-            let u = edge - sub.head;
-            if u > 0.0 && u < limit {
-                cuts.push(u);
-            }
-        }
-    }
-    for end in &ctx.turn_ends {
-        let u = end - ell;
-        if u > 0.0 && u < limit {
-            cuts.push(u);
-        }
-    }
-    cuts.sort_by(f64::total_cmp);
-    cuts.dedup();
+    let cuts = merged_cuts(&sub.segments, sub.head, &ctx.turn_ends, ell, limit);
     let mut run = limit;
     let (mut weighted, mut measured, mut min_ratio) = (0.0, 0.0, f64::INFINITY);
     let (mut turn_from, mut turn_to) = (None, 0);
@@ -860,7 +889,8 @@ pub fn run_allocation_json(
         },
         tape_width_m: demand.geometry.tape_width_m,
     };
-    build_record(&demand, &inventory, &params, &datasets, inputs)
+    let map = resolve_demand_map(&demand, &datasets);
+    build_record(&demand, &inventory, &params, &map, inputs, &BTreeMap::new())
 }
 
 /// Resolves the demand's product map from supplied datasets or the embedded
@@ -880,12 +910,17 @@ pub(crate) fn resolve_demand_map(
     )
 }
 
-fn build_record(
+/// The allocation and baseline on parsed inputs. `derate_overrides` maps a
+/// reel id to the factor that replaces the params' derate for that reel; the
+/// measurement planner uses it to change one reel's derate (or set it to a
+/// true factor) while the public params stay as declared.
+pub(crate) fn build_record(
     demand: &AllocationDemand,
     inventory: &ReelInventory,
     params: &AllocationParams,
-    datasets: &[MaterialDataset],
+    map: &Resolved,
     inputs: AllocationInputs,
+    derate_overrides: &BTreeMap<String, f64>,
 ) -> Result<AllocationRecord, RunError> {
     let factor = params.derate_factor();
     let n = demand.turns.len();
@@ -895,11 +930,16 @@ fn build_record(
         .turns
         .iter()
         .all(|t| t.modules.iter().all(|m| m.offset_sensitive));
-    let map = resolve_demand_map(demand, datasets);
     let mut prepared: Vec<Prepared> = inventory
         .passports
         .iter()
-        .map(|passport| prepare_reel(passport, demand, factor, &map, all_positions_sensitive))
+        .map(|passport| {
+            let reel_factor = derate_overrides
+                .get(&passport.reel_id)
+                .copied()
+                .unwrap_or(factor);
+            prepare_reel(passport, demand, reel_factor, map, all_positions_sensitive)
+        })
         .collect();
     let ids: Vec<String> = inventory
         .passports
@@ -913,14 +953,8 @@ fn build_record(
         .collect();
     let stream_length = turn_ends[n - 1];
 
-    // The demand's requirement for a reel at (module, turn).
     let position_requirement = |reel: &Prepared, module: usize, turn: usize| -> Option<f64> {
-        let entry = &demand.turns[turn].modules[module];
-        match reel.delta_index {
-            Some(index) => entry.s_req[index].s_req,
-            None if entry.offset_sensitive => None,
-            None => entry.s_req[0].s_req,
-        }
+        position_requirement(demand, reel, module, turn)
     };
 
     // Streams: one per (module, strand), ordered by descending peak s_req.

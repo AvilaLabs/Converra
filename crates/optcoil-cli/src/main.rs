@@ -30,6 +30,7 @@ use optcoil_search::{
     RunRecord, SearchOptions, acceptance,
     allocation::{DemandOptions, build_allocation_demand_json},
     allocation_check::check_allocation_json,
+    allocation_plan::{PlanOptions, evaluate_truth_json, plan_measurements_json},
     allocation_run::run_allocation_json,
     coupled::{CoupledOptions, CoupledRunRecord, run_coupled_case, run_oc004},
     coupled_refine::{CoupledRefineOptions, CoupledRefineRunRecord, run_oc008},
@@ -683,6 +684,48 @@ enum AllocationCommand {
         /// Supply a material dataset bundle for the product map (repeatable).
         #[arg(long)]
         dataset_bundle: Vec<PathBuf>,
+    },
+    /// Evaluate an allocation record, and its baseline, against a synthetic
+    /// truth file (optcoil-synthetic-truth/v1): the pieces are re-walked with
+    /// the true capacity s(x) x transfer factor and no margin. The truth
+    /// must carry the inventory's SHA-256 and the record must pass the
+    /// independent check. Synthetic evidence only. The output is a new file.
+    EvaluateTruth {
+        demand: PathBuf,
+        inventory: PathBuf,
+        allocation: PathBuf,
+        truth: PathBuf,
+        /// Supply a material dataset bundle for the product map (repeatable).
+        #[arg(long)]
+        dataset_bundle: Vec<PathBuf>,
+        #[arg(long, short)]
+        output: PathBuf,
+    },
+    /// Rank the reels worth a low-temperature measurement
+    /// (optcoil-measurement-plan/v1): re-runs the allocation with one reel's
+    /// derate changed to the measurement sigma, ranks the changes and builds
+    /// the cumulative plan. Every allocation passes the independent check.
+    /// With --truth each step is also evaluated against the synthetic truth.
+    /// The output is a new file.
+    PlanMeasurements {
+        demand: PathBuf,
+        inventory: PathBuf,
+        #[arg(long)]
+        params: PathBuf,
+        /// Relative 1 sigma uncertainty of a measured scale factor.
+        #[arg(long)]
+        measurement_sigma: f64,
+        /// Most eligible reels assessed (default 200).
+        #[arg(long)]
+        max_candidates: Option<usize>,
+        /// A synthetic truth file for the inventory.
+        #[arg(long)]
+        truth: Option<PathBuf>,
+        /// Supply a material dataset bundle for the product map (repeatable).
+        #[arg(long)]
+        dataset_bundle: Vec<PathBuf>,
+        #[arg(long, short)]
+        output: PathBuf,
     },
 }
 
@@ -2529,6 +2572,85 @@ fn execute_allocation(command: AllocationCommand) -> Result<(), Box<dyn Error>> 
                 println!("FAIL");
                 return Err("allocation check failed".into());
             }
+        }
+        AllocationCommand::EvaluateTruth {
+            demand,
+            inventory,
+            allocation,
+            truth,
+            dataset_bundle,
+            output,
+        } => {
+            if output.exists() {
+                return Err("refusing to overwrite an existing output file".into());
+            }
+            let bundles = dataset_bundle
+                .iter()
+                .map(fs::read_to_string)
+                .collect::<Result<Vec<_>, _>>()?;
+            let bundle_refs: Vec<&str> = bundles.iter().map(String::as_str).collect();
+            let result = evaluate_truth_json(
+                &read_text(&demand)?,
+                &read_text(&inventory)?,
+                &read_text(&allocation)?,
+                &read_text(&truth)?,
+                &bundle_refs,
+            )?;
+            result.write_new(&output)?;
+            eprintln!(
+                "Saved {} (synthetic): the allocation violates {:.3} m in {} of {} piece(s); the baseline {:.3} m in {} of {}",
+                output.display(),
+                result.allocation.violated_length_m,
+                result.allocation.violated_pieces,
+                result.allocation.pieces_total,
+                result.baseline.violated_length_m,
+                result.baseline.violated_pieces,
+                result.baseline.pieces_total
+            );
+        }
+        AllocationCommand::PlanMeasurements {
+            demand,
+            inventory,
+            params,
+            measurement_sigma,
+            max_candidates,
+            truth,
+            dataset_bundle,
+            output,
+        } => {
+            if output.exists() {
+                return Err("refusing to overwrite an existing output file".into());
+            }
+            let bundles = dataset_bundle
+                .iter()
+                .map(fs::read_to_string)
+                .collect::<Result<Vec<_>, _>>()?;
+            let bundle_refs: Vec<&str> = bundles.iter().map(String::as_str).collect();
+            let truth_text = truth.as_deref().map(read_text).transpose()?;
+            let plan = plan_measurements_json(
+                &read_text(&demand)?,
+                &read_text(&inventory)?,
+                &read_text(&params)?,
+                &PlanOptions {
+                    measurement_sigma,
+                    max_candidates: max_candidates
+                        .unwrap_or(optcoil_search::allocation_plan::DEFAULT_MAX_CANDIDATES),
+                },
+                truth_text.as_deref(),
+                &bundle_refs,
+            )?;
+            plan.write_new(&output)?;
+            let ranked = plan.steps.len().saturating_sub(1);
+            eprintln!(
+                "Saved {} ({}): {} reel(s) assessed, {} change the allocation; the plan has {} step(s) and ends at a shortfall of {:.3} m from {:.3} m",
+                output.display(),
+                plan.evidence_class.as_str(),
+                plan.candidates.len(),
+                ranked,
+                ranked,
+                plan.steps.last().map_or(0.0, |s| s.outcome.shortfall_m),
+                plan.steps.first().map_or(0.0, |s| s.outcome.shortfall_m)
+            );
         }
     }
     Ok(())

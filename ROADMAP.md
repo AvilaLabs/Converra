@@ -62,15 +62,19 @@ needs it.
 
 ### CR-03 — Allocation and orientation
 
-- [ ] Assign reels to positions and orientations in a fixed design so that
-  every sampled position meets its declared margin. Derive the splice
-  schedule.
-- [ ] Route reels that miss a uniform specification to positions they can
+- [x] Assign reels to positions in a fixed design so that every sampled
+  position meets its declared margin, with ab-plane offsets applied
+  conservatively. Derive the splice schedule. Choosing a reel's orientation
+  cannot gain anything under the engine's minimum-of-mirror-pair angle policy,
+  so it is not offered. See [docs/CR03.md](docs/CR03.md).
+- [x] Route reels that miss a uniform specification to positions they can
   serve. Report conductor and scrap avoided against a declared uniform
   worst-case baseline, under documented prices.
+- [x] Evaluate allocations against a synthetic inventory's hidden truth, and
+  rank which reels are worth a low-temperature measurement.
 - [ ] Re-allocate the remaining inventory after a defect is recorded during
   winding, preserving the history of earlier allocations.
-- [ ] Independent acceptance recomputation of every allocation's screening and
+- [x] Independent acceptance recomputation of every allocation's screening and
   accounting.
 
 ### CR-04 — Recorded reel inventories

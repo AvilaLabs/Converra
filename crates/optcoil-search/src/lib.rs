@@ -16,6 +16,9 @@ pub(crate) mod time {
 pub mod acceptance;
 pub mod allocation;
 pub mod allocation_check;
+pub mod allocation_plan;
+#[cfg(test)]
+mod allocation_plan_tests;
 pub mod allocation_run;
 #[cfg(test)]
 mod allocation_tests;

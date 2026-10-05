@@ -404,6 +404,38 @@ pub fn check_allocation_json(
         .iter()
         .map(|b| MaterialDataset::from_bundle_json(b))
         .collect::<Result<Vec<_>, _>>()?;
+    let supplied: BTreeMap<String, MaterialDataset> = datasets
+        .iter()
+        .map(|d| (d.metadata.id.clone(), d.clone()))
+        .collect();
+    let map = resolve_map(
+        &demand.identities.product_map.dataset_id,
+        &demand.identities.product_map.csv_sha256,
+        &supplied,
+    );
+    check_allocation_parsed(
+        &demand,
+        demand_json,
+        &inventory,
+        inventory_json,
+        &record,
+        &map,
+        &BTreeMap::new(),
+    )
+}
+
+/// The check on parsed inputs. `derate_overrides` maps a reel id to the
+/// factor that replaces the recorded derate for that reel (the measurement
+/// planner's per-reel changes); it is empty for a plain allocation record.
+pub(crate) fn check_allocation_parsed(
+    demand: &AllocationDemand,
+    demand_json: &str,
+    inventory: &ReelInventory,
+    inventory_json: &str,
+    record: &AllocationRecord,
+    map: &Resolved,
+    derate_overrides: &BTreeMap<String, f64>,
+) -> Result<AllocationCheck, RunError> {
     let mut c = Collector::new();
 
     // Identity.
@@ -472,15 +504,6 @@ pub fn check_allocation_json(
     );
 
     // Reel models.
-    let supplied: BTreeMap<String, MaterialDataset> = datasets
-        .iter()
-        .map(|d| (d.metadata.id.clone(), d.clone()))
-        .collect();
-    let map = resolve_map(
-        &demand.identities.product_map.dataset_id,
-        &demand.identities.product_map.csv_sha256,
-        &supplied,
-    );
     let every_sensitive = demand
         .turns
         .iter()
@@ -488,7 +511,13 @@ pub fn check_allocation_json(
     let mut models: Vec<ReelModel> = inventory
         .passports
         .iter()
-        .map(|passport| model_reel(passport, &demand, factor, &map, every_sensitive))
+        .map(|passport| {
+            let reel_factor = derate_overrides
+                .get(&passport.reel_id)
+                .copied()
+                .unwrap_or(factor);
+            model_reel(passport, demand, reel_factor, map, every_sensitive)
+        })
         .collect();
     let margin = params.margin;
     for model in &mut models {
@@ -498,7 +527,7 @@ pub fn check_allocation_json(
         let mut worst = Some(0.0_f64);
         'coil: for module in 0..p {
             for turn in 0..n {
-                match base_need(&demand, model, module, turn) {
+                match base_need(demand, model, module, turn) {
                     Some(v) => worst = worst.map(|w| w.max(v)),
                     None => {
                         worst = None;
@@ -688,7 +717,7 @@ pub fn check_allocation_json(
                 &mut c,
                 plan,
                 stream,
-                &demand,
+                demand,
                 &models,
                 &index_of,
                 margin,

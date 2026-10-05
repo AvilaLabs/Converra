@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Add truth evaluation of an allocation against a synthetic truth file
+  (`optcoil-allocation-truth-evaluation/v1`) and measurement planning
+  (`optcoil-measurement-plan/v1`), with the CLI commands
+  `allocation evaluate-truth` and `allocation plan-measurements`. The plan
+  re-runs the allocator with one reel's derate changed, ranks the reels by
+  what a measurement would save, and builds a cumulative plan; every
+  allocation in it passes the independent check. With a truth file each step
+  also reports whether the measurement assumption held. Synthetic evidence
+  only.
 - Fix the allocation demand table at offset bounds above zero: angle samples
   are now folded into [0, 180) like the engine's, so positions near the tape
   normal are no longer reported as outside the map domain.

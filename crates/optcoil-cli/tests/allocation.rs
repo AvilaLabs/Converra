@@ -379,6 +379,81 @@ fn allocation_run_and_check_work_end_to_end() {
     assert!(stdout.contains("allocation splices"), "{stdout}");
     assert!(stdout.trim_end().ends_with("FAIL"), "{stdout}");
 
+    // Truth evaluation and measurement planning on the same inputs.
+    let evaluation_path = dir.join("evaluation.json");
+    let evaluated = cli()
+        .args(["allocation", "evaluate-truth"])
+        .arg(&demand_path)
+        .arg(&inventory_path)
+        .arg(&allocation_path)
+        .arg(&truth_path)
+        .arg("--output")
+        .arg(&evaluation_path)
+        .output()
+        .unwrap();
+    assert!(
+        evaluated.status.success(),
+        "{}",
+        String::from_utf8_lossy(&evaluated.stderr)
+    );
+    let evaluation: Value = serde_json::from_slice(&fs::read(&evaluation_path).unwrap()).unwrap();
+    assert_eq!(
+        evaluation["schema"],
+        "optcoil-allocation-truth-evaluation/v1"
+    );
+    assert_eq!(evaluation["evidence_class"], "synthetic");
+    // The truth of another inventory is refused.
+    let refused = cli()
+        .args(["allocation", "evaluate-truth"])
+        .arg(&demand_path)
+        .arg(&inventory_path)
+        .arg(&allocation_path)
+        .arg(&params_path)
+        .arg("--output")
+        .arg(dir.join("never-evaluation.json"))
+        .output()
+        .unwrap();
+    assert!(!refused.status.success());
+    assert!(!dir.join("never-evaluation.json").exists());
+
+    let plan_path = dir.join("plan.json");
+    let planned = cli()
+        .args(["allocation", "plan-measurements"])
+        .arg(&demand_path)
+        .arg(&inventory_path)
+        .arg("--params")
+        .arg(&params_path)
+        .args(["--measurement-sigma", "0.03", "--max-candidates", "4"])
+        .arg("--truth")
+        .arg(&truth_path)
+        .arg("--output")
+        .arg(&plan_path)
+        .output()
+        .unwrap();
+    assert!(
+        planned.status.success(),
+        "{}",
+        String::from_utf8_lossy(&planned.stderr)
+    );
+    let plan: Value = serde_json::from_slice(&fs::read(&plan_path).unwrap()).unwrap();
+    assert_eq!(plan["schema"], "optcoil-measurement-plan/v1");
+    assert_eq!(plan["measurement_sigma"], 0.03);
+    assert!(plan["candidates"].as_array().unwrap().len() <= 4);
+    assert_eq!(plan["steps"][0]["step"], 0);
+    assert!(plan["steps"][0]["truth"].is_object());
+    let again = cli()
+        .args(["allocation", "plan-measurements"])
+        .arg(&demand_path)
+        .arg(&inventory_path)
+        .arg("--params")
+        .arg(&params_path)
+        .args(["--measurement-sigma", "0.03"])
+        .arg("--output")
+        .arg(&plan_path)
+        .output()
+        .unwrap();
+    assert!(!again.status.success());
+
     // The derate is required.
     let bad_params = dir.join("bad-params.json");
     fs::write(
